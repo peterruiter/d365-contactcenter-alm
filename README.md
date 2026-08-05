@@ -13,7 +13,7 @@ You open the app in Dynamics, pick a source and a target, and see what differs. 
 | Part | What it is |
 | --- | --- |
 | Code app (`app/`) | React + TypeScript, Fluent UI, the `@microsoft/power-apps` SDK. The UI: environment picker, diff, plan, dry-run, apply, rollback. |
-| Backend | A service under a service principal that reads, diffs, plans, writes, and rolls back across all four environments. Option A below. |
+| Backend (`backend/function-app/`) | A PowerShell Azure Function that wraps the engine, exposing compare/plan/apply/rollback over HTTP under a service principal. |
 | Reference engine (`backend/reference-engine-powershell/`) | The exact logic the backend runs, in PowerShell, so it runs standalone and documents every Web API operation. |
 | Build and deploy (`build.ps1`, `scripts/`) | Build the app, `pac code init`, `pac code push`. |
 | Manifest (`config/manifest.json`) | Table order, match keys, lookups, move modes, detect-only rules. The app and the engine read from it. |
@@ -84,6 +84,14 @@ Deploy to an environment:
 
 Full walk-through in [docs/setup.md](docs/setup.md) and [docs/usage.md](docs/usage.md).
 
+Stand up the backend (Azure Function + connector):
+
+```powershell
+./scripts/deploy-backend.ps1 -ResourceGroup rg-ccalm -FunctionApp ccalm-func-nl -Location westeurope -EnvironmentsFile ./environments.json
+```
+
+Steps and auth in [docs/backend.md](docs/backend.md).
+
 ## Two things that catch everyone out
 
 1. **Enable Code Apps on the environment first.** Without the feature toggle, `pac code` commands fail silently and you lose an hour wondering why nothing deploys.
@@ -102,15 +110,18 @@ Full walk-through in [docs/setup.md](docs/setup.md) and [docs/usage.md](docs/usa
 | --- | --- |
 | `app/` | The code app. `src/components`, `src/pages`, `src/services` (the mock and backend adapters), `src/hooks`, `src/types`. |
 | `config/manifest.json` | Table order, match keys, lookups, move modes, detect-only rules. |
-| `backend/reference-engine-powershell/` | The compare/plan/write/rollback logic in PowerShell. The spec for the backend. |
+| `backend/function-app/` | The backend: PowerShell Azure Function wrapping the engine (`Modules/CcAlm`). |
+| `backend/cli/` | The same engine as a command-line tool, for pipelines. |
+| `connector/` | Custom connector definition (OpenAPI + Entra auth). |
 | `scripts/` | `deploy.ps1`, `init-app.ps1`. |
 | `build.ps1` | Install, typecheck, build the app. |
-| `docs/` | [architecture](docs/architecture.md), [setup](docs/setup.md), [usage](docs/usage.md), [manifest](docs/manifest.md), [backend service principal](docs/backend-service-principal.md) |
+| `docs/` | [architecture](docs/architecture.md), [setup](docs/setup.md), [usage](docs/usage.md), [backend](docs/backend.md), [manifest](docs/manifest.md), [backend service principal](docs/backend-service-principal.md) |
 
 ## Roadmap
 
-- [ ] Backend service (Azure Function) porting the reference engine
-- [ ] Custom connector for the backend, wired to `backendAlmService`
+- [x] Backend service (PowerShell Azure Function) wrapping the engine
+- [x] Custom connector definition for the backend
+- [ ] Generated connector client wired into `backendAlmService` (replaces direct fetch)
 - [ ] Live run polling and streamed stage progress
 - [ ] Manual-match override for records the engine cannot pair on name
 - [ ] Operating-hours calendar-row copy wired to a live org

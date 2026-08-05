@@ -11,7 +11,7 @@ function Compare-CcConfig {
         [Parameter(Mandatory)] [object[]] $Environments,
         [Parameter(Mandatory)] [string] $SourceId,
         [Parameter(Mandatory)] [string] $TargetId,
-        [string] $ManifestPath = "$PSScriptRoot/../../../config/manifest.json",
+        [string] $ManifestPath = (Get-CcDefaultManifestPath),
         [string[]] $Tables,
         [string] $OutputDir
     )

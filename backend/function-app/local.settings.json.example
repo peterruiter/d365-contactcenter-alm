@@ -1,0 +1,15 @@
+{
+  "IsEncrypted": false,
+  "Values": {
+    "AzureWebJobsStorage": "UseDevelopmentStorage=true",
+    "FUNCTIONS_WORKER_RUNTIME": "powershell",
+    "FUNCTIONS_WORKER_RUNTIME_VERSION": "7.4",
+
+    "CCALM_TENANT_ID": "00000000-0000-0000-0000-000000000000",
+    "CCALM_CLIENT_ID": "11111111-1111-1111-1111-111111111111",
+    "CCALM_CLIENT_SECRET": "set-in-key-vault-not-here",
+
+    "CCALM_ENVIRONMENTS": "{\"tenantId\":\"00000000-0000-0000-0000-000000000000\",\"clientId\":\"11111111-1111-1111-1111-111111111111\",\"apiVersion\":\"v9.2\",\"environments\":[{\"id\":\"dev\",\"name\":\"Dev\",\"url\":\"https://contoso-dev.crm4.dynamics.com\",\"role\":\"any\"},{\"id\":\"prod\",\"name\":\"Production\",\"url\":\"https://contoso-prod.crm4.dynamics.com\",\"role\":\"target\",\"requireApproval\":true}]}",
+    "CCALM_RUNS_CONTAINER": "ccalm-runs"
+  }
+}

@@ -10,7 +10,7 @@ param(
     [Parameter(Mandatory)] [string] $Snapshot
 )
 
-Import-Module "$PSScriptRoot/../src/CcAlm/CcAlm.psd1" -Force
+Import-Module "$PSScriptRoot/../function-app/Modules/CcAlm/CcAlm.psd1" -Force
 
 $envs = Connect-CcEnvironment -ConfigPath $Config
 Restore-CcRun -SnapshotPath $Snapshot -Environments $envs -Confirm:$false

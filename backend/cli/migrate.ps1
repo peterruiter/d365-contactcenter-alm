@@ -19,7 +19,7 @@ param(
     [string] $OutputDir = './out'
 )
 
-Import-Module "$PSScriptRoot/../src/CcAlm/CcAlm.psd1" -Force
+Import-Module "$PSScriptRoot/../function-app/Modules/CcAlm/CcAlm.psd1" -Force
 
 $envs = Connect-CcEnvironment -ConfigPath $Config
 $diff = Compare-CcConfig -Environments $envs -SourceId $Source -TargetId $Target -Tables $Tables -OutputDir $OutputDir

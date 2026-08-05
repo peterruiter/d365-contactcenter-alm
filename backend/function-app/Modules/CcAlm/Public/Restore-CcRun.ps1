@@ -11,7 +11,7 @@ function Restore-CcRun {
     param(
         [Parameter(Mandatory)] [string] $SnapshotPath,
         [Parameter(Mandatory)] [object[]] $Environments,
-        [string] $ManifestPath = "$PSScriptRoot/../../../config/manifest.json"
+        [string] $ManifestPath = (Get-CcDefaultManifestPath)
     )
 
     if (-not (Test-Path $SnapshotPath)) { throw "Snapshot not found at $SnapshotPath" }

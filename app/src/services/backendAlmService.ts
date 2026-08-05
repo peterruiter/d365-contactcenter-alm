@@ -57,14 +57,23 @@ export class BackendAlmService implements AlmService {
   }
 
   async apply(plan: Plan, mode: 'dryRun' | 'apply', approved: boolean): Promise<Run> {
-    const { runId } = await json<{ runId: string }>(
+    // The backend rebuilds context from source and target, so it needs the selection,
+    // not a stored plan id. It runs the plan and returns the run record directly.
+    const selection = plan.operations.map((o) => ({ table: o.table, matchKey: o.matchKey }))
+    return json<Run>(
       await fetch(this.url('/apply'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ planId: plan.planId, mode, approved, idempotencyKey: crypto.randomUUID() }),
+        body: JSON.stringify({
+          sourceEnvId: plan.source,
+          targetEnvId: plan.target,
+          selection,
+          mode,
+          approved,
+          idempotencyKey: crypto.randomUUID(),
+        }),
       }),
     )
-    return this.getRun(runId)
   }
 
   async getRun(runId: string): Promise<Run> {

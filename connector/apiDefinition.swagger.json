@@ -1,0 +1,126 @@
+{
+  "swagger": "2.0",
+  "info": {
+    "title": "Contact Center ALM",
+    "description": "Compare and move Dynamics 365 Contact Center config across environments.",
+    "version": "1.0.0"
+  },
+  "host": "REPLACE_WITH_FUNCTION_HOSTNAME",
+  "basePath": "/api",
+  "schemes": ["https"],
+  "consumes": ["application/json"],
+  "produces": ["application/json"],
+  "paths": {
+    "/environments": {
+      "get": {
+        "operationId": "GetEnvironments",
+        "summary": "List environments",
+        "responses": {
+          "200": { "description": "Registered environments", "schema": { "type": "array", "items": { "type": "object" } } }
+        }
+      }
+    },
+    "/compare": {
+      "post": {
+        "operationId": "Compare",
+        "summary": "Diff source against target",
+        "parameters": [
+          {
+            "name": "body", "in": "body", "required": true,
+            "schema": {
+              "type": "object",
+              "required": ["sourceEnvId", "targetEnvId"],
+              "properties": {
+                "sourceEnvId": { "type": "string" },
+                "targetEnvId": { "type": "string" },
+                "tables": { "type": "array", "items": { "type": "string" } }
+              }
+            }
+          }
+        ],
+        "responses": { "200": { "description": "Diff model", "schema": { "type": "object" } } }
+      }
+    },
+    "/plan": {
+      "post": {
+        "operationId": "Plan",
+        "summary": "Build an ordered plan",
+        "parameters": [
+          {
+            "name": "body", "in": "body", "required": true,
+            "schema": {
+              "type": "object",
+              "required": ["sourceEnvId", "targetEnvId"],
+              "properties": {
+                "sourceEnvId": { "type": "string" },
+                "targetEnvId": { "type": "string" },
+                "selection": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": { "table": { "type": "string" }, "matchKey": { "type": "string" } }
+                  }
+                }
+              }
+            }
+          }
+        ],
+        "responses": { "200": { "description": "Plan", "schema": { "type": "object" } } }
+      }
+    },
+    "/apply": {
+      "post": {
+        "operationId": "Apply",
+        "summary": "Run a plan (dry run or apply)",
+        "parameters": [
+          {
+            "name": "body", "in": "body", "required": true,
+            "schema": {
+              "type": "object",
+              "required": ["sourceEnvId", "targetEnvId", "mode"],
+              "properties": {
+                "sourceEnvId": { "type": "string" },
+                "targetEnvId": { "type": "string" },
+                "selection": { "type": "array", "items": { "type": "object" } },
+                "mode": { "type": "string", "enum": ["dryRun", "apply"] },
+                "approved": { "type": "boolean" },
+                "idempotencyKey": { "type": "string" }
+              }
+            }
+          }
+        ],
+        "responses": { "200": { "description": "Run record", "schema": { "type": "object" } } }
+      }
+    },
+    "/run/{id}": {
+      "get": {
+        "operationId": "GetRun",
+        "summary": "Get run state",
+        "parameters": [{ "name": "id", "in": "path", "required": true, "type": "string" }],
+        "responses": {
+          "200": { "description": "Run record", "schema": { "type": "object" } },
+          "404": { "description": "Not found" }
+        }
+      }
+    },
+    "/run/{id}/rollback": {
+      "post": {
+        "operationId": "Rollback",
+        "summary": "Roll back a run",
+        "parameters": [{ "name": "id", "in": "path", "required": true, "type": "string" }],
+        "responses": { "200": { "description": "Rollback result", "schema": { "type": "object" } } }
+      }
+    }
+  },
+  "definitions": {},
+  "securityDefinitions": {
+    "oauth2-auth": {
+      "type": "oauth2",
+      "flow": "accessCode",
+      "authorizationUrl": "https://login.microsoftonline.com/common/oauth2/authorize",
+      "tokenUrl": "https://login.microsoftonline.com/common/oauth2/token",
+      "scopes": {}
+    }
+  },
+  "security": [{ "oauth2-auth": [] }]
+}

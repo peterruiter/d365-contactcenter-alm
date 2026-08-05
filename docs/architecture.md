@@ -81,9 +81,11 @@ The backend exposes REST over HTTPS, Entra-protected. The shapes match `types/al
 | `GET /environments` | List registered environments. |
 | `POST /compare` | Diff source against target. Returns the diff model plus detect-only findings. |
 | `POST /plan` | Ordered write operations from an approved selection. |
-| `POST /apply` | Run the plan. `mode: dryRun \| apply`. Returns a run id. |
+| `POST /apply` | Run the plan (`mode: dryRun \| apply`). Stateless: takes source, target, and selection, returns the run record. |
 | `GET /run/{id}` | Run state, stage progress, warnings. Poll this. |
 | `POST /run/{id}/rollback` | Restore from the run snapshot. |
+
+The backend implements this in `backend/function-app` as PowerShell HTTP triggers over the engine. Apply runs synchronously today and returns the run; the polling shape stays in the contract so a later move to Durable Functions needs no app change. See `backend.md`.
 
 User auth to the backend (the signed-in app user) stays separate from the service principal the backend uses for Dataverse. Keep them separate.
 

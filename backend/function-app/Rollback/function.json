@@ -1,0 +1,13 @@
+{
+  "bindings": [
+    {
+      "authLevel": "anonymous",
+      "type": "httpTrigger",
+      "direction": "in",
+      "name": "Request",
+      "methods": ["post"],
+      "route": "run/{id}/rollback"
+    },
+    { "type": "http", "direction": "out", "name": "Response" }
+  ]
+}
