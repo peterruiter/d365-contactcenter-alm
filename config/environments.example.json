@@ -1,0 +1,12 @@
+{
+  "tenantId": "00000000-0000-0000-0000-000000000000",
+  "clientId": "11111111-1111-1111-1111-111111111111",
+  "clientSecret": "set-via-env-var-CCALM_CLIENT_SECRET-not-here",
+  "apiVersion": "v9.2",
+  "environments": [
+    { "id": "dev",  "name": "Dev",  "url": "https://yourorg-dev.crm4.dynamics.com",  "role": "any" },
+    { "id": "test", "name": "Test", "url": "https://yourorg-test.crm4.dynamics.com", "role": "any" },
+    { "id": "acc",  "name": "Acc",  "url": "https://yourorg-acc.crm4.dynamics.com",  "role": "any" },
+    { "id": "prod", "name": "Prod", "url": "https://yourorg-prod.crm4.dynamics.com", "role": "target", "requireApproval": true }
+  ]
+}

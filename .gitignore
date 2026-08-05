@@ -1,0 +1,28 @@
+# Node / app build
+app/node_modules/
+app/dist/
+node_modules/
+
+# Environment registry with real URLs and any secret. Never commit.
+environments.json
+*.local.json
+.env
+.env.local
+
+# Code app generated config that carries environment ids (regenerate with pac code init)
+# Comment this out if you want to commit power.config.json for your own fork.
+# app/power.config.json
+
+# Run output from the reference engine
+out/
+*.snapshot.json
+
+# Secrets
+*.secret
+
+# Editor / OS noise
+*.log
+.vs/
+.vscode/
+*.user
+.DS_Store
