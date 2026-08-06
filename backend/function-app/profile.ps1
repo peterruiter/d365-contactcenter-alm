@@ -11,57 +11,74 @@ if (Test-Path "$PSScriptRoot/manifest.json") {
 
 # --- Friendly labels for the UI ------------------------------------------------
 
-$script:CcTableLabels = @{
-    msdyn_operatinghour                = 'Operating hours'
-    characteristic                     = 'Skills'
-    ratingmodel                        = 'Rating models'
-    ratingvalue                        = 'Rating values'
-    msdyn_capacityprofile              = 'Capacity profiles'
-    msdyn_notificationtemplate         = 'Notification templates'
-    msdyn_sessiontemplate              = 'Session templates'
-    msdyn_liveworkstream               = 'Workstreams'
-    msdyn_liveworkstreamcapacityprofile = 'Workstream capacity'
-    msdyn_ocliveworkstreamcontextvariable = 'Context variables'
-    queue                              = 'Queues'
-    msdyn_decisioncontract             = 'Decision contracts'
-    msdyn_decisionruleset              = 'Routing rulesets'
-    msdyn_routingconfiguration         = 'Routing config'
-    msdyn_routingconfigurationstep     = 'Routing steps'
-    msdyn_assignmentconfiguration      = 'Assignment config'
-    msdyn_assignmentconfigurationstep  = 'Assignment steps'
-    msdyn_livechatconfig               = 'Live chat'
-    msdyn_ocvoicechannelsetting        = 'Voice channel'
-    msdyn_ocsmschannelsetting          = 'SMS channel'
-    msdyn_ocwhatsappchannelnumber      = 'WhatsApp channel'
-    msdyn_cannedmessages               = 'Quick replies'
-    msdyn_octags                       = 'Tags'
-    msdyn_omnichannelconfiguration     = 'Omnichannel config'
+function Get-CcTableLabels {
+    @{
+        msdyn_operatinghour                   = 'Operating hours'
+        characteristic                        = 'Skills'
+        ratingmodel                           = 'Rating models'
+        ratingvalue                           = 'Rating values'
+        msdyn_capacityprofile                 = 'Capacity profiles'
+        msdyn_notificationtemplate            = 'Notification templates'
+        msdyn_sessiontemplate                 = 'Session templates'
+        msdyn_liveworkstream                  = 'Workstreams'
+        msdyn_liveworkstreamcapacityprofile   = 'Workstream capacity'
+        msdyn_ocliveworkstreamcontextvariable = 'Context variables'
+        queue                                 = 'Queues'
+        msdyn_decisioncontract                = 'Decision contracts'
+        msdyn_decisionruleset                 = 'Routing rulesets'
+        msdyn_routingconfiguration            = 'Routing config'
+        msdyn_routingconfigurationstep        = 'Routing steps'
+        msdyn_assignmentconfiguration         = 'Assignment config'
+        msdyn_assignmentconfigurationstep     = 'Assignment steps'
+        msdyn_livechatconfig                  = 'Live chat'
+        msdyn_ocvoicechannelsetting           = 'Voice channel'
+        msdyn_ocsmschannelsetting             = 'SMS channel'
+        msdyn_ocwhatsappchannelnumber         = 'WhatsApp channel'
+        msdyn_cannedmessage                   = 'Quick replies'
+        msdyn_octag                           = 'Tags'
+        msdyn_omnichannelconfiguration        = 'Omnichannel config'
+    }
 }
 
-$script:CcStageLabels = @{
-    1  = 'Foundations (hours, skills, capacity, templates)'
-    2  = 'Workstreams'
-    3  = 'Workstream joins and context variables'
-    4  = 'Queues'
-    5  = 'Decision contracts'
-    6  = 'Routing rulesets'
-    7  = 'Routing and assignment steps'
-    8  = 'Channel settings'
-    9  = 'Quick replies and tags'
-    10 = 'Omnichannel config'
+function Get-CcStageLabels {
+    @{
+        1  = 'Foundations (hours, skills, capacity, templates)'
+        2  = 'Workstreams'
+        3  = 'Workstream joins and context variables'
+        4  = 'Queues'
+        5  = 'Decision contracts'
+        6  = 'Routing rulesets'
+        7  = 'Routing and assignment steps'
+        8  = 'Channel settings'
+        9  = 'Quick replies and tags'
+        10 = 'Omnichannel config'
+    }
 }
 
 function Get-CcLabel([string] $logical) {
-    if ($script:CcTableLabels.ContainsKey($logical)) { return $script:CcTableLabels[$logical] }
+    # Self-contained: no reliance on $script: state, which does not resolve the same way when a
+    # profile.ps1 function is invoked from a function's run.ps1 scope in Azure Functions.
+    $map = Get-CcTableLabels
+    if ($map.ContainsKey($logical)) { return $map[$logical] }
     return $logical
 }
 
 # --- Connect using app settings, not a file ------------------------------------
 
+function Get-CcRegistryJson {
+    # The registry can come from the CCALM_ENVIRONMENTS app setting, or from an environments.json
+    # shipped with the app. The file fallback avoids CLI quoting problems when setting a big JSON
+    # blob as an app setting.
+    if ($env:CCALM_ENVIRONMENTS) { return $env:CCALM_ENVIRONMENTS }
+    $file = Join-Path $PSScriptRoot 'environments.json'
+    if (Test-Path $file) { return (Get-Content $file -Raw) }
+    throw 'No environment registry. Set CCALM_ENVIRONMENTS, or ship environments.json with the app.'
+}
+
 function Get-CcConnected {
-    if (-not $env:CCALM_ENVIRONMENTS) { throw 'CCALM_ENVIRONMENTS app setting is not set.' }
+    $json = Get-CcRegistryJson
     $tmp = Join-Path ([System.IO.Path]::GetTempPath()) "ccalm-env-$([guid]::NewGuid().ToString('N')).json"
-    Set-Content -Path $tmp -Value $env:CCALM_ENVIRONMENTS -Encoding UTF8
+    Set-Content -Path $tmp -Value $json -Encoding UTF8
     try {
         return Connect-CcEnvironment -ConfigPath $tmp
     }
@@ -107,12 +124,13 @@ function ConvertTo-CcPlanContract($plan) {
 }
 
 function ConvertTo-CcRunContract($run, [string] $snapshotId) {
+    $stageLabels = Get-CcStageLabels
     $stages = foreach ($k in $run.stages.Keys) {
         $stageNo = [int]($k -replace '\D')
         $s = $run.stages[$k]
         [ordered]@{
             stage    = $stageNo
-            label    = if ($script:CcStageLabels.ContainsKey($stageNo)) { $script:CcStageLabels[$stageNo] } else { "Stage $stageNo" }
+            label    = if ($stageLabels.ContainsKey($stageNo)) { $stageLabels[$stageNo] } else { "Stage $stageNo" }
             state    = $s.state
             written  = $s.written
             warnings = @($s.warnings)
@@ -190,4 +208,16 @@ function Push-CcJson([int] $status, $body) {
 
 function Push-CcError([int] $status, [string] $code, [string] $message) {
     Push-CcJson $status @{ error = @{ code = $code; message = $message; details = @() } }
+}
+
+function Get-CcErrorText($err) {
+    # Full message plus where it threw, so a bare "null-valued expression" points at a line.
+    $parts = @($err.Exception.Message)
+    if ($err.InvocationInfo -and $err.InvocationInfo.PositionMessage) {
+        $parts += $err.InvocationInfo.PositionMessage.Trim()
+    }
+    if ($err.ScriptStackTrace) {
+        $parts += "Stack: " + ($err.ScriptStackTrace -replace "`r?`n", ' <- ')
+    }
+    return ($parts -join ' | ')
 }

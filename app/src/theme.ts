@@ -6,36 +6,49 @@ import {
 } from '@fluentui/react-components'
 import type { RecordStatus } from './types/alm'
 
-// A teal-through-cyan brand ramp. Routing is about flow, so the palette leans on the
-// blue-green end rather than the default Power Platform indigo. Restrained: the brand
-// shows up on primary actions and the source/target rule, nowhere else.
+// Capgemini brand ramp. Anchored on Capgemini Blue #0070AD (primary, ~stop 80) and rising
+// through Vibrant Blue #17ABDA (accent, ~stop 100) into pale tints. Deep navy at the low end.
 const brand: BrandVariants = {
-  10: '#020404',
-  20: '#0d1b1e',
-  30: '#0f2d33',
-  40: '#103b44',
-  50: '#114a55',
-  60: '#115967',
-  70: '#0f6979',
-  80: '#0b798c',
-  90: '#0f889b',
-  100: '#2f97a8',
-  110: '#4aa6b5',
-  120: '#65b5c2',
-  130: '#80c4cf',
-  140: '#9dd3dc',
-  150: '#bbe1e8',
-  160: '#daf0f4',
+  10: '#001523',
+  20: '#00263f',
+  30: '#00375b',
+  40: '#004977',
+  50: '#005a93',
+  60: '#0064a3',
+  70: '#006aa8',
+  80: '#0070ad', // Capgemini Blue
+  90: '#1088c1',
+  100: '#17abda', // Vibrant Blue
+  110: '#40b9e0',
+  120: '#64c6e7',
+  130: '#88d3ee',
+  140: '#abe0f4',
+  150: '#cdeef9',
+  160: '#e8f7fc',
 }
 
 export const lightTheme: Theme = createLightTheme(brand)
 export const darkTheme: Theme = createDarkTheme(brand)
 
-// Diff status colors. Chosen for meaning, not decoration:
-// missing needs adding, changed needs review, extra is left alone, equal is settled.
-export const statusColor: Record<RecordStatus, { fg: string; bg: string; label: string }> = {
-  MissingInTarget: { fg: '#0b5c2e', bg: '#e6f4ea', label: 'Missing in target' },
-  Changed: { fg: '#8a5300', bg: '#fbf1e0', label: 'Changed' },
-  ExtraInTarget: { fg: '#5b5b5b', bg: '#efefef', label: 'Extra in target' },
-  Equal: { fg: '#2f7a4d', bg: 'transparent', label: 'Equal' },
+// Fixed brand values used in the header and accents, independent of light/dark tokens.
+export const capgemini = {
+  blue: '#0070ad',
+  blueDark: '#005b8f',
+  vibrant: '#17abda',
+}
+
+// Diff status colors. Meaning over decoration: missing needs adding, changed needs review,
+// extra is left alone, equal is settled. Each carries a light and dark variant.
+export interface StatusStyle {
+  fg: string
+  bg: string
+  dot: string
+  label: string
+}
+
+export const statusColor: Record<RecordStatus, StatusStyle> = {
+  MissingInTarget: { fg: '#0e6b2e', bg: '#e4f6ea', dot: '#1a9e4b', label: 'Missing in target' },
+  Changed: { fg: '#8a5a00', bg: '#fdf3e2', dot: '#e08600', label: 'Changed' },
+  ExtraInTarget: { fg: '#5b6675', bg: '#eef1f5', dot: '#8a97a8', label: 'Extra in target' },
+  Equal: { fg: '#2f7a4d', bg: 'transparent', dot: '#57b98a', label: 'Equal' },
 }

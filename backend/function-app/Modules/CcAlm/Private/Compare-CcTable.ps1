@@ -13,7 +13,7 @@ function Compare-CcTable {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)] [pscustomobject] $Table,
-        [Parameter(Mandatory)] [object[]] $SourceRecords,
+        [Parameter(Mandatory)] [AllowEmptyCollection()] [object[]] $SourceRecords,
         [Parameter(Mandatory)] [AllowEmptyCollection()] [object[]] $TargetRecords,
         [Parameter(Mandatory)] [hashtable] $SourceIndexes,
         [Parameter(Mandatory)] [hashtable] $TargetIndexes,

@@ -66,8 +66,9 @@ az functionapp create `
 
 # App settings the engine reads. The service principal secret should be a Key Vault reference
 # in production; set it here only for a quick start.
-$envJson = (Get-Content $EnvironmentsFile -Raw)
-$cfg = $envJson | ConvertFrom-Json
+$cfg = Get-Content $EnvironmentsFile -Raw | ConvertFrom-Json
+# Compress to a single line. A multi-line JSON blob breaks az argument parsing on Windows.
+$envJson = $cfg | ConvertTo-Json -Compress -Depth 20
 
 Write-Host 'Setting app settings' -ForegroundColor Cyan
 az functionapp config appsettings set --name $FunctionApp --resource-group $ResourceGroup --only-show-errors --settings `
@@ -75,6 +76,10 @@ az functionapp config appsettings set --name $FunctionApp --resource-group $Reso
     "CCALM_CLIENT_ID=$($cfg.clientId)" `
     "CCALM_ENVIRONMENTS=$envJson" `
     "CCALM_RUNS_CONTAINER=ccalm-runs" | Out-Null
+
+# Belt and braces: also ship the registry as a file. The Function reads this if the app setting
+# is missing or malformed, so a quoting problem never leaves you with a dead endpoint.
+Copy-Item $EnvironmentsFile (Join-Path $appDir 'environments.json') -Force
 
 Write-Warning "Set the service principal secret out of band, ideally a Key Vault reference:"
 Write-Host "  az functionapp config appsettings set --name $FunctionApp --resource-group $ResourceGroup --settings CCALM_CLIENT_SECRET='@Microsoft.KeyVault(SecretUri=...)'" -ForegroundColor DarkGray

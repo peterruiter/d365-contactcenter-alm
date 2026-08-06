@@ -54,9 +54,10 @@ rollback(runId): Promise<Run>
 Two adapters implement it:
 
 - **mock** (`mockAlmService.ts`): in-memory sample data, real workstreams and queues and rulesets. The app runs and demos with no backend. Set `VITE_ALM_SOURCE=mock`.
-- **backend** (`backendAlmService.ts`): calls the backend contract. Set `VITE_ALM_SOURCE=backend` and `VITE_ALM_BACKEND_URL`.
+- **backend** (`backendAlmService.ts`): direct HTTP to the deployed Function, for local dev. Set `VITE_ALM_SOURCE=backend` and `VITE_ALM_BACKEND_URL`.
+- **connector** (`connectorAlmService.ts`): calls the backend through the generated custom-connector client. The path the published app uses. Set `VITE_ALM_SOURCE=connector`.
 
-Swapping one for the other never touches a component. That is the point: the UI is done and stable while the backend gets built.
+Swapping one for the other never touches a component. `generatedConnector.ts` is the single seam to the generated connector client, wired after `pac code add-data-source`.
 
 ## Two options for the backend
 
@@ -70,7 +71,7 @@ The app is the same for both. Only the adapter differs.
 | Extra infrastructure | Azure hosting | None |
 | Fit | Unattended, pipeline-friendly, safer for Prod | Self-contained, simpler, weaker for Prod |
 
-Option A is the default here, because this tool writes to Prod. The backend runs the reference engine's logic. Wire the `backendAlmService` to the custom connector the app registers with `pac code add-data-source`.
+Option A is the default here, because this tool writes to Prod. The backend runs the reference engine's logic. The published app reaches it through the custom connector via `connectorAlmService`.
 
 ## The API contract
 

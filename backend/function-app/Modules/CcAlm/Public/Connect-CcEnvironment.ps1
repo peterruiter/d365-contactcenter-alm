@@ -20,31 +20,38 @@ function Connect-CcEnvironment {
     $cfg = Get-Content -Path $ConfigPath -Raw | ConvertFrom-Json
 
     $secret = $env:CCALM_CLIENT_SECRET
-    if (-not $secret) { $secret = $cfg.clientSecret }
+    if (-not $secret -and ($cfg.PSObject.Properties.Name -contains 'clientSecret')) { $secret = $cfg.clientSecret }
     if (-not $secret -or $secret -like 'set-via-env-var*') {
         throw "No client secret. Set CCALM_CLIENT_SECRET or put it in the registry file."
     }
 
-    $apiVersion = if ($cfg.apiVersion) { $cfg.apiVersion } else { 'v9.2' }
+    $apiVersion = 'v9.2'
+    if (($cfg.PSObject.Properties.Name -contains 'apiVersion') -and $cfg.apiVersion) { $apiVersion = $cfg.apiVersion }
 
     $connected = foreach ($e in $cfg.environments) {
         $url = $e.url
         $tenantId = $cfg.tenantId
         $clientId = $cfg.clientId
 
-        # Closure so each env gets a fresh, cached token on demand.
-        $getter = {
-            Get-CcToken -TenantId $tenantId -ClientId $clientId -ClientSecret $secret -ResourceUrl $url
-        }.GetNewClosure()
+        # role and requireApproval are optional per environment.
+        $role = 'any'
+        if ($e.PSObject.Properties.Name -contains 'role' -and $e.role) { $role = $e.role }
+        $requireApproval = $false
+        if ($e.PSObject.Properties.Name -contains 'requireApproval') { $requireApproval = [bool]$e.requireApproval }
 
+        # No closure. GetNewClosure() loses access to the module's private functions (Get-CcToken)
+        # when the block runs later. Store what the token call needs; Invoke-CcWebApi calls
+        # Get-CcToken directly, from module scope where it resolves.
         [pscustomobject]@{
             Id              = $e.id
             Name            = $e.name
             Url             = $url
-            Role            = $e.role
-            RequireApproval = [bool]$e.requireApproval
+            Role            = $role
+            RequireApproval = $requireApproval
             ApiVersion      = $apiVersion
-            TokenGetter     = $getter
+            TenantId        = $tenantId
+            ClientId        = $clientId
+            ClientSecret    = $secret
         }
     }
 

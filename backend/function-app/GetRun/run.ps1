@@ -14,5 +14,5 @@ try {
     Push-CcJson 200 $run
 }
 catch {
-    Push-CcError 500 'run_failed' $_.Exception.Message
+    Push-CcError 500 'run_failed' (Get-CcErrorText $_)
 }

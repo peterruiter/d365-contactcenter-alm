@@ -1,4 +1,4 @@
-import { Dropdown, Option, Button, Field, Spinner } from '@fluentui/react-components'
+import { Dropdown, Option, Button, Spinner } from '@fluentui/react-components'
 import { ArrowRightRegular, ArrowSyncRegular } from '@fluentui/react-icons'
 import type { EnvironmentRef } from '../types/alm'
 
@@ -12,53 +12,58 @@ interface Props {
   onCompare: () => void
 }
 
-function envLabel(env: EnvironmentRef): string {
-  return env.requireApproval ? `${env.name} (approval)` : env.name
-}
-
-export function EnvironmentBar({ environments, sourceId, targetId, busy, onSource, onTarget, onCompare }: Props) {
+export function EnvironmentBar({
+  environments, sourceId, targetId, busy, onSource, onTarget, onCompare,
+}: Props) {
   const source = environments.find((e) => e.id === sourceId)
   const target = environments.find((e) => e.id === targetId)
   const canCompare = !!sourceId && !!targetId && sourceId !== targetId && !busy
 
+  const optionList = environments.map((e) => (
+    <Option key={e.id} value={e.id} text={e.name}>
+      {e.name}
+    </Option>
+  ))
+
   return (
-    <div className="env-bar">
-      <Field label="Source" hint="Read from here">
+    <div className="env-grid">
+      <span className="eg-label eg-src-label">Source</span>
+      <div className="eg-src-ctl">
         <Dropdown
           placeholder="Pick source"
-          value={source ? envLabel(source) : ''}
+          value={source?.name ?? ''}
           selectedOptions={sourceId ? [sourceId] : []}
           onOptionSelect={(_, d) => d.optionValue && onSource(d.optionValue)}
-          style={{ minWidth: 200 }}
         >
-          {environments.map((e) => (
-            <Option key={e.id} value={e.id} text={envLabel(e)}>
-              {envLabel(e)}
-            </Option>
-          ))}
+          {optionList}
         </Dropdown>
-      </Field>
+      </div>
+      <span className="eg-hint eg-src-hint">Read from here</span>
 
-      <ArrowRightRegular className="env-arrow" fontSize={24} />
+      <div className="eg-arrow">
+        <ArrowRightRegular fontSize={22} />
+      </div>
 
-      <Field label="Target" hint="Write to here" validationMessage={target?.requireApproval ? 'Needs approval to apply' : undefined} validationState={target?.requireApproval ? 'warning' : 'none'}>
+      <span className="eg-label eg-tgt-label">Target</span>
+      <div className="eg-tgt-ctl">
         <Dropdown
           placeholder="Pick target"
-          value={target ? envLabel(target) : ''}
+          value={target?.name ?? ''}
           selectedOptions={targetId ? [targetId] : []}
           onOptionSelect={(_, d) => d.optionValue && onTarget(d.optionValue)}
-          style={{ minWidth: 200 }}
         >
-          {environments.map((e) => (
-            <Option key={e.id} value={e.id} text={envLabel(e)}>
-              {envLabel(e)}
-            </Option>
-          ))}
+          {optionList}
         </Dropdown>
-      </Field>
+      </div>
+      <span className="eg-hint eg-tgt-hint">
+        Write to here
+        {target?.requireApproval && <span className="pill">Approval required</span>}
+      </span>
 
       <Button
+        className="eg-btn"
         appearance="primary"
+        size="medium"
         icon={busy ? <Spinner size="tiny" /> : <ArrowSyncRegular />}
         disabled={!canCompare}
         onClick={onCompare}

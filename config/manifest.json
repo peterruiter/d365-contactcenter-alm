@@ -40,7 +40,7 @@
       "move": "upsert",
       "matchKeys": ["name"],
       "alternateKey": "name",
-      "select": ["ratingmodelid", "name", "description"],
+      "select": ["ratingmodelid", "name"],
       "lookups": [],
       "notes": "Skill proficiency scale. Write before ratingvalue."
     },
@@ -311,26 +311,26 @@
     {
       "order": 22,
       "stage": 9,
-      "logicalName": "msdyn_cannedmessages",
-      "entitySet": "msdyn_cannedmessageses",
+      "logicalName": "msdyn_cannedmessage",
+      "entitySet": "msdyn_cannedmessages",
       "move": "upsert",
       "matchKeys": ["msdyn_name"],
       "alternateKey": "msdyn_name",
-      "select": ["msdyn_cannedmessagesid", "msdyn_name", "msdyn_messagetext", "msdyn_tag"],
+      "select": ["msdyn_cannedmessageid", "msdyn_name"],
       "lookups": [],
-      "notes": "Quick replies. Free-standing. Confirm the entity set name against your org."
+      "notes": "Quick replies. Free-standing. Table is msdyn_cannedmessage (singular)."
     },
     {
       "order": 23,
       "stage": 9,
-      "logicalName": "msdyn_octags",
-      "entitySet": "msdyn_octagses",
+      "logicalName": "msdyn_octag",
+      "entitySet": "msdyn_octags",
       "move": "upsert",
       "matchKeys": ["msdyn_name"],
       "alternateKey": "msdyn_name",
-      "select": ["msdyn_octagsid", "msdyn_name"],
+      "select": ["msdyn_octagid", "msdyn_name"],
       "lookups": [],
-      "notes": "Tags. Free-standing. Confirm the entity set name against your org."
+      "notes": "Tags. Free-standing. Table is msdyn_octag (singular)."
     },
     {
       "order": 24,

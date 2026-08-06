@@ -1,7 +1,6 @@
 import { useMemo, useState } from 'react'
 import {
   Button,
-  Divider,
   MessageBar,
   MessageBarBody,
   Switch,
@@ -17,14 +16,6 @@ import { PlanPanel } from '../components/PlanPanel'
 import { RunProgress } from '../components/RunProgress'
 import { ApplyDialog } from '../components/ApplyDialog'
 import type { SelectionItem, TableDiff } from '../types/alm'
-
-function sectionTitle(text: string) {
-  return (
-    <Text size={500} weight="semibold" block style={{ marginBottom: 12 }}>
-      {text}
-    </Text>
-  )
-}
 
 export function ComparePage() {
   const flow = useAlmFlow()
@@ -81,7 +72,7 @@ export function ComparePage() {
 
   return (
     <div>
-      <div className="section">
+      <div className="section panel">
         <EnvironmentBar
           environments={flow.environments}
           sourceId={flow.sourceId}
@@ -107,9 +98,9 @@ export function ComparePage() {
 
           <DetectOnlyPanel findings={flow.diff.detectOnly} />
 
-          <div className="section">
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-              {sectionTitle('Differences')}
+          <div className="section panel">
+            <div className="section-head">
+              <span className="section-title">Differences</span>
               <Switch
                 checked={showEqual}
                 onChange={(_, d) => setShowEqual(d.checked)}
@@ -123,7 +114,7 @@ export function ComparePage() {
               onToggle={toggle}
               onToggleTable={toggleTable}
             />
-            <div style={{ marginTop: 16, display: 'flex', gap: 12, alignItems: 'center' }}>
+            <div className="actions">
               <Button
                 appearance="primary"
                 icon={<ClipboardTaskListLtrRegular />}
@@ -142,12 +133,13 @@ export function ComparePage() {
 
       {flow.plan && (
         <>
-          <Divider className="section" />
-          <div className="section">
-            {sectionTitle('Plan')}
+          <div className="section panel">
+            <div className="section-head">
+              <span className="section-title">Plan</span>
+            </div>
             <PlanPanel plan={flow.plan} />
             {flow.plan.operations.length > 0 && (
-              <div style={{ marginTop: 16 }}>
+              <div className="actions">
                 <Button
                   appearance="primary"
                   icon={<PlayRegular />}
@@ -172,12 +164,13 @@ export function ComparePage() {
 
       {flow.run && (
         <>
-          <Divider className="section" />
-          <div className="section">
-            {sectionTitle('Run')}
+          <div className="section panel">
+            <div className="section-head">
+              <span className="section-title">Run</span>
+            </div>
             <RunProgress run={flow.run} />
             {flow.run.mode === 'apply' && flow.run.state !== 'RolledBack' && (
-              <div style={{ marginTop: 16 }}>
+              <div className="actions">
                 <Button
                   appearance="secondary"
                   icon={<ArrowUndoRegular />}

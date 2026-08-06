@@ -54,7 +54,7 @@ Then:
 
 1. Enable Easy Auth (Entra ID) on the Function app.
 2. Create the custom connector from `./connector` (`pac connector create`), with the Function hostname in the swagger and the Entra app details in the properties.
-3. In the code app: `pac code add-data-source` for that connector, set `VITE_ALM_SOURCE=backend`, and point `VITE_ALM_BACKEND_URL` at the Function while testing directly.
+3. In the code app: `pac code add-data-source` for that connector, wire `src/services/generatedConnector.ts`, and set `VITE_ALM_SOURCE=connector`. Full steps in getting-started.md, phase B8.
 
 ## Limits worth knowing
 

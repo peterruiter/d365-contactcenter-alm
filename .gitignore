@@ -26,3 +26,6 @@ out/
 .vscode/
 *.user
 .DS_Store
+
+# Registry copy shipped into the function app at deploy
+backend/function-app/environments.json

@@ -44,7 +44,7 @@ function Build-CcIndex {
     #>
     [CmdletBinding()]
     param(
-        [Parameter(Mandatory)] [object[]] $Records,
+        [Parameter(Mandatory)] [AllowEmptyCollection()] [object[]] $Records,
         [Parameter(Mandatory)] [pscustomobject] $Table
     )
 

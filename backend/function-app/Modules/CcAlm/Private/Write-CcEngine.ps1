@@ -175,7 +175,7 @@ function Save-CcSnapshot {
     #>
     param(
         [pscustomobject] $Environment,
-        [object[]] $Operations,
+        [AllowEmptyCollection()] [object[]] $Operations,
         [hashtable] $TargetIndexes,
         [string] $Path
     )

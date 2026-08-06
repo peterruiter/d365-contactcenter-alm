@@ -42,5 +42,5 @@ try {
     Push-CcJson 200 $contract
 }
 catch {
-    Push-CcError 500 'apply_failed' $_.Exception.Message
+    Push-CcError 500 'apply_failed' (Get-CcErrorText $_)
 }

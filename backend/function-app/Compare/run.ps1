@@ -14,5 +14,5 @@ try {
     Push-CcJson 200 (ConvertTo-CcDiffContract $diff)
 }
 catch {
-    Push-CcError 500 'compare_failed' $_.Exception.Message
+    Push-CcError 500 'compare_failed' (Get-CcErrorText $_)
 }

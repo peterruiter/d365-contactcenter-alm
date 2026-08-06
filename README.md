@@ -6,6 +6,8 @@ Contact Center ALM is the part everyone dreads. Workstreams, queues, routing rul
 
 So this puts it behind a UI.
 
+> **New here? Follow [docs/getting-started.md](docs/getting-started.md).** It goes from nothing to a working tool, step by step, no prior Power Platform or Azure knowledge needed.
+
 You open the app in Dynamics, pick a source and a target, and see what differs. The tool matches records on their names instead of their GUIDs, so two identical workstreams do not read as "everything changed". You pick what to move, dry-run it, then apply. It writes in the right order, remaps the GUIDs, and waits for workstream provisioning before it moves on. Any environment to any environment.
 
 ## What you get
@@ -68,6 +70,9 @@ Per-environment provisioning. The tool detects these, shows them in the app, and
 
 ## Get started
 
+The full step-by-step is in [docs/getting-started.md](docs/getting-started.md). The short version:
+
+
 ```bash
 git clone https://github.com/peterruiter/d365-contactcenter-alm.git
 cd d365-contactcenter-alm/app
@@ -115,13 +120,13 @@ Steps and auth in [docs/backend.md](docs/backend.md).
 | `connector/` | Custom connector definition (OpenAPI + Entra auth). |
 | `scripts/` | `deploy.ps1`, `init-app.ps1`. |
 | `build.ps1` | Install, typecheck, build the app. |
-| `docs/` | [architecture](docs/architecture.md), [setup](docs/setup.md), [usage](docs/usage.md), [backend](docs/backend.md), [manifest](docs/manifest.md), [backend service principal](docs/backend-service-principal.md) |
+| `docs/` | [getting-started](docs/getting-started.md), [architecture](docs/architecture.md), [setup](docs/setup.md), [usage](docs/usage.md), [backend](docs/backend.md), [manifest](docs/manifest.md), [backend service principal](docs/backend-service-principal.md) |
 
 ## Roadmap
 
 - [x] Backend service (PowerShell Azure Function) wrapping the engine
 - [x] Custom connector definition for the backend
-- [ ] Generated connector client wired into `backendAlmService` (replaces direct fetch)
+- [x] Connector adapter wired into the app (published app calls the backend through the connector)
 - [ ] Live run polling and streamed stage progress
 - [ ] Manual-match override for records the engine cannot pair on name
 - [ ] Operating-hours calendar-row copy wired to a live org

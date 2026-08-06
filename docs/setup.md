@@ -28,7 +28,8 @@ Once the backend exists (see `architecture.md`, option A):
 ```bash
 cd app
 cp .env.example .env
-# set VITE_ALM_SOURCE=backend and VITE_ALM_BACKEND_URL=<backend base url>
+# local dev: set VITE_ALM_SOURCE=backend and VITE_ALM_BACKEND_URL=<backend base url>
+# published: set VITE_ALM_SOURCE=connector (after wiring the connector, see getting-started.md B8)
 npm run dev
 ```
 

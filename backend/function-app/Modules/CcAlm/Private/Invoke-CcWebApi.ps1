@@ -23,7 +23,8 @@ function Invoke-CcWebApi {
     $attempt = 0
     while ($true) {
         $attempt++
-        $token = & $Environment.TokenGetter
+        $token = Get-CcToken -TenantId $Environment.TenantId -ClientId $Environment.ClientId `
+            -ClientSecret $Environment.ClientSecret -ResourceUrl $Environment.Url
         $headers = @{
             'Authorization'    = "Bearer $token"
             'Accept'           = 'application/json'

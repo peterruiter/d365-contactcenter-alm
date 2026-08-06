@@ -38,5 +38,5 @@ try {
     }
 }
 catch {
-    Push-CcError 500 'rollback_failed' $_.Exception.Message
+    Push-CcError 500 'rollback_failed' (Get-CcErrorText $_)
 }

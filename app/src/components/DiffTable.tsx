@@ -69,40 +69,39 @@ export function DiffTable({ diff, showEqual, selected, onToggle, onToggleTable }
                   />
                 </div>
               )}
-              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                <tbody>
-                  {t.records.map((r) => (
-                    <tr key={r.matchKey} style={{ borderTop: '1px solid var(--colorNeutralStroke3)' }}>
-                      <td style={{ width: 28, padding: '6px 4px', verticalAlign: 'top' }}>
-                        {selectable(r) && (
-                          <Checkbox
-                            checked={selected.has(key(t.table, r.matchKey))}
-                            onChange={() => onToggle(t.table, r.matchKey)}
-                            aria-label={`Move ${r.matchKey}`}
-                          />
-                        )}
-                      </td>
-                      <td style={{ padding: '6px 4px', verticalAlign: 'top' }}>
-                        <Text>{r.matchKey}</Text>
-                        {r.fields.length > 0 && (
-                          <div style={{ marginTop: 4 }}>
-                            {r.fields.map((f) => (
-                              <div key={f.name} className="field-delta">
-                                {f.name}: <span style={{ color: 'var(--colorPaletteRedForeground1)' }}>{f.target ?? '-'}</span>
-                                {' -> '}
-                                <span style={{ color: 'var(--colorPaletteGreenForeground1)' }}>{f.source ?? '-'}</span>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </td>
-                      <td style={{ padding: '6px 4px', verticalAlign: 'top', textAlign: 'right', width: 130 }}>
-                        <StatusBadge status={r.status} />
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+              <div>
+                {t.records.map((r) => (
+                  <div key={r.matchKey} className="diff-row">
+                    <div>
+                      {selectable(r) && (
+                        <Checkbox
+                          checked={selected.has(key(t.table, r.matchKey))}
+                          onChange={() => onToggle(t.table, r.matchKey)}
+                          aria-label={`Move ${r.matchKey}`}
+                        />
+                      )}
+                    </div>
+                    <div>
+                      <Text weight="medium">{r.matchKey}</Text>
+                      {r.fields.length > 0 && (
+                        <div style={{ marginTop: 2 }}>
+                          {r.fields.map((f) => (
+                            <div key={f.name} className="field-delta">
+                              <span style={{ color: 'var(--colorNeutralForeground3)' }}>{f.name}: </span>
+                              <span style={{ color: 'var(--colorPaletteRedForeground1)' }}>{f.target ?? '-'}</span>
+                              {' \u2192 '}
+                              <span style={{ color: 'var(--colorPaletteGreenForeground1)' }}>{f.source ?? '-'}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    <div style={{ justifySelf: 'end' }}>
+                      <StatusBadge status={r.status} />
+                    </div>
+                  </div>
+                ))}
+              </div>
             </AccordionPanel>
           </AccordionItem>
         )

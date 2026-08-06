@@ -18,5 +18,5 @@ try {
     Push-CcJson 200 (ConvertTo-CcPlanContract $plan)
 }
 catch {
-    Push-CcError 500 'plan_failed' $_.Exception.Message
+    Push-CcError 500 'plan_failed' (Get-CcErrorText $_)
 }
