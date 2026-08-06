@@ -41,7 +41,7 @@ function Build-CcWritePayload {
         [pscustomobject] $Environment,
         [hashtable] $EntitySetByLogical,
         [hashtable] $SourceIndexes,
-        [hashtable] $Maps,
+        [object] $Maps,
         [string[]] $SystemColumns,
         [ref] $Problems
     )

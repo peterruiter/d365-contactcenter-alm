@@ -31,8 +31,8 @@ try {
     $snapshotId = $null
     if ($mode -eq 'Apply' -and $run.snapshot -and (Test-Path $run.snapshot)) {
         $snapshotId = $run.runId
-        Get-CcBlobContext | Out-Null
-        Set-AzStorageBlobContent -File $run.snapshot -Container (Get-CcRunsContainer) -Blob "snapshot-$($run.runId).json" -Context (Get-CcBlobContext) -Force | Out-Null
+        $container = Confirm-CcRunsContainer
+        Set-AzStorageBlobContent -File $run.snapshot -Container $container -Blob "snapshot-$($run.runId).json" -Context (Get-CcBlobContext) -Force | Out-Null
     }
 
     $contract = ConvertTo-CcRunContract $run $snapshotId

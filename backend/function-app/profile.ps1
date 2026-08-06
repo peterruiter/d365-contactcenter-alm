@@ -159,12 +159,19 @@ function Get-CcRunsContainer {
     return 'ccalm-runs'
 }
 
-function Save-CcBlobJson([string] $name, $object) {
+function Confirm-CcRunsContainer {
+    # Idempotent: create the runs container the first time anything writes to it.
     $ctx = Get-CcBlobContext
     $container = Get-CcRunsContainer
     if (-not (Get-AzStorageContainer -Name $container -Context $ctx -ErrorAction SilentlyContinue)) {
         New-AzStorageContainer -Name $container -Context $ctx -Permission Off | Out-Null
     }
+    return $container
+}
+
+function Save-CcBlobJson([string] $name, $object) {
+    $ctx = Get-CcBlobContext
+    $container = Confirm-CcRunsContainer
     $tmp = Join-Path ([System.IO.Path]::GetTempPath()) $name
     $object | ConvertTo-Json -Depth 40 | Set-Content -Path $tmp -Encoding UTF8
     Set-AzStorageBlobContent -File $tmp -Container $container -Blob $name -Context $ctx -Force | Out-Null

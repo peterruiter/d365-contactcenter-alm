@@ -29,7 +29,7 @@ function Build-CcGlobalMaps {
         }
     }
 
-    return [pscustomobject]@{
+    return @{
         SourceGuidToRef = $sourceGuidToRef
         TargetKeyToGuid = $targetKeyToGuid
     }
