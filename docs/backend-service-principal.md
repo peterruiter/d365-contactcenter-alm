@@ -30,14 +30,14 @@ Do this in Dev, Test, Acc, and Prod. Each is separate.
 
 The app user needs read and write on the manifest tables. Two options.
 
-**Least privilege (recommended for Prod).** Build a custom security role with Create, Read, Write on the tables in `config/manifest.json`, at organisation scope. That is workstreams, queues, operating hours, capacity profiles, rating models and values, characteristics, decision contracts and rulesets, routing and assignment configs and their steps, channel settings, quick replies, tags, context variables, and the omnichannel configuration. Read on entity metadata (`EntityDefinitions`), which the write engine needs for navigation properties.
+**Least privilege (recommended for Prod).** Build a custom security role with Create, Read, Write on the tables listed in `config/manifest.json` (each entry's `logicalName`), at organisation scope. That is workstreams, queues, operating hours, capacity profiles, rating models and values, characteristics, decision contracts and rulesets, routing and assignment configs and their steps, channel settings, quick replies, tags, context variables, and the omnichannel configuration. Read on entity metadata (`EntityDefinitions`), which the write engine needs for navigation properties and to confirm system-required columns.
 
 **Fast (fine for Dev and Test).** Assign **System Administrator**. Simple, and too broad for Prod.
 
 ## 5. Confirm it works
 
 ```powershell
-Import-Module ./src/CcAlm/CcAlm.psd1
+Import-Module ./backend/function-app/Modules/CcAlm/CcAlm.psd1
 $env:CCALM_CLIENT_SECRET = '<secret value>'
 $envs = Connect-CcEnvironment -ConfigPath ./environments.json -Verbose
 ```

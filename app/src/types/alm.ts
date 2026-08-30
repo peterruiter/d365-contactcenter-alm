@@ -20,10 +20,19 @@ export interface FieldDelta {
   target: string | null
 }
 
+export interface DependencyRef {
+  table: string
+  matchKey: string
+}
+
 export interface RecordDiff {
   matchKey: string
   status: RecordStatus
   fields: FieldDelta[]
+  /** Other records this one points at (via manifest lookups). Selecting this record should also select any of these still missing or changed in the target. */
+  dependsOn: DependencyRef[]
+  /** Friendly name (e.g. msdyn_name) for tables matched on an opaque key like msdyn_uniquename. Absent when the match key is already readable - fall back to matchKey. */
+  displayName?: string | null
 }
 
 export interface TableDiff {
@@ -67,6 +76,13 @@ export interface PlanOperation {
   label: string
   op: OpKind
   matchKey: string
+  displayName?: string | null
+}
+
+export interface PlanStage {
+  stage: number
+  label: string
+  operations: PlanOperation[]
 }
 
 export interface Plan {
@@ -75,6 +91,8 @@ export interface Plan {
   target: string
   created: string
   operations: PlanOperation[]
+  /** All canonical stages, in order, including ones with nothing to do - so the plan view can show the full pipeline rather than just the stages that happen to have work. */
+  stages: PlanStage[]
 }
 
 export interface SelectionItem {

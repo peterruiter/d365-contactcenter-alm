@@ -2,9 +2,9 @@
 .SYNOPSIS
     Compare, build a plan, dry-run, then apply. Dry-run is the default. Add -Apply to write.
 .EXAMPLE
-    ./scripts/migrate.ps1 -Config ./environments.json -Source acc -Target prod            # dry-run
+    ./backend/cli/migrate.ps1 -Config ./environments.json -Source acc -Target prod            # dry-run
 .EXAMPLE
-    ./scripts/migrate.ps1 -Config ./environments.json -Source acc -Target prod -Apply -Approved
+    ./backend/cli/migrate.ps1 -Config ./environments.json -Source acc -Target prod -Apply -Approved
 .NOTES
     Prod (or any environment with requireApproval) needs -Approved to apply.
 #>

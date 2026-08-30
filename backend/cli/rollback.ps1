@@ -2,7 +2,7 @@
 .SYNOPSIS
     Roll back a run from its snapshot file.
 .EXAMPLE
-    ./scripts/rollback.ps1 -Config ./environments.json -Snapshot ./out/snapshot-run_abc123.json
+    ./backend/cli/rollback.ps1 -Config ./environments.json -Snapshot ./out/snapshot-run_abc123.json
 #>
 [CmdletBinding()]
 param(

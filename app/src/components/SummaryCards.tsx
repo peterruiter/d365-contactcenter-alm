@@ -1,11 +1,15 @@
 import type { CSSProperties } from 'react'
 import type { DiffSummary } from '../types/alm'
+import { brand } from '../brands'
 
+// Green/orange/grey are diff-status semantics, stable across brands (see theme.ts). "Equal"
+// has no inherent semantic color of its own, so it takes the active brand's primary instead
+// of a hardcoded Capgemini blue.
 const CARDS: { key: keyof DiffSummary; label: string; accent: string }[] = [
-  { key: 'missingInTarget', label: 'Missing in target', accent: '#1a9e4b' },
-  { key: 'changed', label: 'Changed', accent: '#e08600' },
-  { key: 'extraInTarget', label: 'Extra in target', accent: '#8a97a8' },
-  { key: 'equal', label: 'Equal', accent: '#0070ad' },
+  { key: 'missingInTarget', label: 'Missing in target', accent: '#4eb972' }, // Zodiak Green-600
+  { key: 'changed', label: 'Changed', accent: '#f68f40' }, // Zodiak Orange-500
+  { key: 'extraInTarget', label: 'Extra in target', accent: '#a6acb5' }, // Zodiak Neutral-400
+  { key: 'equal', label: 'Equal', accent: brand.colors.primary },
 ]
 
 export function SummaryCards({ summary }: { summary: DiffSummary }) {

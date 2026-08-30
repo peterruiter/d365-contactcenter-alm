@@ -2,9 +2,9 @@
 .SYNOPSIS
     Compare Contact Center config between two environments and write a diff report.
 .EXAMPLE
-    ./scripts/compare.ps1 -Config ./environments.json -Source acc -Target prod
+    ./backend/cli/compare.ps1 -Config ./environments.json -Source acc -Target prod
 .EXAMPLE
-    $env:CCALM_CLIENT_SECRET = '...'; ./scripts/compare.ps1 -Config ./environments.json -Source dev -Target test -Tables msdyn_liveworkstream,queue
+    $env:CCALM_CLIENT_SECRET = '...'; ./backend/cli/compare.ps1 -Config ./environments.json -Source dev -Target test -Tables msdyn_liveworkstream,queue
 #>
 [CmdletBinding()]
 param(

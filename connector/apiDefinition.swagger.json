@@ -5,7 +5,7 @@
     "description": "Compare and move Dynamics 365 Contact Center config across environments.",
     "version": "1.0.0"
   },
-  "host": "REPLACE_WITH_FUNCTION_HOSTNAME",
+  "host": "ccalmfuncpwrpete.azurewebsites.net",
   "basePath": "/api",
   "schemes": ["https"],
   "consumes": ["application/json"],

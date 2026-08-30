@@ -4,28 +4,44 @@ function Build-CcGlobalMaps {
         Builds the maps that drive cross-environment matching and GUID remapping.
           SourceGuidToRef : sourceGuid -> @{ Entity; Key }
           TargetKeyToGuid : "entity|naturalKey" -> targetGuid
-        Indexes is a hashtable of logicalName -> index object from Build-CcIndex, one set per environment.
+        Both Key/naturalKey values are the fully resolved comparable key (Get-CcComparableKey), not
+        Build-CcIndex's raw IdToKey. For a table whose own matchKeys include a lookup column (for
+        example msdyn_routingconfiguration, matched on name plus its parent workstream), the raw
+        IdToKey embeds that lookup's GUID as-is - a different, environment-specific GUID on each
+        side, so it can never agree between source and target. The resolved key instead embeds the
+        parent's own natural key (its name, say), which is the same string on both sides whenever
+        the parent itself matches - the only way "entity|naturalKey" can actually line up here.
     #>
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)] [hashtable] $SourceIndexes,
-        [Parameter(Mandatory)] [hashtable] $TargetIndexes
+        [Parameter(Mandatory)] [hashtable] $TargetIndexes,
+        [Parameter(Mandatory)] [hashtable] $SourceRecordsByTable,
+        [Parameter(Mandatory)] [hashtable] $TargetRecordsByTable,
+        [Parameter(Mandatory)] [hashtable] $TableByLogical
     )
 
     $sourceGuidToRef = @{}
     foreach ($logical in $SourceIndexes.Keys) {
-        $idx = $SourceIndexes[$logical]
-        foreach ($guid in $idx.IdToKey.Keys) {
-            $sourceGuidToRef[$guid] = @{ Entity = $logical; Key = $idx.IdToKey[$guid] }
+        $tbl = $TableByLogical[$logical]
+        if (-not $tbl) { continue }
+        foreach ($r in $SourceRecordsByTable[$logical]) {
+            $guid = Get-CcRecordId -Record $r -Table $tbl
+            if (-not $guid) { continue }
+            $key = Get-CcComparableKey -Record $r -Table $tbl -EnvIndexes $SourceIndexes
+            $sourceGuidToRef[$guid] = @{ Entity = $logical; Key = $key }
         }
     }
 
     $targetKeyToGuid = @{}
     foreach ($logical in $TargetIndexes.Keys) {
-        $idx = $TargetIndexes[$logical]
-        foreach ($guid in $idx.IdToKey.Keys) {
-            $composite = "$logical|$($idx.IdToKey[$guid])"
-            $targetKeyToGuid[$composite] = $guid
+        $tbl = $TableByLogical[$logical]
+        if (-not $tbl) { continue }
+        foreach ($r in $TargetRecordsByTable[$logical]) {
+            $guid = Get-CcRecordId -Record $r -Table $tbl
+            if (-not $guid) { continue }
+            $key = Get-CcComparableKey -Record $r -Table $tbl -EnvIndexes $TargetIndexes
+            $targetKeyToGuid["$logical|$key"] = $guid
         }
     }
 

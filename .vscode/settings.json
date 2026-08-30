@@ -1,0 +1,7 @@
+{
+    "azureFunctions.deploySubpath": "backend\\function-app",
+    "azureFunctions.projectLanguage": "PowerShell",
+    "azureFunctions.projectRuntime": "~4",
+    "debug.internalConsoleOptions": "neverOpen",
+    "sarif-viewer.connectToGithubCodeScanning": "off"
+}

@@ -3,6 +3,7 @@
 interface ImportMetaEnv {
   readonly VITE_ALM_SOURCE?: 'mock' | 'backend' | 'connector'
   readonly VITE_ALM_BACKEND_URL?: string
+  readonly VITE_BRAND?: 'capgemini' | 'powerpete'
 }
 
 interface ImportMeta {

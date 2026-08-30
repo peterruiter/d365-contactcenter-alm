@@ -16,7 +16,8 @@ You open the app in Dynamics, pick a source and a target, and see what differs. 
 | --- | --- |
 | Code app (`app/`) | React + TypeScript, Fluent UI, the `@microsoft/power-apps` SDK. The UI: environment picker, diff, plan, dry-run, apply, rollback. |
 | Backend (`backend/function-app/`) | A PowerShell Azure Function that wraps the engine, exposing compare/plan/apply/rollback over HTTP under a service principal. |
-| Reference engine (`backend/reference-engine-powershell/`) | The exact logic the backend runs, in PowerShell, so it runs standalone and documents every Web API operation. |
+| Engine (`backend/function-app/Modules/CcAlm/`) | The compare/plan/write/rollback logic, in PowerShell. The Function App and the CLI both call it, so there is one implementation, not two to keep in sync. |
+| CLI (`backend/cli/`) | Thin wrapper scripts (`compare.ps1`, `migrate.ps1`, `rollback.ps1`) over the same engine, for standalone or pipeline use without the Azure Function. |
 | Build and deploy (`build.ps1`, `scripts/`) | Build the app, `pac code init`, `pac code push`. |
 | Manifest (`config/manifest.json`) | Table order, match keys, lookups, move modes, detect-only rules. The app and the engine read from it. |
 
@@ -105,7 +106,8 @@ Steps and auth in [docs/backend.md](docs/backend.md).
 ## Known limits
 
 - Async provisioning has no done signal. The engine polls with a timeout and warns, it does not pretend success.
-- Rollback restores records but cannot reverse provisioning side-effects. A half-provisioned workstream needs a manual look.
+- Rollback restores records but cannot reverse provisioning side-effects. A half-provisioned workstream needs a manual look. It also does not delete records the run created; that is a manual cleanup.
+- A record with a dependency that has not moved yet (a ruleset pointing at a queue not in the plan, a step whose parent config is not in target) is skipped with a warning, not written half-broken. The run then reports `PartiallyFailed` even though nothing actually errored — read the warnings, they name exactly what to select and re-run.
 - Operating-hours calendar association is a second pass, not yet wired to a live org.
 - Some entity set names (quick replies, tags) need confirming per org. The manifest notes them.
 
@@ -113,20 +115,21 @@ Steps and auth in [docs/backend.md](docs/backend.md).
 
 | Path | Contents |
 | --- | --- |
-| `app/` | The code app. `src/components`, `src/pages`, `src/services` (the mock and backend adapters), `src/hooks`, `src/types`. |
+| `app/` | The code app. `src/components`, `src/pages`, `src/services` (the mock and backend adapters), `src/hooks`, `src/types`, `src/brands` (visual identity, Power Pete by default; `VITE_BRAND=capgemini` for the Capgemini identity). |
 | `config/manifest.json` | Table order, match keys, lookups, move modes, detect-only rules. |
 | `backend/function-app/` | The backend: PowerShell Azure Function wrapping the engine (`Modules/CcAlm`). |
 | `backend/cli/` | The same engine as a command-line tool, for pipelines. |
 | `connector/` | Custom connector definition (OpenAPI + Entra auth). |
 | `scripts/` | `deploy.ps1`, `init-app.ps1`. |
 | `build.ps1` | Install, typecheck, build the app. |
-| `docs/` | [getting-started](docs/getting-started.md), [architecture](docs/architecture.md), [setup](docs/setup.md), [usage](docs/usage.md), [backend](docs/backend.md), [manifest](docs/manifest.md), [backend service principal](docs/backend-service-principal.md) |
+| `docs/` | [getting-started](docs/getting-started.md), [architecture](docs/architecture.md), [setup](docs/setup.md), [usage](docs/usage.md), [usage (CLI/engine reference)](docs/usage-engine-reference.md), [backend](docs/backend.md), [manifest](docs/manifest.md), [backend service principal](docs/backend-service-principal.md) |
 
 ## Roadmap
 
 - [x] Backend service (PowerShell Azure Function) wrapping the engine
 - [x] Custom connector definition for the backend
 - [x] Connector adapter wired into the app (published app calls the backend through the connector)
+- [x] Published and running inside Dynamics against a real environment, end to end
 - [ ] Live run polling and streamed stage progress
 - [ ] Manual-match override for records the engine cannot pair on name
 - [ ] Operating-hours calendar-row copy wired to a live org

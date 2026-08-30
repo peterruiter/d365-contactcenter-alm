@@ -42,12 +42,13 @@ function New-CcPlan {
 
             $seq++
             $ops.Add([pscustomobject]@{
-                seq      = $seq
-                stage    = $t.stage
-                order    = $t.order
-                table    = $t.logicalName
-                op       = $op
-                matchKey = $r.matchKey
+                seq         = $seq
+                stage       = $t.stage
+                order       = $t.order
+                table       = $t.logicalName
+                op          = $op
+                matchKey    = $r.matchKey
+                displayName = $r.displayName
             }) | Out-Null
         }
     }

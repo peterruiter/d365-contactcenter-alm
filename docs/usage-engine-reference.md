@@ -5,7 +5,7 @@ Compare, migrate, and roll back. Every write path is dry-run first.
 ## Setup once
 
 ```powershell
-Import-Module ./src/CcAlm/CcAlm.psd1
+Import-Module ./backend/function-app/Modules/CcAlm/CcAlm.psd1
 Copy-Item ./config/environments.example.json ./environments.json
 # edit tenantId, clientId, and the four environment URLs
 $env:CCALM_CLIENT_SECRET = '<your secret>'
@@ -14,7 +14,7 @@ $env:CCALM_CLIENT_SECRET = '<your secret>'
 ## Compare
 
 ```powershell
-./scripts/compare.ps1 -Config ./environments.json -Source acc -Target prod
+./backend/cli/compare.ps1 -Config ./environments.json -Source acc -Target prod
 ```
 
 You get a console summary and two files in `./out`:
@@ -25,7 +25,7 @@ You get a console summary and two files in `./out`:
 Limit it to a few tables while you are testing:
 
 ```powershell
-./scripts/compare.ps1 -Config ./environments.json -Source dev -Target test -Tables msdyn_liveworkstream,queue,msdyn_decisionruleset
+./backend/cli/compare.ps1 -Config ./environments.json -Source dev -Target test -Tables msdyn_liveworkstream,queue,msdyn_decisionruleset
 ```
 
 Read the summary before you move anything. MissingInTarget and Changed are what a migrate will write. ExtraInTarget is config in the target that is not in the source; the tool never deletes it.
@@ -35,15 +35,15 @@ Read the summary before you move anything. MissingInTarget and Changed are what 
 Dry-run is the default. It builds the plan, reports every operation, and writes nothing.
 
 ```powershell
-./scripts/migrate.ps1 -Config ./environments.json -Source acc -Target prod
+./backend/cli/migrate.ps1 -Config ./environments.json -Source acc -Target prod
 ```
 
-Read the plan. It lists operations by stage and manifest order, so you can see parents landing before children. Check the "Problems flagged" section at the end. Unmapped ruleset GUIDs or missing parents show up here.
+Read the plan. It lists operations by stage and manifest order, so you can see parents landing before children. Check the "Problems flagged" section at the end. Unmapped ruleset GUIDs or missing parents show up here - each one means that specific record will be skipped on apply rather than written broken, so select the record(s) it depends on and re-run to get a clean plan.
 
 ## Migrate: apply
 
 ```powershell
-./scripts/migrate.ps1 -Config ./environments.json -Source acc -Target prod -Apply -Approved
+./backend/cli/migrate.ps1 -Config ./environments.json -Source acc -Target prod -Apply -Approved
 ```
 
 - `-Apply` switches from dry-run to writing.
@@ -55,14 +55,16 @@ What happens:
 2. Stages run in order. Each reports a written count and any warnings.
 3. Workstream creates wait for provisioning before the run moves on.
 4. Rulesets write twice, to land dependency mappings.
-5. A run record lands in `./out/run-run_<id>.json`.
+5. A GUID a record just landed at in target - a queue created in stage 4, say - is immediately usable by anything that references it in a later stage. A ruleset in stage 6 pointing at a queue created earlier in the *same* run resolves it correctly; nothing needs a second apply.
+6. A record whose dependency genuinely is not in target (not selected this run) is skipped with a warning instead of attempted - the run continues to the rest of the plan rather than stopping there.
+7. A run record lands in `./out/run-run_<id>.json`.
 
-If a write fails, the run stops at that stage, writes the run record with state `PartiallyFailed`, and tells you the snapshot path to roll back.
+The run state reflects both outcomes: `PartiallyFailed` means either a real write failed (rare - the run also stops immediately in that case, and the message tells you the snapshot path to roll back) or one or more records were skipped for an unresolved dependency (the run still completed everything else). Read the warnings and problems either way; a skip names exactly what to select next.
 
 ## Roll back
 
 ```powershell
-./scripts/rollback.ps1 -Config ./environments.json -Snapshot ./out/snapshot-run_<id>.json
+./backend/cli/rollback.ps1 -Config ./environments.json -Snapshot ./out/snapshot-run_<id>.json
 ```
 
 Rollback restores changed records to their pre-run state, in reverse order. It reports records the run created rather than deleting them, and it flags anything it could not restore. Read that output. A half-provisioned workstream needs a manual look, because async side-effects do not reverse cleanly.

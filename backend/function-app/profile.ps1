@@ -100,7 +100,13 @@ function ConvertTo-CcDiffContract($diff) {
                 table   = $_.table
                 label   = Get-CcLabel $_.table
                 records = @($_.records | ForEach-Object {
-                    [ordered]@{ matchKey = $_.matchKey; status = $_.status; fields = @($_.fields) }
+                    [ordered]@{
+                        matchKey    = $_.matchKey
+                        status      = $_.status
+                        fields      = @($_.fields)
+                        dependsOn   = @($_.dependsOn | ForEach-Object { [ordered]@{ table = $_.table; matchKey = $_.matchKey } })
+                        displayName = $_.displayName
+                    }
                 })
             }
         })
@@ -109,6 +115,22 @@ function ConvertTo-CcDiffContract($diff) {
 }
 
 function ConvertTo-CcPlanContract($plan) {
+    # Stage numbers get cast to [int] on every read and write below. Get-CcManifest parses JSON,
+    # where ConvertFrom-Json hands back stage numbers as [Int64]; Get-CcStageLabels is a literal
+    # PowerShell hashtable with [Int32] keys. A plain Hashtable hashes by the boxed value's runtime
+    # type, so Int32(4) and Int64(4) are different keys - ContainsKey silently returns false across
+    # the two, and every stage looked empty even though the plan had operations in it.
+    $stageLabels = Get-CcStageLabels
+    $opsByStage = @{}
+    foreach ($op in $plan.operations) {
+        $stageKey = [int]$op.stage
+        if (-not $opsByStage.ContainsKey($stageKey)) { $opsByStage[$stageKey] = [System.Collections.Generic.List[object]]::new() }
+        $opsByStage[$stageKey].Add($op) | Out-Null
+    }
+    # Every canonical stage shows up even with nothing to do in it, plus any stage the plan itself
+    # used that isn't in the canonical list (belt and braces against manifest/label drift).
+    $allStageNumbers = @($stageLabels.Keys | ForEach-Object { [int]$_ }) + @($opsByStage.Keys) | Select-Object -Unique | Sort-Object
+
     [ordered]@{
         planId     = $plan.planId
         source     = $plan.source
@@ -118,6 +140,21 @@ function ConvertTo-CcPlanContract($plan) {
             [ordered]@{
                 seq = $_.seq; stage = $_.stage; table = $_.table
                 label = Get-CcLabel $_.table; op = $_.op; matchKey = $_.matchKey
+                displayName = $_.displayName
+            }
+        })
+        stages = @($allStageNumbers | ForEach-Object {
+            $stageNo = [int]$_
+            $ops = if ($opsByStage.ContainsKey($stageNo)) { $opsByStage[$stageNo] } else { @() }
+            [ordered]@{
+                stage      = $stageNo
+                label      = if ($stageLabels.ContainsKey($stageNo)) { $stageLabels[$stageNo] } else { "Stage $stageNo" }
+                operations = @($ops | ForEach-Object {
+                    [ordered]@{
+                        seq = $_.seq; table = $_.table; label = Get-CcLabel $_.table
+                        op = $_.op; matchKey = $_.matchKey; displayName = $_.displayName
+                    }
+                })
             }
         })
     }

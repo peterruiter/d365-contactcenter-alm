@@ -15,7 +15,8 @@ import { DetectOnlyPanel } from '../components/DetectOnlyPanel'
 import { PlanPanel } from '../components/PlanPanel'
 import { RunProgress } from '../components/RunProgress'
 import { ApplyDialog } from '../components/ApplyDialog'
-import type { SelectionItem, TableDiff } from '../types/alm'
+import { WizardSteps } from '../components/WizardSteps'
+import type { RecordDiff, SelectionItem, TableDiff } from '../types/alm'
 
 export function ComparePage() {
   const flow = useAlmFlow()
@@ -25,11 +26,50 @@ export function ComparePage() {
 
   const target = flow.environments.find((e) => e.id === flow.targetId)
 
+  // Flat lookup of every record in the diff, keyed "table|matchKey", so a selection can walk
+  // dependsOn edges without re-scanning the whole diff each time.
+  const recordByKey = useMemo(() => {
+    const m = new Map<string, RecordDiff>()
+    if (flow.diff) {
+      for (const t of flow.diff.tables) {
+        for (const r of t.records) m.set(`${t.table}|${r.matchKey}`, r)
+      }
+    }
+    return m
+  }, [flow.diff])
+
+  // A record plus every dependency (transitively) that still needs to move. A dependency already
+  // equal in the target is left alone; there is nothing to select.
+  const withDependencies = (startKey: string): string[] => {
+    const out: string[] = []
+    const seen = new Set<string>()
+    const stack = [startKey]
+    while (stack.length > 0) {
+      const k = stack.pop() as string
+      if (seen.has(k)) continue
+      seen.add(k)
+      out.push(k)
+      const rec = recordByKey.get(k)
+      for (const dep of rec?.dependsOn ?? []) {
+        const depKey = `${dep.table}|${dep.matchKey}`
+        const depRec = recordByKey.get(depKey)
+        if (depRec && (depRec.status === 'MissingInTarget' || depRec.status === 'Changed')) {
+          stack.push(depKey)
+        }
+      }
+    }
+    return out
+  }
+
   const toggle = (table: string, matchKey: string) => {
     const k = `${table}|${matchKey}`
     setSelected((prev) => {
       const next = new Set(prev)
-      next.has(k) ? next.delete(k) : next.add(k)
+      if (next.has(k)) {
+        next.delete(k)
+      } else {
+        for (const key of withDependencies(k)) next.add(key)
+      }
       return next
     })
   }
@@ -40,7 +80,11 @@ export function ComparePage() {
       for (const r of t.records) {
         if (r.status !== 'MissingInTarget' && r.status !== 'Changed') continue
         const k = `${t.table}|${r.matchKey}`
-        on ? next.add(k) : next.delete(k)
+        if (on) {
+          for (const key of withDependencies(k)) next.add(key)
+        } else {
+          next.delete(k)
+        }
       }
       return next
     })
@@ -59,8 +103,10 @@ export function ComparePage() {
       selected.size === 0
         ? undefined
         : [...selected].map((k) => {
-            const [table, matchKey] = k.split('|')
-            return { table, matchKey }
+            // matchKey itself often contains '|' (composite match keys), so split only on the
+            // first one - the table's logical name never does.
+            const i = k.indexOf('|')
+            return { table: k.slice(0, i), matchKey: k.slice(i + 1) }
           })
     flow.buildPlan(selection)
   }
@@ -71,7 +117,8 @@ export function ComparePage() {
   }
 
   return (
-    <div>
+    <div className="layout">
+      <div className="layout-main">
       <div className="section panel">
         <EnvironmentBar
           environments={flow.environments}
@@ -80,7 +127,7 @@ export function ComparePage() {
           busy={flow.busy}
           onSource={flow.setSource}
           onTarget={flow.setTarget}
-          onCompare={flow.compare}
+          onCompare={() => flow.compare()}
         />
       </div>
 
@@ -184,6 +231,9 @@ export function ComparePage() {
           </div>
         </>
       )}
+      </div>
+
+      <WizardSteps flow={flow} movableCount={movableCount} />
     </div>
   )
 }

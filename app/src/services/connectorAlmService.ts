@@ -9,10 +9,16 @@ import { getGeneratedClient, type RawAlmClient } from './generatedConnector'
 // only difference from that adapter is the transport: connector instead of raw fetch.
 
 function unwrap<T>(res: unknown): T {
-  // Generated services return the response body. Some versions wrap it as { data } or { value };
-  // tolerate both so a generator change does not break the app.
+  // Generated services return IOperationResult<T> ({ success, data, error }) for a connector-backed
+  // data source, but tolerate a plain { value } shape too so a generator change does not break the
+  // app. A failed call (success: false) throws instead of silently returning undefined data.
   if (res && typeof res === 'object' && !Array.isArray(res)) {
     const obj = res as Record<string, unknown>
+    if ('success' in obj && obj.success === false) {
+      const err = obj.error
+      const message = err instanceof Error ? err.message : typeof err === 'string' ? err : 'Connector call failed.'
+      throw new Error(message)
+    }
     if ('data' in obj) return obj.data as T
     if ('value' in obj) return obj.value as T
   }

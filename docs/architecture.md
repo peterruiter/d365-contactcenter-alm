@@ -10,7 +10,7 @@ Power Apps code app (React/TS, in Dynamics)        Backend (service principal)
 │ Pick source and target                │          │ Read  -> natural-key index   │   Dev
 │ See the diff, pick what moves         │  HTTPS   │ Diff  -> resolve GUIDs to key│   Test
 │ Build a plan, dry-run, apply          │ ───────▶ │ Plan  -> ordered operations  │──▶ Acc
-│ Watch stage progress, roll back       │  via     │ Write -> upsert by alt key   │   Prod
+│ Watch stage progress, roll back       │  via     │ Write -> upsert by resolved key   │   Prod
 │                                        │ connector│ Rollback -> snapshot restore │
 └──────────────────────────────────────┘          └──────────────────────────────┘
         Fluent UI v9                                one app registration,
@@ -19,7 +19,7 @@ Power Apps code app (React/TS, in Dynamics)        Backend (service principal)
 
 The code app is the front end. It runs inside the Power Apps host, which handles Entra sign-in and routes outbound calls through a connector so DLP applies. The app never talks to the four Dataverse environments itself.
 
-The backend does the heavy lifting: read, compare, plan, write, rollback, under a service principal that is an Application User in every environment. The reference engine in `backend/reference-engine-powershell` is the exact spec for it: same manifest, same GUID remapping, same stage order, same ruleset double-write.
+The backend does the heavy lifting: read, compare, plan, write, rollback, under a service principal that is an Application User in every environment. It is one engine, `backend/function-app/Modules/CcAlm`, shared by the Azure Function and the CLI (`backend/cli`) — same manifest, same GUID remapping, same stage order, same ruleset double-write, so there is nothing to keep in sync between "the real thing" and "the reference".
 
 ## Why a backend at all
 
@@ -108,5 +108,6 @@ Per-environment provisioning. The backend detects these and reports them. The ap
 
 - Writing routing config through the Web API is not a Microsoft-supported path. Version-detect the ruleset JSON and fail loud. Expect breakage on product updates.
 - Async provisioning has no done signal. The engine polls with a timeout and warns.
-- Rollback cannot reverse provisioning side-effects. Snapshot restores records; a half-provisioned workstream needs a manual look.
+- Rollback cannot reverse provisioning side-effects. Snapshot restores records; a half-provisioned workstream needs a manual look. It does not delete records the run created.
 - Operating-hours calendar association is a second pass, not yet wired to a live org.
+- A record whose dependency has not landed in target yet - a ruleset referencing a queue not in the plan, a step whose parent config is not in target - is skipped with a warning rather than written half-broken. The run then reports `PartiallyFailed`; that is a "some records need their dependency migrated first" signal, not necessarily a bug. Selecting a record in the app auto-selects what it depends on, which is usually enough to avoid the skip in the first place.

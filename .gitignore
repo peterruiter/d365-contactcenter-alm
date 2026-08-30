@@ -9,9 +9,12 @@ environments.json
 .env
 .env.local
 
-# Code app generated config that carries environment ids (regenerate with pac code init)
-# Comment this out if you want to commit power.config.json for your own fork.
-# app/power.config.json
+# Code app generated config that carries environment/connection ids specific to one org
+# (regenerate with pac code init + pac code add-data-source). Comment these out if you want to
+# commit your own fork's power.config.json.
+app/power.config.json
+app/.power/
+app/src/generated/
 
 # Run output from the reference engine
 out/
@@ -23,7 +26,7 @@ out/
 # Editor / OS noise
 *.log
 .vs/
-.vscode/
+
 *.user
 .DS_Store
 

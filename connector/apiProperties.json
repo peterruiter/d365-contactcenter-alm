@@ -5,19 +5,19 @@
         "type": "oauthSetting",
         "oAuthSettings": {
           "identityProvider": "aad",
-          "clientId": "REPLACE_WITH_CONNECTOR_AAD_CLIENT_ID",
+          "clientId": "df0b1e25-aebd-4aa2-85dd-01c964996111",
           "scopes": [],
           "redirectMode": "Global",
           "redirectUrl": "https://global.consent.azure-apim.net/redirect",
           "properties": {
             "IsFirstParty": "False",
-            "AzureActiveDirectoryResourceId": "REPLACE_WITH_FUNCTION_AAD_APP_ID_URI",
+            "AzureActiveDirectoryResourceId": "df0b1e25-aebd-4aa2-85dd-01c964996111",
             "IsOnbehalfofLoginSupported": true
           },
           "customParameters": {
             "loginUri": { "value": "https://login.microsoftonline.com" },
-            "tenantId": { "value": "REPLACE_WITH_TENANT_ID" },
-            "resourceUri": { "value": "REPLACE_WITH_FUNCTION_AAD_APP_ID_URI" },
+            "tenantId": { "value": "1f35170b-cfc5-48f3-b271-78b1c13ab9bc" },
+            "resourceUri": { "value": "df0b1e25-aebd-4aa2-85dd-01c964996111" },
             "enableOnbehalfOfLogin": { "value": "false" }
           }
         }

@@ -1,19 +1,8 @@
 import { Badge, Text } from '@fluentui/react-components'
-import type { Plan, PlanOperation } from '../types/alm'
-
-function groupByStage(ops: PlanOperation[]): Map<number, PlanOperation[]> {
-  const map = new Map<number, PlanOperation[]>()
-  for (const op of ops) {
-    const list = map.get(op.stage) ?? []
-    list.push(op)
-    map.set(op.stage, list)
-  }
-  return new Map([...map.entries()].sort((a, b) => a[0] - b[0]))
-}
+import { CheckmarkCircleRegular } from '@fluentui/react-icons'
+import type { Plan } from '../types/alm'
 
 export function PlanPanel({ plan }: { plan: Plan }) {
-  const stages = groupByStage(plan.operations)
-
   if (plan.operations.length === 0) {
     return (
       <div className="empty">
@@ -28,20 +17,30 @@ export function PlanPanel({ plan }: { plan: Plan }) {
       <Text size={200} block style={{ marginBottom: 12, color: 'var(--colorNeutralForeground3)' }}>
         {plan.operations.length} operations, written in this order. Parents land before the records that point at them.
       </Text>
-      {[...stages.entries()].map(([stage, ops]) => (
-        <div key={stage} style={{ marginBottom: 16 }}>
+      {plan.stages.map((s) => (
+        <div key={s.stage} style={{ marginBottom: 16 }}>
           <Text weight="semibold" block style={{ marginBottom: 4 }}>
-            Stage {stage}
+            Stage {s.stage}: {s.label}
           </Text>
-          {ops.map((op) => (
-            <div key={op.seq} className="stage-row">
-              <Badge appearance="tint" color={op.op === 'create' ? 'success' : op.op === 'update' ? 'warning' : 'informative'}>
-                {op.op}
-              </Badge>
-              <Text style={{ flex: 1 }}>{op.matchKey}</Text>
-              <Text size={200} style={{ color: 'var(--colorNeutralForeground3)' }}>{op.label}</Text>
+          {s.operations.length === 0 ? (
+            <div className="stage-row stage-row-empty">
+              <CheckmarkCircleRegular style={{ color: 'var(--colorNeutralForeground3)' }} />
+              <Text size={200} style={{ color: 'var(--colorNeutralForeground3)' }}>Nothing to move in this stage</Text>
             </div>
-          ))}
+          ) : (
+            s.operations.map((op) => (
+              <div key={op.seq} className="stage-row">
+                <Badge appearance="tint" color={op.op === 'create' ? 'success' : op.op === 'update' ? 'warning' : 'informative'}>
+                  {op.op}
+                </Badge>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <Text style={{ overflowWrap: 'anywhere' }}>{op.displayName || op.matchKey}</Text>
+                  {op.displayName && <div className="match-key-hint">{op.matchKey}</div>}
+                </div>
+                <Text size={200} style={{ color: 'var(--colorNeutralForeground3)' }}>{op.label}</Text>
+              </div>
+            ))
+          )}
         </div>
       ))}
     </div>

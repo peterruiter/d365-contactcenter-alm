@@ -5,7 +5,7 @@
     "createdon", "createdby", "modifiedon", "modifiedby", "modifiedonbehalfby",
     "createdonbehalfby", "ownerid", "owningbusinessunit", "owningteam", "owninguser",
     "versionnumber", "overriddencreatedon", "importsequencenumber", "timezoneruleversionnumber",
-    "utcconversiontimezonecode", "statuscode", "statecode"
+    "utcconversiontimezonecode", "statuscode", "statecode", "ismanaged"
   ],
   "tables": [
     {
@@ -16,7 +16,7 @@
       "move": "upsert",
       "matchKeys": ["msdyn_name"],
       "alternateKey": "msdyn_name",
-      "select": ["msdyn_operatinghourid", "msdyn_name", "msdyn_timezone"],
+      "select": ["msdyn_operatinghourid", "msdyn_name", "msdyn_timezone", "ismanaged"],
       "lookups": [],
       "notes": "Re-set the calendar association after write. Calendar rows are separate records handled in a second pass."
     },
@@ -40,9 +40,9 @@
       "move": "upsert",
       "matchKeys": ["name"],
       "alternateKey": "name",
-      "select": ["ratingmodelid", "name"],
+      "select": ["ratingmodelid", "name", "minratingvalue", "maxratingvalue"],
       "lookups": [],
-      "notes": "Skill proficiency scale. Write before ratingvalue."
+      "notes": "Skill proficiency scale. Write before ratingvalue. minratingvalue/maxratingvalue are system-required on create."
     },
     {
       "order": 4,
@@ -50,13 +50,14 @@
       "logicalName": "ratingvalue",
       "entitySet": "ratingvalues",
       "move": "upsert",
-      "matchKeys": ["name", "ratingmodelid"],
+      "matchKeys": ["name", "_ratingmodelid_value"],
       "alternateKey": null,
       "select": ["ratingvalueid", "name", "value", "_ratingmodelid_value"],
       "lookups": [
         { "column": "ratingmodelid", "target": "ratingmodel", "targetKey": "name" }
       ],
-      "notes": "Match on name plus parent rating model. No single natural key."
+      "displayColumn": "name",
+      "notes": "Match on name plus parent rating model. No single natural key. The lookup match key must be the real column name (_ratingmodelid_value); the old 'ratingmodelid' spelling never matched anything, so every rating value was silently keyed on name alone (harmless while there is one rating model, latent collision risk with more than one)."
     },
     {
       "order": 5,
@@ -66,7 +67,7 @@
       "move": "upsert",
       "matchKeys": ["msdyn_name"],
       "alternateKey": "msdyn_name",
-      "select": ["msdyn_capacityprofileid", "msdyn_name", "msdyn_unitspercapacity", "msdyn_blockmixingofchannels"],
+      "select": ["msdyn_capacityprofileid", "msdyn_name", "msdyn_unitspercapacity", "msdyn_blockmixingofchannels", "msdyn_uniquename", "ismanaged"],
       "lookups": [],
       "notes": "Shared across workstreams. Deduplicate before write."
     },
@@ -78,7 +79,7 @@
       "move": "upsert",
       "matchKeys": ["msdyn_name"],
       "alternateKey": "msdyn_name",
-      "select": ["msdyn_notificationtemplateid", "msdyn_name", "msdyn_title", "msdyn_notificationtype"],
+      "select": ["msdyn_notificationtemplateid", "msdyn_name", "msdyn_title", "msdyn_notificationtype", "msdyn_uniquename", "ismanaged"],
       "lookups": [],
       "notes": "Referenced by workstreams."
     },
@@ -90,7 +91,7 @@
       "move": "upsert",
       "matchKeys": ["msdyn_name"],
       "alternateKey": "msdyn_name",
-      "select": ["msdyn_sessiontemplateid", "msdyn_name", "msdyn_title", "msdyn_type"],
+      "select": ["msdyn_sessiontemplateid", "msdyn_name", "msdyn_title", "msdyn_type", "msdyn_uniquename", "ismanaged"],
       "lookups": [],
       "notes": "Referenced by workstreams."
     },
@@ -106,7 +107,7 @@
         "msdyn_liveworkstreamid", "msdyn_name", "msdyn_mode", "msdyn_streamsource",
         "msdyn_channeltypeid", "msdyn_capacity", "msdyn_allowagentstoacceptmultiple",
         "_msdyn_sessiontemplateid_value", "_msdyn_notificationtemplateid_value",
-        "_msdyn_operatinghourid_value"
+        "_msdyn_operatinghourid_value", "ismanaged"
       ],
       "lookups": [
         { "column": "msdyn_sessiontemplateid", "target": "msdyn_sessiontemplate", "targetKey": "msdyn_name" },
@@ -114,6 +115,7 @@
         { "column": "msdyn_operatinghourid", "target": "msdyn_operatinghour", "targetKey": "msdyn_name" }
       ],
       "async": true,
+      "displayColumn": "msdyn_name",
       "notes": "Async provisioning fires on create. Wait for side-effect records. Flag legacy vs modern via msdyn_streamsource / msdyn_mode."
     },
     {
@@ -124,7 +126,7 @@
       "move": "upsert",
       "matchKeys": ["_msdyn_liveworkstreamid_value", "_msdyn_capacityprofileid_value"],
       "alternateKey": null,
-      "select": ["msdyn_liveworkstreamcapacityprofileid", "_msdyn_liveworkstreamid_value", "_msdyn_capacityprofileid_value"],
+      "select": ["msdyn_liveworkstreamcapacityprofileid", "_msdyn_liveworkstreamid_value", "_msdyn_capacityprofileid_value", "ismanaged"],
       "lookups": [
         { "column": "msdyn_liveworkstreamid", "target": "msdyn_liveworkstream", "targetKey": "msdyn_name" },
         { "column": "msdyn_capacityprofileid", "target": "msdyn_capacityprofile", "targetKey": "msdyn_name" }
@@ -139,10 +141,11 @@
       "move": "upsert",
       "matchKeys": ["msdyn_name", "_msdyn_liveworkstreamid_value"],
       "alternateKey": null,
-      "select": ["msdyn_ocliveworkstreamcontextvariableid", "msdyn_name", "msdyn_datatype", "_msdyn_liveworkstreamid_value"],
+      "select": ["msdyn_ocliveworkstreamcontextvariableid", "msdyn_name", "msdyn_datatype", "_msdyn_liveworkstreamid_value", "ismanaged"],
       "lookups": [
         { "column": "msdyn_liveworkstreamid", "target": "msdyn_liveworkstream", "targetKey": "msdyn_name" }
       ],
+      "displayColumn": "msdyn_name",
       "notes": "Feeds ruleset dependency mappings. Must exist before rulesets."
     },
     {
@@ -153,10 +156,12 @@
       "move": "upsert",
       "matchKeys": ["name", "msdyn_queuetype"],
       "alternateKey": null,
-      "select": ["queueid", "name", "msdyn_queuetype", "queueviewtype"],
+      "select": ["queueid", "name", "msdyn_queuetype", "queueviewtype", "msdyn_isomnichannelqueue"],
       "lookups": [],
       "skipColumns": ["_primaryuserid_value"],
-      "notes": "Write after channel config so pre-chat survey questions resolve as context variables. Never copy queue members (queuemembership)."
+      "personalFilterColumn": "msdyn_isomnichannelqueue",
+      "displayColumn": "name",
+      "notes": "Write after channel config so pre-chat survey questions resolve as context variables. Never copy queue members (queuemembership). Always excludes personal/system queues (msdyn_isomnichannelqueue = false), no override: every system user and service account gets an auto-provisioned queue named '<Full Name>', which is never something to migrate. msdyn_isomnichannelqueue must actually be WRITTEN (not skipped): Dataverse defaults a newly created queue to false when it is omitted, which then makes that very queue invisible to the next compare's personalFilterColumn filter - so every apply created a fresh duplicate instead of matching the one it had just created."
     },
     {
       "order": 12,
@@ -166,9 +171,10 @@
       "move": "create-once",
       "matchKeys": ["msdyn_uniquename"],
       "alternateKey": "msdyn_uniquename",
-      "select": ["msdyn_decisioncontractid", "msdyn_uniquename", "msdyn_name"],
+      "select": ["msdyn_decisioncontractid", "msdyn_uniquename", "msdyn_name", "ismanaged"],
       "lookups": [],
-      "notes": "Insert only if missing. If-None-Match: * blocks update."
+      "displayColumn": "msdyn_name",
+      "notes": "Insert only if missing. If-None-Match: * blocks update. Matched on msdyn_uniquename (stable across environments); msdyn_name is only for display."
     },
     {
       "order": 13,
@@ -178,13 +184,14 @@
       "move": "upsert",
       "matchKeys": ["msdyn_uniquename"],
       "alternateKey": "msdyn_uniquename",
-      "select": ["msdyn_decisionrulesetid", "msdyn_uniquename", "msdyn_name", "msdyn_rulesetdefinition", "_msdyn_decisioncontractid_value"],
+      "select": ["msdyn_decisionrulesetid", "msdyn_uniquename", "msdyn_name", "msdyn_rulesetdefinition", "_msdyn_decisioncontractid_value", "ismanaged"],
       "lookups": [
         { "column": "msdyn_decisioncontractid", "target": "msdyn_decisioncontract", "targetKey": "msdyn_uniquename" }
       ],
       "guidBearingColumns": ["msdyn_rulesetdefinition"],
       "doubleWrite": true,
-      "notes": "msdyn_rulesetdefinition holds source GUIDs. Remap, write, then write again to land dependency mappings."
+      "displayColumn": "msdyn_name",
+      "notes": "msdyn_rulesetdefinition holds source GUIDs. Remap, write, then write again to land dependency mappings. Matched on msdyn_uniquename (stable across environments); msdyn_name is only for display."
     },
     {
       "order": 14,
@@ -192,13 +199,13 @@
       "logicalName": "msdyn_routingconfiguration",
       "entitySet": "msdyn_routingconfigurations",
       "move": "upsert",
-      "matchKeys": ["msdyn_name", "_msdyn_decisionrulesetid_value"],
+      "matchKeys": ["msdyn_name", "_msdyn_liveworkstreamid_value"],
       "alternateKey": null,
-      "select": ["msdyn_routingconfigurationid", "msdyn_name", "msdyn_isactiveconfiguration", "_msdyn_decisionrulesetid_value"],
+      "select": ["msdyn_routingconfigurationid", "msdyn_name", "msdyn_isactiveconfiguration", "msdyn_uniquename", "_msdyn_liveworkstreamid_value", "ismanaged"],
       "lookups": [
-        { "column": "msdyn_decisionrulesetid", "target": "msdyn_decisionruleset", "targetKey": "msdyn_uniquename" }
+        { "column": "msdyn_liveworkstreamid", "target": "msdyn_liveworkstream", "targetKey": "msdyn_name" }
       ],
-      "notes": "Parent for routing steps."
+      "notes": "Parent for routing steps. Every workstream auto-gets its own 'Contact center routing configuration' record, so msdyn_name alone collides across workstreams - the workstream must stay part of the match key. msdyn_uniquename is system-required on create. The decision ruleset link lives on the steps, not here - this entity has no such attribute (confirmed against EntityDefinitions; the old manifest entry named one that doesn't exist, which silently no-opped via the missing-column read fallback)."
     },
     {
       "order": 15,
@@ -208,12 +215,13 @@
       "move": "upsert",
       "matchKeys": ["_msdyn_routingconfigurationid_value", "msdyn_sequence"],
       "alternateKey": null,
-      "select": ["msdyn_routingconfigurationstepid", "msdyn_sequence", "_msdyn_routingconfigurationid_value", "_msdyn_decisionrulesetid_value"],
+      "select": ["msdyn_routingconfigurationstepid", "msdyn_sequence", "_msdyn_routingconfigurationid_value", "_msdyn_decisionrulesetid_value", "msdyn_uniquename", "ismanaged"],
+      "displayTemplate": "Step {msdyn_sequence}",
       "lookups": [
         { "column": "msdyn_routingconfigurationid", "target": "msdyn_routingconfiguration", "targetKey": "msdyn_name" },
         { "column": "msdyn_decisionrulesetid", "target": "msdyn_decisionruleset", "targetKey": "msdyn_uniquename" }
       ],
-      "notes": "Ordered steps. Write parent then steps in sequence."
+      "notes": "Ordered steps. Write parent then steps in sequence. msdyn_uniquename is system-required on create (same gap as msdyn_routingconfiguration)."
     },
     {
       "order": 16,
@@ -223,10 +231,11 @@
       "move": "upsert",
       "matchKeys": ["msdyn_name", "_msdyn_liveworkstreamid_value"],
       "alternateKey": null,
-      "select": ["msdyn_assignmentconfigurationid", "msdyn_name", "_msdyn_liveworkstreamid_value"],
+      "select": ["msdyn_assignmentconfigurationid", "msdyn_name", "_msdyn_liveworkstreamid_value", "msdyn_uniquename", "ismanaged"],
       "lookups": [
         { "column": "msdyn_liveworkstreamid", "target": "msdyn_liveworkstream", "targetKey": "msdyn_name" }
       ],
+      "displayColumn": "msdyn_name",
       "skipIf": "Out-of-box highest-capacity or round-robin assignment.",
       "notes": "Skip if the queue uses an out-of-box assignment method."
     },
@@ -238,12 +247,13 @@
       "move": "upsert",
       "matchKeys": ["_msdyn_assignmentconfigurationid_value", "msdyn_sequence"],
       "alternateKey": null,
-      "select": ["msdyn_assignmentconfigurationstepid", "msdyn_sequence", "_msdyn_assignmentconfigurationid_value", "_msdyn_decisionrulesetid_value"],
+      "select": ["msdyn_assignmentconfigurationstepid", "msdyn_sequence", "_msdyn_assignmentconfigurationid_value", "_msdyn_decisionrulesetid_value", "msdyn_uniquename", "ismanaged"],
+      "displayTemplate": "Step {msdyn_sequence}",
       "lookups": [
         { "column": "msdyn_assignmentconfigurationid", "target": "msdyn_assignmentconfiguration", "targetKey": "msdyn_name" },
         { "column": "msdyn_decisionrulesetid", "target": "msdyn_decisionruleset", "targetKey": "msdyn_uniquename" }
       ],
-      "notes": "Ordered steps under assignment configuration."
+      "notes": "Ordered steps under assignment configuration. msdyn_uniquename is system-required on create."
     },
     {
       "order": 18,
@@ -253,7 +263,7 @@
       "move": "upsert",
       "matchKeys": ["msdyn_name"],
       "alternateKey": "msdyn_name",
-      "select": ["msdyn_livechatconfigid", "msdyn_name", "_msdyn_liveworkstreamid_value"],
+      "select": ["msdyn_livechatconfigid", "msdyn_name", "_msdyn_liveworkstreamid_value", "ismanaged"],
       "lookups": [
         { "column": "msdyn_liveworkstreamid", "target": "msdyn_liveworkstream", "targetKey": "msdyn_name" }
       ],
@@ -269,7 +279,7 @@
       "move": "upsert",
       "matchKeys": ["msdyn_name"],
       "alternateKey": "msdyn_name",
-      "select": ["msdyn_ocvoicechannelsettingid", "msdyn_name", "_msdyn_liveworkstreamid_value"],
+      "select": ["msdyn_ocvoicechannelsettingid", "msdyn_name", "_msdyn_liveworkstreamid_value", "ismanaged"],
       "lookups": [
         { "column": "msdyn_liveworkstreamid", "target": "msdyn_liveworkstream", "targetKey": "msdyn_name" }
       ],
@@ -285,7 +295,7 @@
       "move": "upsert",
       "matchKeys": ["msdyn_name"],
       "alternateKey": "msdyn_name",
-      "select": ["msdyn_ocsmschannelsettingid", "msdyn_name", "_msdyn_liveworkstreamid_value"],
+      "select": ["msdyn_ocsmschannelsettingid", "msdyn_name", "_msdyn_liveworkstreamid_value", "ismanaged"],
       "lookups": [
         { "column": "msdyn_liveworkstreamid", "target": "msdyn_liveworkstream", "targetKey": "msdyn_name" }
       ],
@@ -301,7 +311,7 @@
       "move": "upsert",
       "matchKeys": ["msdyn_name"],
       "alternateKey": "msdyn_name",
-      "select": ["msdyn_ocwhatsappchannelnumberid", "msdyn_name", "_msdyn_liveworkstreamid_value"],
+      "select": ["msdyn_ocwhatsappchannelnumberid", "msdyn_name", "_msdyn_liveworkstreamid_value", "ismanaged"],
       "lookups": [
         { "column": "msdyn_liveworkstreamid", "target": "msdyn_liveworkstream", "targetKey": "msdyn_name" }
       ],
@@ -328,7 +338,7 @@
       "move": "upsert",
       "matchKeys": ["msdyn_name"],
       "alternateKey": "msdyn_name",
-      "select": ["msdyn_octagid", "msdyn_name"],
+      "select": ["msdyn_octagid", "msdyn_name", "ismanaged"],
       "lookups": [],
       "notes": "Tags. Free-standing. Table is msdyn_octag (singular)."
     },
@@ -340,7 +350,7 @@
       "move": "selective",
       "matchKeys": ["msdyn_name"],
       "alternateKey": null,
-      "select": ["msdyn_omnichannelconfigurationid", "msdyn_name"],
+      "select": ["msdyn_omnichannelconfigurationid", "msdyn_name", "ismanaged"],
       "lookups": [],
       "notes": "Environment-level singleton. Diff and report. Move only fields the operator selects."
     }

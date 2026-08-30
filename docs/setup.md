@@ -21,6 +21,10 @@ npm run dev
 
 The app opens with sample workstreams, queues, and routing rulesets. Every screen works: compare, select, plan, dry-run, apply, roll back. Data source is `mock` by default (`app/.env` -> `VITE_ALM_SOURCE=mock`).
 
+## Branding
+
+The app ships with a Power Pete visual identity (purple palette, wordmark) by default - no `.env` needed. Set `VITE_BRAND=capgemini` in `app/.env` for the Capgemini Zodiak identity (blue palette, logo) instead. Both are defined in `app/src/brands/`: colors, logo, favicon, page title. Add a new one by dropping a third file next to `capgemini.ts` and `powerpete.ts` and registering it in `app/src/brands/index.ts`.
+
 ## Point it at the backend
 
 Once the backend exists (see `architecture.md`, option A):

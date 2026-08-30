@@ -32,6 +32,23 @@ function counts(t: TableDiff) {
 }
 
 export function DiffTable({ diff, showEqual, selected, onToggle, onToggleTable }: Props) {
+  const labelByTable = Object.fromEntries(diff.tables.map((t) => [t.table, t.label]))
+  const statusByKey = new Map<string, RecordDiff['status']>()
+  const displayNameByKey = new Map<string, string>()
+  for (const t of diff.tables) {
+    for (const r of t.records) {
+      statusByKey.set(`${t.table}|${r.matchKey}`, r.status)
+      if (r.displayName) displayNameByKey.set(`${t.table}|${r.matchKey}`, r.displayName)
+    }
+  }
+  // Dependencies still missing or changed in the target: selecting this record needs these too.
+  function unmetDependencies(r: RecordDiff) {
+    return r.dependsOn.filter((d) => {
+      const s = statusByKey.get(`${d.table}|${d.matchKey}`)
+      return s === 'MissingInTarget' || s === 'Changed'
+    })
+  }
+
   const tables = diff.tables
     .map((t) => ({
       ...t,
@@ -70,37 +87,55 @@ export function DiffTable({ diff, showEqual, selected, onToggle, onToggleTable }
                 </div>
               )}
               <div>
-                {t.records.map((r) => (
-                  <div key={r.matchKey} className="diff-row">
-                    <div>
-                      {selectable(r) && (
-                        <Checkbox
-                          checked={selected.has(key(t.table, r.matchKey))}
-                          onChange={() => onToggle(t.table, r.matchKey)}
-                          aria-label={`Move ${r.matchKey}`}
-                        />
-                      )}
+                {t.records.map((r) => {
+                  const deps = unmetDependencies(r)
+                  return (
+                    <div key={r.matchKey} className="diff-row">
+                      <div>
+                        {selectable(r) && (
+                          <Checkbox
+                            checked={selected.has(key(t.table, r.matchKey))}
+                            onChange={() => onToggle(t.table, r.matchKey)}
+                            aria-label={`Move ${r.displayName || r.matchKey}`}
+                          />
+                        )}
+                      </div>
+                      <div>
+                        <Text weight="medium">{r.displayName || r.matchKey}</Text>
+                        {r.displayName && (
+                          <div className="match-key-hint">{r.matchKey}</div>
+                        )}
+                        {r.fields.length > 0 && (
+                          <div style={{ marginTop: 2 }}>
+                            {r.fields.map((f) => (
+                              <div key={f.name} className="field-delta">
+                                <span style={{ color: 'var(--colorNeutralForeground3)' }}>{f.name}: </span>
+                                <span style={{ color: 'var(--colorPaletteRedForeground1)' }}>{f.target ?? '-'}</span>
+                                {' \u2192 '}
+                                <span style={{ color: 'var(--colorPaletteGreenForeground1)' }}>{f.source ?? '-'}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        {deps.length > 0 && (
+                          <div className="dep-hint">
+                            Requires{' '}
+                            {deps
+                              .map((d) => {
+                                const name = displayNameByKey.get(`${d.table}|${d.matchKey}`) ?? d.matchKey
+                                return `${labelByTable[d.table] ?? d.table}: ${name}`
+                              })
+                              .join(', ')}
+                            {' \u2014 selected automatically with this row.'}
+                          </div>
+                        )}
+                      </div>
+                      <div style={{ justifySelf: 'end' }}>
+                        <StatusBadge status={r.status} />
+                      </div>
                     </div>
-                    <div>
-                      <Text weight="medium">{r.matchKey}</Text>
-                      {r.fields.length > 0 && (
-                        <div style={{ marginTop: 2 }}>
-                          {r.fields.map((f) => (
-                            <div key={f.name} className="field-delta">
-                              <span style={{ color: 'var(--colorNeutralForeground3)' }}>{f.name}: </span>
-                              <span style={{ color: 'var(--colorPaletteRedForeground1)' }}>{f.target ?? '-'}</span>
-                              {' \u2192 '}
-                              <span style={{ color: 'var(--colorPaletteGreenForeground1)' }}>{f.source ?? '-'}</span>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                    <div style={{ justifySelf: 'end' }}>
-                      <StatusBadge status={r.status} />
-                    </div>
-                  </div>
-                ))}
+                  )
+                })}
               </div>
             </AccordionPanel>
           </AccordionItem>

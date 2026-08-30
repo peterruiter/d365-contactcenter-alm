@@ -25,7 +25,7 @@ jobs:
       - run: npm run build
 
   engine:
-    name: Reference engine lint
+    name: Engine lint
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -33,6 +33,6 @@ jobs:
         shell: pwsh
         run: |
           Install-Module PSScriptAnalyzer -Force -Scope CurrentUser
-          $r = Invoke-ScriptAnalyzer -Path ./backend/reference-engine-powershell/CcAlm -Recurse -Severity Error
+          $r = Invoke-ScriptAnalyzer -Path ./backend/function-app/Modules/CcAlm -Recurse -Severity Error
           $r | Format-Table -AutoSize
           if ($r) { throw "PSScriptAnalyzer found errors." }

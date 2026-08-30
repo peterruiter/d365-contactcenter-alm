@@ -57,7 +57,7 @@ function Invoke-CcPlan {
     if ($Mode -eq 'Apply') {
         $snapshotPath = Join-Path $OutputDir "snapshot-$runId.json"
         Save-CcSnapshot -Environment $target -Operations $Plan.operations `
-            -TargetIndexes $ctx.TargetIndexes -Path $snapshotPath | Out-Null
+            -TargetIndexes $ctx.TargetIndexes -TableByLogical $tableByLogical -Path $snapshotPath | Out-Null
         Write-Host "Snapshot: $snapshotPath" -ForegroundColor DarkGray
     }
 
@@ -78,14 +78,27 @@ function Invoke-CcPlan {
             if ($op.op -eq 'skip-existing') { continue }
 
             $localProblems = [System.Collections.Generic.List[string]]::new()
-            $payload = Build-CcWritePayload -SourceRecord $src -Table $tbl -Environment $target `
+            $built = Build-CcWritePayload -SourceRecord $src -Table $tbl -Environment $target `
                 -EntitySetByLogical $ctx.EntitySetByLogical -SourceIndexes $ctx.SourceIndexes `
-                -Maps $maps -SystemColumns $manifest.systemColumns -Problems ([ref]$localProblems)
+                -Maps $maps -SystemColumns $manifest.systemColumns -Problems ([ref]$localProblems) `
+                -TableByLogical $tableByLogical
             foreach ($p in $localProblems) { $problems.Add($p) | Out-Null }
+            $payload = $built.Payload
 
-            $altVal   = if ($tbl.alternateKey) { [string]$src.$($tbl.alternateKey) } else { $null }
             $tgtGuid  = $targetByKey[$op.table][$op.matchKey]
             $createOnce = ($tbl.move -eq 'create-once')
+
+            if ($built.Blocked) {
+                # A guidBearingColumns field (e.g. a ruleset definition) references a record that
+                # hasn't landed in target yet. Dataverse rejects that outright, so skip the write
+                # instead of burning it and aborting every later stage - the problems list above
+                # names what's missing; re-run once the referenced records are migrated. This is not
+                # a full success either: some selected records did not move, so the overall run state
+                # must say so rather than reporting a plain 'Succeeded' with the skips buried below.
+                $warnings.Add("SKIPPED $($op.table) '$($op.matchKey)': unresolved references, see problems list.") | Out-Null
+                if ($state -eq 'Succeeded') { $state = 'PartiallyFailed' }
+                continue
+            }
 
             if ($Mode -eq 'DryRun') {
                 Write-Verbose "[dry-run] $($op.op) $($op.table) '$($op.matchKey)'"
@@ -96,9 +109,21 @@ function Invoke-CcPlan {
             if (-not $PSCmdlet.ShouldProcess("$($op.table) '$($op.matchKey)' in $($target.Name)", $op.op)) { continue }
 
             try {
-                Invoke-CcUpsert -Environment $target -Table $tbl -Payload $payload `
-                    -AltKeyValue $altVal -TargetGuid $tgtGuid -CreateOnce:$createOnce | Out-Null
+                $writeResult = Invoke-CcUpsert -Environment $target -Table $tbl -Payload $payload `
+                    -TargetGuid $tgtGuid -CreateOnce:$createOnce
                 $written++
+
+                # Land the GUID this record now has in target back into the shared lookup maps right
+                # away, so a later operation in this same run that depends on it - an explicit lookup,
+                # or an embedded GUID inside a guidBearingColumns field - can resolve it immediately
+                # instead of needing a second apply run. Without this, $maps still reflects target as
+                # it was before this run started, so anything created a few operations ago looks like
+                # it "doesn't exist yet" to whatever references it next.
+                $writtenGuid = if ($tgtGuid) { $tgtGuid } else { Get-CcRecordId -Record $writeResult -Table $tbl }
+                if ($writtenGuid) {
+                    $maps.TargetKeyToGuid["$($op.table)|$($op.matchKey)"] = $writtenGuid
+                    $targetByKey[$op.table][$op.matchKey] = $writtenGuid
+                }
 
                 if ($tbl.async -and $op.op -eq 'create') {
                     $wsName = [string]$src.msdyn_name
@@ -109,8 +134,16 @@ function Invoke-CcPlan {
 
                 if ($tbl.doubleWrite) {
                     # Second write lands dependency mappings for rulesets with context variables.
-                    Start-Sleep -Seconds 2
-                    Invoke-CcUpsert -Environment $target -Table $tbl -Payload $payload -AltKeyValue $altVal -TargetGuid $tgtGuid | Out-Null
+                    # It must target the GUID this record actually landed at - reusing the original
+                    # $tgtGuid (null on a create) re-POSTs the same record and Dataverse rejects the
+                    # duplicate key. On create that GUID only exists in the first write's response.
+                    if ($writtenGuid) {
+                        Start-Sleep -Seconds 2
+                        Invoke-CcUpsert -Environment $target -Table $tbl -Payload $payload -TargetGuid $writtenGuid | Out-Null
+                    }
+                    else {
+                        $warnings.Add("Could not resolve the written GUID for $($op.table) '$($op.matchKey)' to land its second write.") | Out-Null
+                    }
                 }
             }
             catch {

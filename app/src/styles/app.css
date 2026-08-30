@@ -1,16 +1,24 @@
+/* Spacing/radius tokens sourced from the Capgemini Zodiak design system
+   (doc-zodiak.capgemini.com > Foundations: Color, Typography, Spacing, Radius) - kept as the
+   layout system regardless of brand. --brand-primary/-primary-dark/-accent carry the active
+   brand's colors instead (see src/brands/), set inline on .app-shell in App.tsx so there is
+   one source of truth per brand rather than a duplicate hardcoded copy here. */
 :root {
-  --cap-blue: #0070ad;
-  --cap-blue-dark: #005b8f;
-  --cap-vibrant: #17abda;
+  /* Zodiak spacing scale (8px base unit). */
+  --space-3xs: 4px;
+  --space-2xs: 8px;
+  --space-xs: 16px;
+  --space-s: 24px;
+  --space-m: 32px;
+  --space-l: 40px;
 
-  --space-1: 4px;
-  --space-2: 8px;
-  --space-3: 12px;
-  --space-4: 16px;
-  --space-5: 24px;
-  --space-6: 32px;
+  /* Zodiak radius scale. */
+  --radius-xs: 4px;
+  --radius-s: 16px;
+  --radius-m: 32px;
+  --radius-l: 999px;
+  --radius: var(--radius-s);
 
-  --radius: 10px;
   --control-h: 32px;
   --field-w: 240px;
 
@@ -22,7 +30,9 @@
 html, body, #root { margin: 0; height: 100%; }
 
 body {
-  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  /* Ubuntu Light is Zodiak's primary body weight; Regular carries smaller headlines. */
+  font-family: 'Ubuntu', 'Segoe UI', system-ui, -apple-system, sans-serif;
+  font-weight: 300;
 }
 
 /* ---------- Shell ---------- */
@@ -38,11 +48,11 @@ body {
 .app-header {
   display: flex;
   align-items: center;
-  gap: var(--space-4);
-  padding: 0 var(--space-5);
+  gap: var(--space-xs);
+  padding: 0 var(--space-s);
   height: 60px;
-  background: linear-gradient(90deg, var(--cap-blue-dark) 0%, var(--cap-blue) 60%);
-  border-bottom: 3px solid var(--cap-vibrant);
+  background: linear-gradient(90deg, var(--brand-primary-dark) 0%, var(--brand-primary) 60%);
+  border-bottom: 3px solid var(--brand-accent);
   color: #fff;
   flex: 0 0 auto;
 }
@@ -50,21 +60,12 @@ body {
 .brand {
   display: flex;
   align-items: center;
-  gap: var(--space-2);
 }
-.brand-mark {
-  width: 18px;
-  height: 18px;
-  border-radius: 5px;
-  background: var(--cap-vibrant);
-  box-shadow: inset 0 0 0 3px rgba(255, 255, 255, 0.85);
-  transform: rotate(45deg);
-}
-.brand-word {
-  font-size: 20px;
-  font-weight: 700;
-  letter-spacing: 0.2px;
-  color: #fff;
+.brand-logo {
+  /* Matches the combined height of the two header title lines next to it (15px/1.2 + 12px/1.2). */
+  height: 32px;
+  width: auto;
+  display: block;
 }
 
 .header-divider {
@@ -80,18 +81,80 @@ body {
   flex: 1;
   min-width: 0;
 }
-.header-product { font-size: 15px; font-weight: 600; color: #fff; }
-.header-sub { font-size: 12px; color: rgba(255, 255, 255, 0.8); }
+.header-product { font-size: 15px; font-weight: 400; color: #fff; }
+.header-sub {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.8);
+  /* .app-header has a fixed height; a longer brand subtitle should clip with an ellipsis
+     rather than wrap and spill out below it. */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 
 .header-actions { display: flex; align-items: center; }
-.header-actions .fui-Switch__label { color: #fff; }
 
 .app-body { flex: 1; overflow: auto; }
 
 .content {
-  max-width: 1120px;
   margin: 0 auto;
-  padding: var(--space-5);
+  padding: var(--space-s);
+}
+
+/* ---------- Footer ---------- */
+
+.app-footer {
+  margin-top: var(--space-m);
+  padding: var(--space-m) var(--space-s) var(--space-l);
+  border-top: 1px solid var(--colorNeutralStroke2);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 6px;
+}
+
+.footer-line {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3xs);
+  font-size: 14px;
+}
+.footer-line a {
+  color: var(--brand-primary);
+  font-weight: 400;
+  text-decoration: none;
+}
+.footer-line a:hover { text-decoration: underline; }
+
+.footer-icon {
+  height: 18px;
+  width: 18px;
+  display: block;
+}
+
+.footer-disclaimer, .footer-creator {
+  color: var(--colorNeutralForeground3);
+  max-width: 900px;
+}
+.footer-creator a { color: var(--brand-primary); text-decoration: underline; }
+.footer-creator a:hover { color: var(--brand-primary-dark); }
+.app-shell.theme-dark .footer-creator a:hover { color: var(--brand-accent); }
+
+/* ---------- Two-column layout: scrollable content + sticky wizard ---------- */
+
+.layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 280px;
+  gap: var(--space-s);
+  align-items: start;
+}
+.layout-main { min-width: 0; }
+.wizard { min-width: 0; }
+
+@media (max-width: 860px) {
+  .layout { grid-template-columns: 1fr; }
 }
 
 /* ---------- Cards / sections ---------- */
@@ -99,23 +162,24 @@ body {
 .panel {
   background: var(--colorNeutralBackground1);
   border: 1px solid var(--colorNeutralStroke2);
-  border-radius: var(--radius);
-  padding: var(--space-5);
+  border-radius: var(--radius-s);
+  overflow-x: auto;
+  padding: var(--space-s);
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
 }
 
-.section { margin-bottom: var(--space-5); }
+.section { margin-bottom: var(--space-s); }
 
 .section-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: var(--space-4);
-  gap: var(--space-3);
+  margin-bottom: var(--space-xs);
+  gap: var(--space-2xs);
 }
 .section-title {
   font-size: 16px;
-  font-weight: 600;
+  font-weight: 400;
   color: var(--colorNeutralForeground1);
 }
 .section-hint { font-size: 12px; color: var(--colorNeutralForeground3); }
@@ -129,8 +193,8 @@ body {
     'srcLabel .     tgtLabel .'
     'srcCtl   arrow tgtCtl   btn'
     'srcHint  .     tgtHint  .';
-  column-gap: var(--space-4);
-  row-gap: var(--space-1);
+  column-gap: var(--space-xs);
+  row-gap: var(--space-3xs);
   align-items: center;
 }
 .eg-src-label { grid-area: srcLabel; }
@@ -139,14 +203,14 @@ body {
 .eg-tgt-label { grid-area: tgtLabel; }
 .eg-tgt-ctl   { grid-area: tgtCtl; }
 .eg-tgt-hint  { grid-area: tgtHint; }
-.eg-arrow     { grid-area: arrow; display: flex; align-items: center; justify-content: center; color: var(--cap-blue); }
+.eg-arrow     { grid-area: arrow; display: flex; align-items: center; justify-content: center; color: var(--brand-primary); }
 .eg-btn       { grid-area: btn; align-self: center; justify-self: start; min-width: 132px; }
 
-.eg-label { font-size: 13px; font-weight: 600; color: var(--colorNeutralForeground1); }
+.eg-label { font-size: 13px; font-weight: 400; color: var(--colorNeutralForeground1); }
 .eg-hint {
   display: flex;
   align-items: center;
-  gap: var(--space-2);
+  gap: var(--space-2xs);
   min-height: 18px;
   font-size: 12px;
   color: var(--colorNeutralForeground3);
@@ -157,11 +221,11 @@ body {
   display: inline-flex;
   align-items: center;
   padding: 1px 8px;
-  border-radius: 999px;
+  border-radius: var(--radius-l);
   font-size: 11px;
-  font-weight: 600;
-  background: #fdf3e2;
-  color: #8a5a00;
+  font-weight: 400;
+  background: #ffe5d3; /* Zodiak Orange-100 */
+  color: #cc640f;      /* Zodiak Orange-700 */
 }
 
 @media (max-width: 720px) {
@@ -181,14 +245,14 @@ body {
 .cards {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
-  gap: var(--space-3);
+  gap: var(--space-s);
 }
 .stat {
   position: relative;
   background: var(--colorNeutralBackground1);
   border: 1px solid var(--colorNeutralStroke2);
-  border-radius: var(--radius);
-  padding: var(--space-4);
+  border-radius: var(--radius-s);
+  padding: var(--space-xs);
   overflow: hidden;
 }
 .stat::before {
@@ -196,38 +260,56 @@ body {
   position: absolute;
   left: 0; top: 0; bottom: 0;
   width: 4px;
-  background: var(--stat-accent, var(--cap-blue));
+  background: var(--stat-accent, var(--brand-primary));
 }
-.stat-num { font-size: 30px; font-weight: 700; line-height: 1; color: var(--colorNeutralForeground1); }
+.stat-num { font-size: 30px; font-weight: 400; line-height: 1; color: var(--colorNeutralForeground1); }
 .stat-label { margin-top: 6px; font-size: 12px; color: var(--colorNeutralForeground3); }
 
 /* ---------- Diff table ---------- */
 
-.table-group { margin-bottom: var(--space-2); }
+.table-group { margin-bottom: var(--space-2xs); }
 
 .diff-row {
   display: grid;
-  grid-template-columns: 28px 1fr auto;
+  grid-template-columns: 28px minmax(0, 1fr) auto;
   align-items: start;
-  gap: var(--space-3);
-  padding: var(--space-3) var(--space-1);
+  gap: var(--space-2xs);
+  padding: var(--space-2xs) var(--space-3xs);
   border-top: 1px solid var(--colorNeutralStroke3);
+  min-width: 0;
 }
 .diff-row:first-child { border-top: none; }
+.diff-row > div { min-width: 0; }
+.diff-row .fui-Text { overflow-wrap: anywhere; }
 
+.match-key-hint {
+  font-family: 'Cascadia Code', 'Consolas', monospace;
+  font-size: 11px;
+  color: var(--colorNeutralForeground3);
+  margin-top: 1px;
+  overflow-wrap: anywhere;
+}
 .field-delta {
   font-family: 'Cascadia Code', 'Consolas', monospace;
   font-size: 12px;
   margin-top: 3px;
+  overflow-wrap: anywhere;
+}
+.dep-hint {
+  font-size: 11px;
+  font-style: italic;
+  color: var(--colorNeutralForeground3);
+  margin-top: 3px;
+  overflow-wrap: anywhere;
 }
 .badge {
   display: inline-flex;
   align-items: center;
   gap: 6px;
   padding: 2px 10px;
-  border-radius: 999px;
+  border-radius: var(--radius-l);
   font-size: 12px;
-  font-weight: 600;
+  font-weight: 400;
   white-space: nowrap;
 }
 .badge-dot { width: 7px; height: 7px; border-radius: 50%; }
@@ -237,19 +319,22 @@ body {
 .stage-row {
   display: flex;
   align-items: center;
-  gap: var(--space-3);
-  padding: var(--space-3) 0;
+  gap: var(--space-2xs);
+  padding: var(--space-2xs) 0;
   border-top: 1px solid var(--colorNeutralStroke3);
 }
 .stage-row:first-child { border-top: none; }
+.stage-row > * { min-width: 0; }
+.stage-row-empty { opacity: 0.7; }
+.stage-row .fui-Text { overflow-wrap: anywhere; }
 
 /* ---------- Actions ---------- */
 
 .actions {
   display: flex;
   align-items: center;
-  gap: var(--space-3);
-  margin-top: var(--space-4);
+  gap: var(--space-2xs);
+  margin-top: var(--space-xs);
   flex-wrap: wrap;
 }
 
@@ -258,8 +343,105 @@ body {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: var(--space-2);
-  padding: 56px var(--space-5);
+  gap: var(--space-2xs);
+  padding: 56px var(--space-s);
   text-align: center;
   color: var(--colorNeutralForeground3);
 }
+
+/* ---------- Wizard progress panel (sticky) ---------- */
+
+.wizard {
+  position: sticky;
+  top: var(--space-s);
+  background: var(--colorNeutralBackground1);
+  border: 1px solid var(--colorNeutralStroke2);
+  border-radius: var(--radius-s);
+  padding: var(--space-s) var(--space-xs);
+}
+
+@media (max-width: 860px) {
+  .wizard { position: static; }
+}
+
+.wizard-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.wizard-step {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2xs);
+  position: relative;
+  padding-bottom: var(--space-s);
+}
+.wizard-step:last-child { padding-bottom: 0; }
+
+/* Connecting line between step markers. */
+.wizard-step:not(:last-child) .wizard-step-marker::after {
+  content: '';
+  position: absolute;
+  left: 11px;
+  top: 24px;
+  bottom: -4px;
+  width: 2px;
+  background: var(--colorNeutralStroke2);
+}
+.wizard-step-done:not(:last-child) .wizard-step-marker::after {
+  background: #4eb972; /* Zodiak Green-600 */
+}
+
+.wizard-step-marker {
+  position: relative;
+  flex: 0 0 auto;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.wiz-step-num {
+  position: relative;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--colorNeutralForeground3);
+}
+.wiz-step-num > span:last-child { position: absolute; }
+
+.wiz-icon { font-size: 20px; }
+.wiz-icon-pending { color: var(--colorNeutralStroke1); }
+.wiz-icon-done { color: #4eb972; }    /* Zodiak Green-600 */
+.wiz-icon-warning { color: #f68f40; } /* Zodiak Orange-500 */
+.wiz-icon-error { color: #f64059; }   /* Zodiak Red-500 */
+
+.wizard-step-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-top: 2px;
+  min-width: 0;
+}
+.wizard-step-title {
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--colorNeutralForeground1);
+}
+.wizard-step-active .wizard-step-title { color: var(--brand-primary); font-weight: 400; }
+.wizard-step-error .wizard-step-title { color: #f64059; }
+
+.wizard-step-detail {
+  font-size: 12px;
+  color: var(--colorNeutralForeground3);
+}
+.wizard-step-error .wizard-step-detail { color: #f64059; }
+.wizard-step-warning .wizard-step-detail { color: #cc640f; } /* Zodiak Orange-700 */

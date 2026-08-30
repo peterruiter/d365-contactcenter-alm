@@ -43,7 +43,8 @@ function Build-CcWritePayload {
         [hashtable] $SourceIndexes,
         [object] $Maps,
         [string[]] $SystemColumns,
-        [ref] $Problems
+        [ref] $Problems,
+        [hashtable] $TableByLogical
     )
 
     $skip = @($SystemColumns)
@@ -53,6 +54,7 @@ function Build-CcWritePayload {
     $payload = [ordered]@{}
     $pk = "$($Table.logicalName)id"
     $lookupValueCols = @($Table.lookups | ForEach-Object { "_$($_.column)_value" })
+    $blocked = $false
 
     foreach ($col in $Table.select) {
         if ($col -eq $pk) { continue }
@@ -65,7 +67,11 @@ function Build-CcWritePayload {
             $rw = ConvertTo-CcTargetDefinition -Definition ([string]$val) `
                     -SourceGuidToRef $Maps.SourceGuidToRef -TargetKeyToGuid $Maps.TargetKeyToGuid
             if ($rw.Unmapped.Count -gt 0) {
+                # Confirmed empirically: writing a definition with GUIDs Dataverse can't resolve
+                # (e.g. a ruleset pointing at a queue that hasn't been migrated yet) is a guaranteed
+                # server-side rejection, not a soft warning - the caller skips this write entirely.
                 $Problems.Value.Add("Ruleset '$($SourceRecord.$($Table.matchKeys[0]))' has unmapped GUIDs: $($rw.Unmapped -join ', ')") | Out-Null
+                $blocked = $true
             }
             $val = $rw.Text
         }
@@ -80,16 +86,30 @@ function Build-CcWritePayload {
         if (-not $srcGuid) { continue }
         if (($Table.stripColumns) -and ($Table.stripColumns -contains $valueCol)) { continue }
 
+        # Resolve to the referenced record's RESOLVED comparable key, not Build-CcIndex's raw
+        # IdToKey. For a target table whose own matchKeys include a lookup column (e.g. a routing
+        # config matched on name plus its parent workstream), the raw key embeds that lookup's GUID
+        # as-is - a different, environment-specific value on each side - so it can never agree with
+        # $Maps.TargetKeyToGuid below, which is now built the same resolved way.
         $refIdx = $SourceIndexes[$lk.target]
-        $refKey = if ($refIdx -and $refIdx.IdToKey.ContainsKey($srcGuid)) { $refIdx.IdToKey[$srcGuid] } else { $null }
+        $refTable = $TableByLogical[$lk.target]
+        $refKey = if ($refIdx -and $refTable -and $refIdx.ById.ContainsKey($srcGuid)) {
+            Get-CcComparableKey -Record $refIdx.ById[$srcGuid] -Table $refTable -EnvIndexes $SourceIndexes
+        } else { $null }
         if (-not $refKey) {
             $Problems.Value.Add("$($Table.logicalName): lookup $($lk.column) points at a source record with no natural key.") | Out-Null
+            $blocked = $true
             continue
         }
 
         $targetGuid = $Maps.TargetKeyToGuid["$($lk.target)|$refKey"]
         if (-not $targetGuid) {
+            # The source record is genuinely linked to this parent, but the parent hasn't landed in
+            # target - writing anyway would silently drop the relationship (or fail outright if the
+            # lookup is required). Block it like an unmapped guidBearingColumns reference: skip the
+            # write, keep the reason in Problems, let the caller move on instead of aborting the run.
             $Problems.Value.Add("$($Table.logicalName): parent $($lk.target) '$refKey' not found in target. Write parents first.") | Out-Null
+            $blocked = $true
             continue
         }
 
@@ -102,35 +122,30 @@ function Build-CcWritePayload {
         $payload["$nav@odata.bind"] = "/$refSet($targetGuid)"
     }
 
-    return $payload
+    return [pscustomobject]@{ Payload = $payload; Blocked = $blocked }
 }
 
 function Invoke-CcUpsert {
     <#
     .SYNOPSIS
-        Writes one record. Upserts by alternate key when the table has one, otherwise decides create vs
-        update from the target index. Honours create-once via If-None-Match.
+        Writes one record. Decides create vs update from the target index, resolved by compare - not
+        from a Dataverse alternate key, since alternate keys are org-specific metadata that may not
+        exist even when the manifest names a natural key. CreateOnce skips the write entirely when the
+        record already exists in target, matching "insert only if missing" without depending on
+        If-None-Match against a key that might not be published.
     #>
     param(
         [pscustomobject] $Environment,
         [pscustomobject] $Table,
         [hashtable] $Payload,
-        [string] $AltKeyValue,
         [string] $TargetGuid,
         [switch] $CreateOnce
     )
 
     $set = $Table.entitySet
-    $headers = @{}
-    if ($CreateOnce) { $headers['If-None-Match'] = '*' }
-
-    if ($Table.alternateKey -and $AltKeyValue) {
-        $encoded = [uri]::EscapeDataString($AltKeyValue)
-        $path = "$set($($Table.alternateKey)='$encoded')"
-        return Invoke-CcWebApi -Environment $Environment -Method Patch -Path $path -Body $Payload -ExtraHeaders $headers -Prefer 'return=representation'
-    }
 
     if ($TargetGuid) {
+        if ($CreateOnce) { return $null }
         $path = "$set($TargetGuid)"
         return Invoke-CcWebApi -Environment $Environment -Method Patch -Path $path -Body $Payload -Prefer 'return=representation'
     }
@@ -177,6 +192,7 @@ function Save-CcSnapshot {
         [pscustomobject] $Environment,
         [AllowEmptyCollection()] [object[]] $Operations,
         [hashtable] $TargetIndexes,
+        [hashtable] $TableByLogical,
         [string] $Path
     )
 
@@ -188,10 +204,15 @@ function Save-CcSnapshot {
 
     foreach ($op in $Operations) {
         $idx = $TargetIndexes[$op.table]
-        if (-not $idx) { continue }
-        # best-effort: store any existing target row for this match key
+        $tbl = $TableByLogical[$op.table]
+        if (-not $idx -or -not $tbl) { continue }
+        # best-effort: store any existing target row for this match key. Compares the RESOLVED
+        # comparable key, matching $op.matchKey's own format - the raw IdToKey never agrees with it
+        # for a table whose own matchKeys include a lookup column (msdyn_routingconfiguration and
+        # friends), which silently snapshotted zero rows for those tables before this fix.
         foreach ($guid in $idx.ById.Keys) {
-            if ($idx.IdToKey[$guid] -eq $op.matchKey) {
+            $key = Get-CcComparableKey -Record $idx.ById[$guid] -Table $tbl -EnvIndexes $TargetIndexes
+            if ($key -eq $op.matchKey) {
                 if (-not $snapshot.records.ContainsKey($op.table)) { $snapshot.records[$op.table] = @() }
                 $snapshot.records[$op.table] += $idx.ById[$guid]
             }

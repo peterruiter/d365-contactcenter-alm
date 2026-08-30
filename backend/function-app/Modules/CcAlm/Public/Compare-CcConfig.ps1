@@ -26,7 +26,11 @@ function Compare-CcConfig {
     if ($Tables) { $tablesToRead = $manifest.tables | Where-Object { $Tables -contains $_.logicalName } }
 
     $entitySetByLogical = @{}
-    foreach ($t in $manifest.tables) { $entitySetByLogical[$t.logicalName] = $t.entitySet }
+    $tableByLogical = @{}
+    foreach ($t in $manifest.tables) {
+        $entitySetByLogical[$t.logicalName] = $t.entitySet
+        $tableByLogical[$t.logicalName] = $t
+    }
 
     Write-Verbose "Reading source ($($source.Name)) and target ($($target.Name))."
     $sourceRecordsByTable = @{}
@@ -37,13 +41,31 @@ function Compare-CcConfig {
     foreach ($t in $tablesToRead) {
         $sr = @(Get-CcRecords -Environment $source -Table $t)
         $tr = @(Get-CcRecords -Environment $target -Table $t)
+
+        if ($t.personalFilterColumn) {
+            $col = $t.personalFilterColumn
+            $sr = @($sr | Where-Object { $_.$col -eq $true })
+            $tr = @($tr | Where-Object { $_.$col -eq $true })
+        }
+
+        # Solution-managed rows (ismanaged = true) ship with the underlying managed solution
+        # (Omnichannel, Copilot Studio, Voice, ...) and already exist wherever that solution is
+        # installed. Writing one back is not just pointless, Dataverse rejects it outright (its
+        # own solution-component validation chokes on a raw create/update of a managed row). Not
+        # every table carries this column, so absence never filters a record out - only an
+        # explicit true does. No opt-out: there is no scenario where moving one is correct.
+        $sr = @($sr | Where-Object { $_.ismanaged -ne $true })
+        $tr = @($tr | Where-Object { $_.ismanaged -ne $true })
+
         $sourceRecordsByTable[$t.logicalName] = $sr
         $targetRecordsByTable[$t.logicalName] = $tr
         $sourceIndexes[$t.logicalName] = Build-CcIndex -Records $sr -Table $t
         $targetIndexes[$t.logicalName] = Build-CcIndex -Records $tr -Table $t
     }
 
-    $maps = Build-CcGlobalMaps -SourceIndexes $sourceIndexes -TargetIndexes $targetIndexes
+    $maps = Build-CcGlobalMaps -SourceIndexes $sourceIndexes -TargetIndexes $targetIndexes `
+        -SourceRecordsByTable $sourceRecordsByTable -TargetRecordsByTable $targetRecordsByTable `
+        -TableByLogical $tableByLogical
 
     $tableDiffs = [System.Collections.Generic.List[object]]::new()
     foreach ($t in $tablesToRead) {
@@ -52,7 +74,8 @@ function Compare-CcConfig {
             -SourceRecords $sourceRecordsByTable[$t.logicalName] `
             -TargetRecords $targetRecordsByTable[$t.logicalName] `
             -SourceIndexes $sourceIndexes -TargetIndexes $targetIndexes `
-            -SystemColumns $manifest.systemColumns -SourceGuidToRef $maps.SourceGuidToRef
+            -SystemColumns $manifest.systemColumns -SourceGuidToRef $maps.SourceGuidToRef `
+            -TableByLogical $tableByLogical
         $tableDiffs.Add($td) | Out-Null
     }
 

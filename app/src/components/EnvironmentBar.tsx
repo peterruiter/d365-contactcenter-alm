@@ -13,7 +13,8 @@ interface Props {
 }
 
 export function EnvironmentBar({
-  environments, sourceId, targetId, busy, onSource, onTarget, onCompare,
+  environments, sourceId, targetId, busy,
+  onSource, onTarget, onCompare,
 }: Props) {
   const source = environments.find((e) => e.id === sourceId)
   const target = environments.find((e) => e.id === targetId)
