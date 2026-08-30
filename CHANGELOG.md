@@ -2,7 +2,7 @@
 
 All notable changes to this project are recorded here. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [0.2.0] - 2026-08-30
+## [0.2.0](https://github.com/peterruiter/d365-contactcenter-alm/releases/tag/v0.2.0) - 2026-08-30
 
 Table-by-table live testing against real Dev/Test environments turned up a run of write-path and matching bugs, plus a Zodiak-branded UI pass. Grouped by what actually changed for a user running a migration.
 

@@ -1,5 +1,7 @@
 # Contact Center ALM for Dynamics 365
 
+[![Release](https://img.shields.io/github/v/release/peterruiter/d365-contactcenter-alm)](https://github.com/peterruiter/d365-contactcenter-alm/releases/latest)
+
 **A Power Apps code app that compares and moves Contact Center config across environments, no Configuration Migration tool, no manual GUID edits.**
 
 Contact Center ALM is the part everyone dreads. Workstreams, queues, routing rules, overflow rules and opening hours are content, not structure, so a solution does not carry them. The Configuration Migration tool does, but it means a schema file, a hand edit of `data.xml`, a double import for rulesets, and a calendar fix you have to remember. Every promotion. By hand.
