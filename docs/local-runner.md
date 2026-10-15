@@ -22,18 +22,27 @@ Per environment (one app registration can cover several):
 
 And the app registration has to be an **Application user** in each environment, with System Administrator or a custom role with organization-level create, read, write and delete on the Contact Center tables. The client does that in the Power Platform admin center -> environment -> Settings -> Users + permissions -> Application users.
 
-## Prerequisites
+## Get it running
 
-- Windows, PowerShell 7.2 or later (`pwsh`)
-- Node.js LTS (only to build the app, which the script does for you)
+Two ways in. The zip is the one to hand to a colleague.
 
-## Run it
+### Option 1: the ready-built zip (nothing else to install)
+
+1. Install PowerShell 7 if you do not have it: `winget install --id Microsoft.PowerShell -e`. Windows ships with PowerShell 5.1, which is not enough.
+2. Download **ContactCenterALM-LocalRunner.zip** from the [localrunner release](https://github.com/peterruiter/d365-contactcenter-alm/releases/tag/localrunner) and unzip it.
+3. Double-click **Start-LocalRunner.cmd** and type a profile name.
+
+The app comes pre-built, so no Node.js, no npm and no access to the npm registry. That matters on locked-down client laptops and behind corporate proxies, where `npm install` tends to fail with `ECONNRESET` or `EPERM`.
+
+### Option 2: from a clone of the repo
+
+Needs PowerShell 7 and Node.js LTS, plus network access to the npm registry.
 
 ```powershell
 ./scripts/run-local.ps1 -Profile contoso
 ```
 
-The first run installs the app's packages and builds it (a minute). Then the browser opens on **Setup**.
+The first run installs the app's packages and builds it (a minute). After that it rebuilds only when the app source changes. Either way the browser opens on **Setup**.
 
 Use one profile per client. Each profile has its own environments and secrets, so client A's Prod never shows up while you work for client B.
 
@@ -67,10 +76,19 @@ Nothing goes into the repo.
 | --- | --- | --- |
 | `-Profile` | `default` | Which client's set of environments |
 | `-Port` | `7171` | Local port |
-| `-Rebuild` | off | Rebuild the app even if it looks current |
+| `-Rebuild` | off | Rebuild the app even if it looks current (repo clone only) |
 | `-NoBrowser` | off | Do not open the browser |
 
 Working on the app itself? Run the runner, then `npm run dev:runner` in `app`: Vite on port 3000 with hot reload, proxying `/api` to the runner.
+
+## Building the release zip
+
+```powershell
+./scripts/build-runner-release.ps1
+gh release upload localrunner ./out/ContactCenterALM-LocalRunner.zip --clobber
+```
+
+It builds the app in runner mode and zips it with the engine, the runner and the launcher, in the repo's own folder layout. The zip leaves out the app source, which is how `run-local.ps1` knows never to build.
 
 ## Security notes
 

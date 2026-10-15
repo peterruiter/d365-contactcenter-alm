@@ -17,5 +17,6 @@ export default defineConfig(({ mode }) => ({
     strictPort: true,
     proxy: mode === 'runner' ? { '/api': 'http://localhost:7171' } : undefined,
   },
-  build: { outDir: mode === 'runner' ? 'dist-runner' : 'dist', sourcemap: true },
+  // No source maps in the runner build: it ships in the release zip, where they only add size.
+  build: { outDir: mode === 'runner' ? 'dist-runner' : 'dist', sourcemap: mode !== 'runner' },
 }))
