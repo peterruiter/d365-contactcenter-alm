@@ -1,0 +1,44 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    The local runner as one self-contained exe: the .NET runtime, the PowerShell 7 engine and the
+    runner (scripts, engine module, built app) in a single file, so a laptop needs neither
+    PowerShell 7 nor Node.js. Built by scripts/build-runner-release.ps1, which puts the runner
+    files in payload/payload.zip first.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <SelfContained>true</SelfContained>
+    <!-- The runtime baked into the exe; keep it on the latest .NET 10 security patch rather than
+         whatever the build machine's SDK happens to carry. -->
+    <RuntimeFrameworkVersion>10.0.13</RuntimeFrameworkVersion>
+    <PublishSingleFile>true</PublishSingleFile>
+    <!-- The PowerShell SDK finds its own files by assembly location, which a single-file bundle
+         does not have unless everything is extracted on first start. -->
+    <IncludeAllContentForSelfExtract>true</IncludeAllContentForSelfExtract>
+    <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AssemblyName>ContactCenterALM-LocalRunner</AssemblyName>
+    <RootNamespace>CcAlmRunner</RootNamespace>
+    <Product>Contact Center ALM local runner</Product>
+    <Company>Peter Ruiter</Company>
+    <Copyright>(c) Peter Ruiter. MIT.</Copyright>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.PowerShell.SDK" Version="7.6.6" />
+    <!-- The SDK pulls in 10.0.10 of these, which carry the October 2026 security advisories
+         (GHSA-846f-f764-76mx, GHSA-7hqp-7c5m-4vq6 and others). 10.0.13 is the fixed version. -->
+    <PackageReference Include="System.Security.Cryptography.Pkcs" Version="10.0.13" />
+    <PackageReference Include="System.Security.Cryptography.Xml" Version="10.0.13" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="payload/payload.zip" LogicalName="payload.zip" />
+  </ItemGroup>
+
+</Project>

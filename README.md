@@ -93,7 +93,7 @@ Deploy to an environment:
 
 Full walk-through in [docs/setup.md](docs/setup.md) and [docs/usage.md](docs/usage.md).
 
-Run it on your own machine against a client's environments, with only the app registrations they give you (no Azure, no connector). The quickest way: download **ContactCenterALM-LocalRunner.zip** from the [localrunner release](https://github.com/peterruiter/d365-contactcenter-alm/releases/tag/localrunner), unzip, and double-click **Start-LocalRunner.cmd**. It needs PowerShell 7 and nothing else. From a clone:
+Run it on your own machine against a client's environments, with only the app registrations they give you (no Azure, no connector). The quickest way: download **ContactCenterALM-LocalRunner.exe** from the [localrunner release](https://github.com/peterruiter/d365-contactcenter-alm/releases/tag/localrunner) and double-click it. Nothing to install, not even PowerShell 7. The same release has a zip that runs on an installed PowerShell 7, for laptops whose endpoint protection blocks the exe. From a clone:
 
 ```powershell
 ./scripts/run-local.ps1 -Profile contoso
@@ -134,6 +134,7 @@ Steps and auth in [docs/backend.md](docs/backend.md).
 | `connector/` | Custom connector definition (OpenAPI + Entra auth). |
 | `scripts/` | `deploy.ps1`, `init-app.ps1`, `deploy-backend.ps1`, `run-local.ps1`, `build-runner-release.ps1`. |
 | `Start-LocalRunner.cmd` | Double-click launcher for the local runner. |
+| `runner-exe/` | The local runner as one self-contained exe (.NET 10 + PowerShell 7 SDK). |
 | `build.ps1` | Install, typecheck, build the app. |
 | `docs/` | [getting-started](docs/getting-started.md), [architecture](docs/architecture.md), [setup](docs/setup.md), [usage](docs/usage.md), [usage (CLI/engine reference)](docs/usage-engine-reference.md), [backend](docs/backend.md), [local runner](docs/local-runner.md), [manifest](docs/manifest.md), [backend service principal](docs/backend-service-principal.md) |
 

@@ -24,9 +24,23 @@ And the app registration has to be an **Application user** in each environment, 
 
 ## Get it running
 
-Two ways in. The zip is the one to hand to a colleague.
+Three ways in. The exe is the one to hand to a colleague.
 
-### Option 1: the ready-built zip (nothing else to install)
+### Option 1: one exe (nothing to install, not even PowerShell 7)
+
+1. Download **ContactCenterALM-LocalRunner.exe** from the [localrunner release](https://github.com/peterruiter/d365-contactcenter-alm/releases/tag/localrunner).
+2. Double-click it and type a profile name.
+
+It carries its own .NET runtime and PowerShell 7 engine (about 50 MB). On first start it unpacks to `%TEMP%\.net` and `%LOCALAPPDATA%\CcAlm\runtime`, which takes a few seconds; later starts are quicker. From a terminal: `.\ContactCenterALM-LocalRunner.exe -Profile contoso [-Port 7171] [-NoBrowser]`.
+
+Two things corporate laptops do to an unsigned exe:
+
+- **SmartScreen** says "Windows protected your PC". Choose **More info** -> **Run anyway**.
+- **Endpoint protection** (CrowdStrike, Defender for Endpoint) can stop it, because a program that is not powershell.exe running PowerShell looks like malware to them. On a CrowdStrike laptop it ran fine by double-click and from a PowerShell window, but was killed a second after starting from a Command Prompt. If it closes by itself, start it by double-click, or use the zip below: it runs on the signed `pwsh.exe`, which these tools trust.
+
+`%LOCALAPPDATA%\CcAlm\runner-exe.log` records each start, exit and crash.
+
+### Option 2: the ready-built zip (needs PowerShell 7 only)
 
 1. Install PowerShell 7 if you do not have it: `winget install --id Microsoft.PowerShell -e`. Windows ships with PowerShell 5.1, which is not enough.
 2. Download **ContactCenterALM-LocalRunner.zip** from the [localrunner release](https://github.com/peterruiter/d365-contactcenter-alm/releases/tag/localrunner) and unzip it.
@@ -34,7 +48,7 @@ Two ways in. The zip is the one to hand to a colleague.
 
 The app comes pre-built, so no Node.js, no npm and no access to the npm registry. That matters on locked-down client laptops and behind corporate proxies, where `npm install` tends to fail with `ECONNRESET` or `EPERM`.
 
-### Option 2: from a clone of the repo
+### Option 3: from a clone of the repo
 
 Needs PowerShell 7 and Node.js LTS, plus network access to the npm registry.
 
@@ -81,14 +95,16 @@ Nothing goes into the repo.
 
 Working on the app itself? Run the runner, then `npm run dev:runner` in `app`: Vite on port 3000 with hot reload, proxying `/api` to the runner.
 
-## Building the release zip
+## Building the release assets
 
 ```powershell
 ./scripts/build-runner-release.ps1
-gh release upload localrunner ./out/ContactCenterALM-LocalRunner.zip --clobber
+gh release upload localrunner ./out/ContactCenterALM-LocalRunner.zip ./out/ContactCenterALM-LocalRunner.exe --clobber
 ```
 
 It builds the app in runner mode and zips it with the engine, the runner and the launcher, in the repo's own folder layout. The zip leaves out the app source, which is how `run-local.ps1` knows never to build.
+
+The exe (`runner-exe/`, needs the .NET 10 SDK; `-SkipExe` skips it) embeds the same files and hosts the PowerShell 7 SDK in a self-contained single-file .NET 10 app. The project pins the .NET runtime and the `System.Security.Cryptography.*` packages to their latest security patches; check `dotnet list runner-exe package --vulnerable --include-transitive` before each release and bump them when it reports anything.
 
 ## Security notes
 

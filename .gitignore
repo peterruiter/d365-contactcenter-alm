@@ -2,6 +2,11 @@
 app/node_modules/
 app/dist/
 app/dist-runner/
+
+# Local runner exe build (scripts/build-runner-release.ps1)
+runner-exe/bin/
+runner-exe/obj/
+runner-exe/payload/
 node_modules/
 
 # Environment registry with real URLs and any secret. Never commit.
