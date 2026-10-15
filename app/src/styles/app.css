@@ -445,3 +445,119 @@ body {
 }
 .wizard-step-error .wizard-step-detail { color: #f64059; }
 .wizard-step-warning .wizard-step-detail { color: #cc640f; } /* Zodiak Orange-700 */
+
+/* ---------- Local runner: tabs and setup wizard ---------- */
+
+.app-tabs {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 var(--space-s);
+  background: var(--colorNeutralBackground1);
+  border-bottom: 1px solid var(--colorNeutralStroke2);
+  flex: 0 0 auto;
+}
+.app-tabs-hint { font-size: 12px; color: var(--colorNeutralForeground3); }
+
+.setup-step-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  margin-right: var(--space-2xs);
+  border-radius: 50%;
+  background: var(--brand-primary);
+  color: #fff;
+  font-size: 12px;
+}
+.setup-intro { margin-bottom: var(--space-xs); max-width: 640px; }
+
+.setup-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  max-width: 560px;
+}
+.setup-form-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: var(--space-xs);
+}
+
+.setup-summary {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 4px var(--space-xs);
+  margin: 0;
+  font-size: 13px;
+}
+.setup-summary dt { color: var(--colorNeutralForeground3); }
+.setup-summary dd { margin: 0; overflow-wrap: anywhere; }
+
+.check-list { list-style: none; margin: 0; padding: 0; }
+.check-row {
+  display: flex;
+  gap: var(--space-2xs);
+  padding: var(--space-xs) 0;
+  border-top: 1px solid var(--colorNeutralStroke2);
+}
+.check-row:first-child { border-top: none; padding-top: 0; }
+.check-marker {
+  flex: 0 0 auto;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.check-body { min-width: 0; flex: 1; }
+.check-title { font-size: 14px; font-weight: 400; color: var(--colorNeutralForeground1); }
+.check-desc { font-size: 13px; color: var(--colorNeutralForeground3); margin-top: 2px; overflow-wrap: anywhere; }
+.check-pending .check-title { color: var(--colorNeutralForeground3); }
+.check-running .check-title { color: var(--brand-primary); }
+.check-fail .check-desc { color: #f64059; }   /* Zodiak Red-500 */
+.check-warn .check-desc { color: #cc640f; }   /* Zodiak Orange-700 */
+.check-detail {
+  margin: 6px 0 0;
+  padding-left: 18px;
+  font-size: 12px;
+  color: var(--colorNeutralForeground2);
+  overflow-wrap: anywhere;
+}
+.check-fix { margin-top: var(--space-2xs); }
+.setup-done { margin-top: var(--space-xs); }
+
+.setup-env-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.setup-env {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: var(--space-2xs);
+  border: 1px solid transparent;
+  border-radius: var(--radius-xs);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.setup-env:hover:not(:disabled) { background: var(--colorNeutralBackground1Hover); }
+.setup-env:disabled { cursor: default; }
+.setup-env-selected { border-color: var(--brand-primary); }
+.setup-env-name { font-size: 13px; font-weight: 400; color: var(--colorNeutralForeground1); }
+.setup-env-status { font-size: 12px; }
+.tone-done { color: #4eb972; }
+.tone-warning { color: #cc640f; }
+.tone-error { color: #f64059; }
+.tone-pending { color: var(--colorNeutralForeground3); }
+
+.setup-store {
+  margin-top: var(--space-s);
+  font-size: 12px;
+  color: var(--colorNeutralForeground3);
+  overflow-wrap: anywhere;
+}
+.setup-store code { font-size: 11px; }

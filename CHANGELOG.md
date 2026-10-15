@@ -2,6 +2,15 @@
 
 All notable changes to this project are recorded here. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
+### Added
+- **Local runner** (`scripts/run-local.ps1`). Runs the app and the engine on your own machine against a client's environments, with only the app registrations the client hands over: no Azure Function, no custom connector, nothing to create in Entra. A Setup tab takes each environment's URL, tenant ID, client ID and secret, then runs five checks one by one (tenant, sign-in, Application user, Contact Center installed, table access down to privilege depth), stopping at the first failure with what to ask the client for. The common AADSTS errors are translated, including the Secret-ID-instead-of-Value mistake. Environments that pass show up in Compare. One profile per client under `%LOCALAPPDATA%\CcAlm`, secrets encrypted with Windows DPAPI, nothing in the repo. See [docs/local-runner.md](docs/local-runner.md).
+- **Per-environment app registrations.** Each environment in the registry can carry its own `tenantId` and `clientId` (falling back to the top-level ones), with secrets from `CCALM_CLIENT_SECRET_<ID>` before `CCALM_CLIENT_SECRET`. Works for the CLI and the Function too. `Connect-CcEnvironment` also takes the registry as an object, can connect a subset of environments, and can skip the WhoAmI probe.
+
+### Changed
+- The Function's labels and response mappers moved from `profile.ps1` into `backend/function-app/Contract.ps1`, shared with the local runner so both return the same shapes.
+
 ## [0.2.0](https://github.com/peterruiter/d365-contactcenter-alm/releases/tag/v0.2.0) - 2026-08-30
 
 Table-by-table live testing against real Dev/Test environments turned up a run of write-path and matching bugs, plus a Zodiak-branded UI pass. Grouped by what actually changed for a user running a migration.

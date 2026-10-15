@@ -1,6 +1,7 @@
 # Node / app build
 app/node_modules/
 app/dist/
+app/dist-runner/
 node_modules/
 
 # Environment registry with real URLs and any secret. Never commit.

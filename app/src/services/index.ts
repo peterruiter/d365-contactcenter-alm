@@ -14,6 +14,11 @@ export function getAlmService(): AlmService {
       // Published app: calls the backend through the custom connector.
       instance = new ConnectorAlmService()
       break
+    case 'local':
+      // Local runner (scripts/run-local.ps1): same contract, same origin, plus the header the
+      // runner requires on every API call.
+      instance = new BackendAlmService('/api', { 'X-CcAlm-Local': '1' })
+      break
     case 'backend':
       // Local dev: direct HTTP to the deployed Function (needs CORS).
       instance = new BackendAlmService(import.meta.env.VITE_ALM_BACKEND_URL ?? '')

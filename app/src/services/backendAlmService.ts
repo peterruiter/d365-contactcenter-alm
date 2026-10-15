@@ -1,7 +1,8 @@
 import type { AlmService } from './almService'
 import type { DiffModel, EnvironmentRef, Plan, Run, SelectionItem } from '../types/alm'
 
-// Talks to the ALM backend described in docs/architecture.md.
+// Talks to the ALM backend described in docs/architecture.md: the deployed Function (local dev,
+// VITE_ALM_SOURCE=backend) or the local runner (VITE_ALM_SOURCE=local, base URL /api).
 //
 // In a code app, an external API is reached through a connector (custom connector or
 // the platform's HTTP infrastructure) so DLP and Entra auth apply. This adapter uses
@@ -9,7 +10,7 @@ import type { DiffModel, EnvironmentRef, Plan, Run, SelectionItem } from '../typ
 // backend and its custom connector exist. The method shapes already match the contract,
 // so that swap does not touch the UI.
 
-async function json<T>(res: Response): Promise<T> {
+export async function json<T>(res: Response): Promise<T> {
   if (!res.ok) {
     let message = `${res.status} ${res.statusText}`
     try {
@@ -24,36 +25,35 @@ async function json<T>(res: Response): Promise<T> {
 }
 
 export class BackendAlmService implements AlmService {
-  constructor(private readonly baseUrl: string) {
+  constructor(
+    private readonly baseUrl: string,
+    private readonly headers: Record<string, string> = {},
+  ) {
     if (!baseUrl) throw new Error('Backend URL is not set. Set VITE_ALM_BACKEND_URL.')
   }
 
-  private url(path: string): string {
-    return `${this.baseUrl.replace(/\/$/, '')}${path}`
+  private get(path: string): Promise<Response> {
+    return fetch(`${this.baseUrl.replace(/\/$/, '')}${path}`, { headers: this.headers })
+  }
+
+  private post(path: string, body: unknown): Promise<Response> {
+    return fetch(`${this.baseUrl.replace(/\/$/, '')}${path}`, {
+      method: 'POST',
+      headers: { ...this.headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    })
   }
 
   async listEnvironments(): Promise<EnvironmentRef[]> {
-    return json(await fetch(this.url('/environments')))
+    return json(await this.get('/environments'))
   }
 
   async compare(sourceId: string, targetId: string, tables?: string[]): Promise<DiffModel> {
-    return json(
-      await fetch(this.url('/compare'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sourceEnvId: sourceId, targetEnvId: targetId, tables }),
-      }),
-    )
+    return json(await this.post('/compare', { sourceEnvId: sourceId, targetEnvId: targetId, tables }))
   }
 
   async plan(diff: DiffModel, selection?: SelectionItem[]): Promise<Plan> {
-    return json(
-      await fetch(this.url('/plan'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sourceEnvId: diff.source, targetEnvId: diff.target, selection }),
-      }),
-    )
+    return json(await this.post('/plan', { sourceEnvId: diff.source, targetEnvId: diff.target, selection }))
   }
 
   async apply(plan: Plan, mode: 'dryRun' | 'apply', approved: boolean): Promise<Run> {
@@ -61,32 +61,22 @@ export class BackendAlmService implements AlmService {
     // not a stored plan id. It runs the plan and returns the run record directly.
     const selection = plan.operations.map((o) => ({ table: o.table, matchKey: o.matchKey }))
     return json<Run>(
-      await fetch(this.url('/apply'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          sourceEnvId: plan.source,
-          targetEnvId: plan.target,
-          selection,
-          mode,
-          approved,
-          idempotencyKey: crypto.randomUUID(),
-        }),
+      await this.post('/apply', {
+        sourceEnvId: plan.source,
+        targetEnvId: plan.target,
+        selection,
+        mode,
+        approved,
+        idempotencyKey: crypto.randomUUID(),
       }),
     )
   }
 
   async getRun(runId: string): Promise<Run> {
-    return json(await fetch(this.url(`/run/${runId}`)))
+    return json(await this.get(`/run/${runId}`))
   }
 
   async rollback(runId: string): Promise<Run> {
-    return json(
-      await fetch(this.url(`/run/${runId}/rollback`), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: '{}',
-      }),
-    )
+    return json(await this.post(`/run/${runId}/rollback`, {}))
   }
 }

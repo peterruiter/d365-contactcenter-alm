@@ -19,6 +19,7 @@ You open the app in Dynamics, pick a source and a target, and see what differs. 
 | Code app (`app/`) | React + TypeScript, Fluent UI, the `@microsoft/power-apps` SDK. The UI: environment picker, diff, plan, dry-run, apply, rollback. |
 | Backend (`backend/function-app/`) | A PowerShell Azure Function that wraps the engine, exposing compare/plan/apply/rollback over HTTP under a service principal. |
 | Engine (`backend/function-app/Modules/CcAlm/`) | The compare/plan/write/rollback logic, in PowerShell. The Function App and the CLI both call it, so there is one implementation, not two to keep in sync. |
+| Local runner (`scripts/run-local.ps1`, `backend/local-runner/`) | The app plus the engine on your own machine, with a setup wizard that checks each client app registration step by step. No Azure. |
 | CLI (`backend/cli/`) | Thin wrapper scripts (`compare.ps1`, `migrate.ps1`, `rollback.ps1`) over the same engine, for standalone or pipeline use without the Azure Function. |
 | Build and deploy (`build.ps1`, `scripts/`) | Build the app, `pac code init`, `pac code push`. |
 | Manifest (`config/manifest.json`) | Table order, match keys, lookups, move modes, detect-only rules. The app and the engine read from it. |
@@ -92,6 +93,14 @@ Deploy to an environment:
 
 Full walk-through in [docs/setup.md](docs/setup.md) and [docs/usage.md](docs/usage.md).
 
+Run it on your own machine against a client's environments, with only the app registrations they give you (no Azure, no connector):
+
+```powershell
+./scripts/run-local.ps1 -Profile contoso
+```
+
+The browser opens on a Setup wizard: enter each environment's app registration and run the checks one by one. Details in [docs/local-runner.md](docs/local-runner.md).
+
 Stand up the backend (Azure Function + connector):
 
 ```powershell
@@ -121,10 +130,11 @@ Steps and auth in [docs/backend.md](docs/backend.md).
 | `config/manifest.json` | Table order, match keys, lookups, move modes, detect-only rules. |
 | `backend/function-app/` | The backend: PowerShell Azure Function wrapping the engine (`Modules/CcAlm`). |
 | `backend/cli/` | The same engine as a command-line tool, for pipelines. |
+| `backend/local-runner/` | Local web server, profile store and setup checks behind `scripts/run-local.ps1`. |
 | `connector/` | Custom connector definition (OpenAPI + Entra auth). |
-| `scripts/` | `deploy.ps1`, `init-app.ps1`. |
+| `scripts/` | `deploy.ps1`, `init-app.ps1`, `deploy-backend.ps1`, `run-local.ps1`. |
 | `build.ps1` | Install, typecheck, build the app. |
-| `docs/` | [getting-started](docs/getting-started.md), [architecture](docs/architecture.md), [setup](docs/setup.md), [usage](docs/usage.md), [usage (CLI/engine reference)](docs/usage-engine-reference.md), [backend](docs/backend.md), [manifest](docs/manifest.md), [backend service principal](docs/backend-service-principal.md) |
+| `docs/` | [getting-started](docs/getting-started.md), [architecture](docs/architecture.md), [setup](docs/setup.md), [usage](docs/usage.md), [usage (CLI/engine reference)](docs/usage-engine-reference.md), [backend](docs/backend.md), [local runner](docs/local-runner.md), [manifest](docs/manifest.md), [backend service principal](docs/backend-service-principal.md) |
 
 ## Roadmap
 

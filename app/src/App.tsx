@@ -1,13 +1,25 @@
 import { useEffect, useState, type CSSProperties } from 'react'
-import { FluentProvider, Switch } from '@fluentui/react-components'
+import { FluentProvider, Switch, Tab, TabList } from '@fluentui/react-components'
 import { lightTheme, darkTheme } from './theme'
 import { ComparePage } from './pages/ComparePage'
+import { SetupPage } from './pages/SetupPage'
+import { getSetup, isLocalRunner } from './services/localSetup'
 import { Footer } from './components/Footer'
 import { brand } from './brands'
 import './styles/app.css'
 
 export default function App() {
   const [dark, setDark] = useState<boolean>(false)
+  // Local runner only: Setup (app registrations + checks) next to Compare. Opens on Compare once
+  // two environments are ready, otherwise on Setup. The published app has no tabs.
+  const [tab, setTab] = useState<'setup' | 'compare' | null>(isLocalRunner ? null : 'compare')
+
+  useEffect(() => {
+    if (!isLocalRunner) return
+    getSetup()
+      .then((s) => setTab(s.environments.filter((e) => e.ready).length >= 2 ? 'compare' : 'setup'))
+      .catch(() => setTab('setup'))
+  }, [])
 
   // Browser tab title and favicon follow the active brand too - both are set once here rather
   // than duplicated as static values in index.html, so src/brands/ stays the single source of
@@ -53,9 +65,21 @@ export default function App() {
           </div>
         </header>
 
+        {isLocalRunner && tab && (
+          <nav className="app-tabs">
+            <TabList selectedValue={tab} onTabSelect={(_, d) => setTab(d.value as 'setup' | 'compare')}>
+              <Tab value="setup">Setup</Tab>
+              <Tab value="compare">Compare</Tab>
+            </TabList>
+            <span className="app-tabs-hint">Local runner</span>
+          </nav>
+        )}
+
         <main className="app-body">
           <div className="content">
-            <ComparePage />
+            {/* Remounted on every tab switch, so Compare picks up environments set up just now. */}
+            {tab === 'compare' && <ComparePage />}
+            {tab === 'setup' && <SetupPage onGoCompare={() => setTab('compare')} />}
           </div>
           <Footer />
         </main>
