@@ -1,0 +1,18 @@
+{
+  "bindings": [
+    {
+      "type": "queueTrigger",
+      "direction": "in",
+      "name": "QueueItem",
+      "queueName": "ccalm-runs",
+      "connection": "AzureWebJobsStorage"
+    },
+    {
+      "type": "queue",
+      "direction": "out",
+      "name": "RunQueue",
+      "queueName": "ccalm-runs",
+      "connection": "AzureWebJobsStorage"
+    }
+  ]
+}

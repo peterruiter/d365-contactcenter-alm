@@ -34,6 +34,8 @@ Run opens a dialog with two choices:
 - **Dry run**: reports what would happen, writes nothing. Do this first.
 - **Apply**: writes to the target. A target that needs approval makes you tick the approval box first.
 
+Dry runs, applies and rollbacks run in the background: the run view shows a progress bar, what is being written right now, and outcomes as they come in. You can leave the page or reload; the run carries on and is picked up again. A run that stopped halfway (the backend restarted, the local runner was closed) shows as interrupted with a Continue button, which compares again and writes only what is still missing.
+
 The run view lists every record per stage with its outcome (created, updated, linked, skipped, blocked, failed) and the reason in plain words. Provisioning warnings show up here; they are the usual source of "it looked fine but wasn't". A record that failed only holds back the records that depend on it; the rest of the run continues. Dependencies are checked in the plan step before anything runs, so a dry run of a plan without blockers reports exactly what applying will do.
 
 ## 6. Roll back

@@ -24,11 +24,14 @@ function Get-CcRegistryJson {
     throw 'No environment registry. Set CCALM_ENVIRONMENTS, or ship environments.json with the app.'
 }
 
-function Get-CcConnected {
+function Get-CcConnected([string[]] $Ids) {
+    # Only the environments a request needs: one unreachable environment elsewhere in the registry
+    # must not stop a compare or a run between two others.
     $json = Get-CcRegistryJson
     $tmp = Join-Path ([System.IO.Path]::GetTempPath()) "ccalm-env-$([guid]::NewGuid().ToString('N')).json"
     Set-Content -Path $tmp -Value $json -Encoding UTF8
     try {
+        if ($Ids) { return Connect-CcEnvironment -ConfigPath $tmp -EnvironmentId $Ids -SkipCheck }
         return Connect-CcEnvironment -ConfigPath $tmp
     }
     finally {

@@ -1,43 +1,25 @@
 using namespace System.Net
 param($Request, $TriggerMetadata)
 
+# Starts rolling back an applied run in the background; the app polls GetRun until it finishes.
 try {
     $id = $Request.Params.id
     if (-not $id) { Push-CcError 400 'bad_request' 'Run id is required.'; return }
+    try { $run = ConvertTo-CcRunHashtable (Get-CcBlobJson "run-$id.json") }
+    catch { Push-CcError 404 'not_found' "Run $id not found."; return }
 
-    try {
-        $run = Get-CcBlobJson "run-$id.json"
-    }
-    catch {
-        Push-CcError 404 'not_found' "Run $id not found."; return
-    }
-
-    if (-not $run.snapshotId) {
-        Push-CcError 400 'no_snapshot' 'This run has no snapshot. A dry run cannot be rolled back.'; return
+    if (-not $run.snapshotId) { Push-CcError 400 'no_snapshot' 'This run has no snapshot. A dry run cannot be rolled back.'; return }
+    if ($run.state -in 'Queued', 'Running', 'RollingBack' -and -not (Test-CcRunStale $run)) {
+        Push-CcError 409 'busy' 'This run is still in progress. Roll it back once it has finished.'; return
     }
 
-    $tmp = Join-Path ([System.IO.Path]::GetTempPath()) "snapshot-$id.json"
-    Get-CcBlobFile "snapshot-$id.json" $tmp | Out-Null
-
-    $envs = Get-CcConnected
-    $result = Restore-CcRun -SnapshotPath $tmp -Environments $envs -Confirm:$false
-    Remove-Item $tmp -ErrorAction SilentlyContinue
-
-    $run.state = 'RolledBack'
+    $run.state = 'RollingBack'
+    $run.phase = 'rollingBack'
+    $run.progress.current = 'Waiting to start'
+    $run.updatedAt = (Get-Date).ToString('o')
     Save-CcBlobJson "run-$id.json" $run
-
-    Push-CcJson 200 @{
-        runId   = $id
-        state   = 'RolledBack'
-        cleanup = @{ restored = $result.restored; deleted = $result.deleted; unresolved = @($result.unresolved) }
-        summary = $run.summary
-        source  = $run.source
-        stages  = @($run.stages)
-        mode    = $run.mode
-        target  = $run.target
-        snapshotId = $run.snapshotId
-        problems = @($run.problems)
-    }
+    Push-OutputBinding -Name RunQueue -Value (@{ runId = $id; kind = 'rollback' } | ConvertTo-Json -Compress)
+    Push-CcJson 200 $run
 }
 catch {
     Push-CcError 500 'rollback_failed' (Get-CcErrorText $_)

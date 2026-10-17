@@ -20,7 +20,17 @@ function Invoke-CcPlan {
         [ValidateSet('DryRun', 'Apply')] [string] $Mode = 'DryRun',
         [switch] $Approved,
         [string] $OutputDir = './out',
-        [int] $ProvisioningTimeoutSeconds = 90
+        [int] $ProvisioningTimeoutSeconds = 90,
+        # Called as & $OnEvent <type> <data> while the run goes: 'start' (an operation or link is about
+        # to be written; data = @{ phase; op }), 'item' (one outcome; data = the item), 'updated' (the
+        # pre-run state of every record about to be changed; data = snapshot entries), 'created' (a
+        # record the run created; data = its snapshot entry). Background runs use it for live progress
+        # and a rollback snapshot that survives a crash mid-run.
+        [scriptblock] $OnEvent,
+        # Stop cleanly before the next write once this time has passed, and return with
+        # incomplete = $true. A continuation compares again and plans the same selection: what was
+        # written is then the same in both and drops out, so only the rest is done.
+        [datetime] $Deadline = [datetime]::MaxValue
     )
 
     $target = $Environments | Where-Object Id -eq $Plan.target | Select-Object -First 1
@@ -54,6 +64,7 @@ function Invoke-CcPlan {
             $trec = if ($tid) { $ctx.Target.ById[$o.table][$tid] } else { $null }
             if ($trec) { $snapshot.updated.Add((New-CcSnapshotEntry -TargetRecord $trec -TablePlan $plans[$o.table] -TargetId $tid -TablePlans $plans)) | Out-Null }
         }
+        if ($OnEvent) { & $OnEvent 'updated' @($snapshot.updated) }
         $snapshotPath = Join-Path $OutputDir "snapshot-$runId.json"
         $snapshot | ConvertTo-Json -Depth 40 | Set-Content -Path $snapshotPath -Encoding UTF8
     }
@@ -63,11 +74,15 @@ function Invoke-CcPlan {
     $links = [System.Collections.Generic.List[object]]::new()
 
     function Add-Item($o, $outcome, $message, [int] $stage) {
-        $items.Add([pscustomobject]@{
-                seq = $o.seq; stage = $stage; table = $o.table; tableLabel = $o.tableLabel
-                displayName = $o.displayName; context = $o.context; op = $o.op; outcome = $outcome; message = $message
-            }) | Out-Null
+        $item = [pscustomobject]@{
+            seq = $o.seq; stage = $stage; table = $o.table; tableLabel = $o.tableLabel
+            displayName = $o.displayName; context = $o.context; op = $o.op; outcome = $outcome; message = $message
+        }
+        $items.Add($item) | Out-Null
+        if ($OnEvent) { & $OnEvent 'item' $item }
     }
+    $incomplete = $false
+    $attempted = 0
 
     foreach ($o in @($Plan.operations | Where-Object status -eq 'blocked')) {
         Add-Item $o 'blocked' (($o.blockers | ForEach-Object message) -join ' ') $o.stage
@@ -78,6 +93,11 @@ function Invoke-CcPlan {
     foreach ($o in $readyOps) {
         $ref = "$($o.table)|$($o.matchKey)"
         $tplan = $plans[$o.table]
+        # At least one write per call before the deadline counts, so a slice whose compare used up
+        # its budget still makes progress instead of handing the same work on forever.
+        if (-not $isDry -and $attempted -gt 0 -and (Get-Date) -gt $Deadline) { $incomplete = $true; break }
+        $attempted++
+        if ($OnEvent) { & $OnEvent 'start' @{ phase = 'writing'; op = $o } }
 
         if ($o.op -eq 'skip-existing') { Add-Item $o 'unchanged' 'Already in the target; this table is never changed after it is created.' $o.stage; continue }
 
@@ -117,7 +137,9 @@ function Invoke-CcPlan {
             if (-not $id) { throw 'Dataverse did not return the new record.' }
             $maps.TargetKeyToGuid[$ref] = $id
             if ($o.op -eq 'create') {
-                $snapshot.created.Add([ordered]@{ table = $o.table; entitySet = $tplan.EntitySet; id = $id; label = $o.displayName; order = $o.order }) | Out-Null
+                $createdEntry = [ordered]@{ table = $o.table; entitySet = $tplan.EntitySet; id = $id; label = $o.displayName; order = $o.order }
+                $snapshot.created.Add($createdEntry) | Out-Null
+                if ($OnEvent) { & $OnEvent 'created' $createdEntry }
             }
             $note = ''
             if ($tplan.Table.async -and $o.op -eq 'create') {
@@ -142,7 +164,11 @@ function Invoke-CcPlan {
 
     # Final pass: lookups that pointed at a table written later (a workstream's default queue, a
     # queue's overflow ruleset) now have their target.
+    # Links wait for a continuation when the run stopped early: the records they point at may not
+    # exist yet, and the continuation queues them again from its own plan.
+    if ($incomplete) { $links.Clear() }
     foreach ($l in $links) {
+        if ($OnEvent) { & $OnEvent 'start' @{ phase = 'linking'; op = $l.Op } }
         $targetGuid = $maps.TargetKeyToGuid["$($l.Entity)|$($l.Key)"]
         $what = "$($l.Lookup.Label) of $(Get-CcItemLabel $plans[$l.Op.table].Table) '$($l.Op.displayName)'"
         $linkOp = [pscustomobject]@{ seq = $l.Op.seq; table = $l.Op.table; tableLabel = $l.Op.tableLabel; displayName = $l.Op.displayName; context = $l.Op.context; op = 'link' }
@@ -204,6 +230,7 @@ function Invoke-CcPlan {
         startedAt  = $started
         finishedAt = (Get-Date).ToString('o')
         summary    = $summary
+        incomplete = $incomplete
         stages     = $stageResults
         problems   = @($bad | ForEach-Object { "$($_.tableLabel) '$($_.displayName)': $($_.message)" })
     }

@@ -24,7 +24,7 @@ function ConvertTo-CcDiffContract($diff) {
                                 context     = $_.context
                                 note        = $_.note
                                 fields      = if ($equal) { @() } else { @($_.fields | ForEach-Object { [ordered]@{ name = $_.name; label = $_.label; kind = $_.kind; source = $_.source; target = $_.target } }) }
-                                dependsOn   = if ($equal) { @() } else { @($_.dependsOn | ForEach-Object { [ordered]@{ table = $_.table; matchKey = $_.matchKey; label = $_.label; via = $_.via; deferred = [bool]$_.deferred } }) }
+                                dependsOn   = @($_.dependsOn | Where-Object { $_ } | ForEach-Object { [ordered]@{ table = $_.table; matchKey = $_.matchKey; label = $_.label; via = $_.via; deferred = [bool]$_.deferred; kind = $_.kind } })
                             }
                         })
                 }
@@ -122,4 +122,23 @@ function Get-CcErrorText($err) {
         $parts += "Stack: " + ($err.ScriptStackTrace -replace "`r?`n", ' <- ')
     }
     return ($parts -join ' | ')
+}
+
+# --- Stored runs ---------------------------------------------------------------
+
+function ConvertTo-CcRunHashtable($Run) {
+    # A run read back from storage is a PSCustomObject; hosts change its state before saving it
+    # again, which needs settable properties (and the nested progress block).
+    if ($null -eq $Run -or $Run -is [System.Collections.IDictionary]) { return $Run }
+    $h = [ordered]@{}
+    foreach ($p in $Run.PSObject.Properties) {
+        $v = $p.Value
+        if ($v -is [pscustomobject] -and $p.Name -in 'progress', 'summary', 'request', 'cleanup') {
+            $inner = [ordered]@{}
+            foreach ($q in $v.PSObject.Properties) { $inner[$q.Name] = $q.Value }
+            $v = $inner
+        }
+        $h[$p.Name] = $v
+    }
+    return $h
 }

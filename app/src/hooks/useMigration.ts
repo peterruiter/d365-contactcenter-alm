@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { getAlmService } from '../services'
+import { ACTIVE_RUN_STATES } from '../types/alm'
 import type {
   DiffModel,
   EnvironmentRef,
@@ -26,6 +27,18 @@ const splitRef = (ref: string): SelectionItem => {
 }
 
 export const isMovable = (r: RecordDiff) => r.status === 'MissingInTarget' || r.status === 'Changed'
+
+const ACTIVE_RUN_KEY = 'ccalm.activeRun'
+const POLL_MS = 1500
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
+const remember = (runId: string | null) => {
+  try {
+    if (runId) localStorage.setItem(ACTIVE_RUN_KEY, runId)
+    else localStorage.removeItem(ACTIVE_RUN_KEY)
+  } catch {
+    /* storage can be off; the run still finishes on the backend */
+  }
+}
 
 export interface Migration {
   step: Step
@@ -64,6 +77,11 @@ export interface Migration {
   refreshRuns: () => Promise<void>
   /** Records by "table|key", for labels anywhere. */
   recordByRef: Map<string, { table: TableDiff; record: RecordDiff }>
+  /** A record plus everything under it (its routing configurations, steps, context variables,
+   *  channels) and what those use (rulesets, queues, templates), as movable refs. */
+  bundleOf: (ref: string) => string[]
+  /** Selects bundleOf(ref); returns how many records that added. */
+  selectBundle: (ref: string) => number
 }
 
 const ORDER: Step[] = ['environments', 'review', 'plan', 'run']
@@ -85,6 +103,8 @@ export function useMigration(): Migration {
   const [error, setError] = useState<string | null>(null)
   // Records the person added through a fix; kept so a re-plan does not drop them again.
   const extra = useRef<Set<string>>(new Set())
+  // Bumped to stop a poll loop that belongs to a run the person has moved away from.
+  const watchToken = useRef(0)
 
   const refreshRuns = useCallback(async () => {
     if (!svc.listRuns) return
@@ -123,6 +143,58 @@ export function useMigration(): Migration {
     }
   }, [])
 
+  /** Polls a background run until it stops being active. Returns its final state. */
+  const watch = useCallback(
+    async (first: Run) => {
+      const token = ++watchToken.current
+      let r = first
+      remember(r.runId)
+      while (ACTIVE_RUN_STATES.includes(r.state)) {
+        await sleep(POLL_MS)
+        if (token !== watchToken.current) return r
+        try {
+          r = await svc.getRun(r.runId)
+        } catch {
+          continue // a missed poll (network blip) is retried on the next tick
+        }
+        if (token !== watchToken.current) return r
+        setRun(r)
+      }
+      remember(null)
+      return r
+    },
+    [svc],
+  )
+
+  // A run started before a reload, or in another tab, is picked up where it is.
+  useEffect(() => {
+    let runId: string | null = null
+    try {
+      runId = localStorage.getItem(ACTIVE_RUN_KEY)
+    } catch {
+      /* storage off */
+    }
+    if (!runId) return
+    svc
+      .getRun(runId)
+      .then(async (r) => {
+        if (!ACTIVE_RUN_STATES.includes(r.state)) {
+          remember(null)
+          return
+        }
+        setRun(r)
+        setStepState('run')
+        setBusy(r.state === 'RollingBack' ? 'rollback' : r.mode === 'apply' ? 'apply' : 'dryRun')
+        try {
+          const final = await watch(r)
+          if (final.mode === 'dryRun') setDryRun(final)
+        } finally {
+          setBusy(null)
+        }
+      })
+      .catch(() => remember(null))
+  }, [svc, watch])
+
   const resetFrom = useCallback((s: Step) => {
     if (ORDER.indexOf(s) <= ORDER.indexOf('review')) {
       setDiff(null)
@@ -158,6 +230,57 @@ export function useMigration(): Migration {
     for (const t of diff?.tables ?? []) for (const r of t.records) m.set(refOf(t.table, r.matchKey), { table: t, record: r })
     return m
   }, [diff])
+
+  // Who sits under whom: a record points at its parent through a lookup to a table written before
+  // it (a routing step to its routing configuration, that to its workstream). Lookups to a table
+  // written later (a workstream's default queue) are references, not ownership, and are skipped.
+  const childrenOf = useMemo(() => {
+    const m = new Map<string, string[]>()
+    for (const [ref, { record }] of recordByRef) {
+      for (const d of record.dependsOn) {
+        if (d.kind && d.kind !== 'lookup') continue
+        if (d.deferred) continue
+        const parent = refOf(d.table, d.matchKey)
+        m.set(parent, [...(m.get(parent) ?? []), ref])
+      }
+    }
+    return m
+  }, [recordByRef])
+
+  const bundleOf = useCallback(
+    (start: string) => {
+      const owned = new Set<string>([start])
+      const queue = [start]
+      while (queue.length) {
+        for (const child of childrenOf.get(queue.shift() as string) ?? []) {
+          if (!owned.has(child)) {
+            owned.add(child)
+            queue.push(child)
+          }
+        }
+      }
+      // Then everything those use that differs: the rulesets the steps run, the queues those
+      // rulesets route to, the templates the workstream names.
+      const all = new Set(owned)
+      const next = [...owned]
+      while (next.length) {
+        const rec = recordByRef.get(next.shift() as string)?.record
+        for (const d of rec?.dependsOn ?? []) {
+          const ref = refOf(d.table, d.matchKey)
+          const dep = recordByRef.get(ref)?.record
+          if (!dep || all.has(ref) || !isMovable(dep)) continue
+          all.add(ref)
+          next.push(ref)
+        }
+      }
+      return [...all].filter((r) => {
+        const rec = recordByRef.get(r)?.record
+        return !!rec && isMovable(rec)
+      })
+    },
+    [childrenOf, recordByRef],
+  )
+
 
   const compare = useCallback(
     () =>
@@ -268,26 +391,32 @@ export function useMigration(): Migration {
     (mode: 'dryRun' | 'apply', approved: boolean) =>
       guard(mode, async () => {
         if (!plan) throw new Error('Check the plan first.')
-        const r = await svc.apply(plan, mode, approved)
-        if (mode === 'dryRun') setDryRun(r)
-        setRun(r)
+        const started = await svc.apply(plan, mode, approved)
+        setRun(started)
         setStepState('run')
         void refreshRuns()
+        const final = await watch(started)
+        if (mode === 'dryRun') setDryRun(final)
+        void refreshRuns()
       }),
-    [guard, plan, svc, refreshRuns],
+    [guard, plan, svc, refreshRuns, watch],
   )
 
   const rollback = useCallback(
     () =>
       guard('rollback', async () => {
         if (!run) throw new Error('No run to roll back.')
-        setRun(await svc.rollback(run.runId))
+        const started = await svc.rollback(run.runId)
+        setRun(started)
+        await watch(started)
         void refreshRuns()
       }),
-    [guard, run, svc, refreshRuns],
+    [guard, run, svc, refreshRuns, watch],
   )
 
   const startOver = useCallback(() => {
+    watchToken.current++
+    remember(null)
     resetFrom('review')
     setStepState('environments')
   }, [resetFrom])
@@ -309,6 +438,16 @@ export function useMigration(): Migration {
     })
   }, [])
 
+  const selectBundle = useCallback(
+    (ref: string) => {
+      const refs = bundleOf(ref)
+      const added = refs.filter((r) => !selected.has(r)).length
+      setSelected((s) => new Set([...s, ...refs]))
+      return added
+    },
+    [bundleOf, selected],
+  )
+
   const setMany = useCallback((refs: string[], on: boolean) => {
     setSelected((s) => {
       const n = new Set(s)
@@ -328,6 +467,6 @@ export function useMigration(): Migration {
     includeDependencies, setIncludeDependencies, plan, dryRun, run, runs, busy, error,
     clearError: () => setError(null),
     compare, buildPlan, applyFix, applyAllFixes, dropFromPlan, execute, rollback, startOver, refreshRuns,
-    recordByRef,
+    recordByRef, bundleOf, selectBundle,
   }
 }

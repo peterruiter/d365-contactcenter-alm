@@ -7,7 +7,7 @@ try {
         Push-CcError 400 'bad_request' 'sourceEnvId and targetEnvId are required.'; return
     }
 
-    $envs = Get-CcConnected
+    $envs = Get-CcConnected @($body.sourceEnvId, $body.targetEnvId)
     $diff = Compare-CcConfig -Environments $envs -SourceId $body.sourceEnvId -TargetId $body.targetEnvId
 
     $selection = if ($body.selection) {

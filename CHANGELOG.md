@@ -4,6 +4,21 @@ All notable changes to this project are recorded here. Format follows [Keep a Ch
 
 ## [Unreleased]
 
+### Runs in the background
+- **Dry runs, applies and rollbacks run in the background.** The request returns at once with a run; the app polls it and shows a progress bar, the phase, the record being written and every outcome as it lands. A long Prod promotion no longer hits the connector's 2-minute timeout or the Function's HTTP limit. Leave the page and come back, or reload, and the run is picked up where it is.
+- **Azure Function**: a queue-triggered `RunWorker` does the work in slices of about 7 minutes and queues its own continuation, inside the 10-minute Functions limit. A continuation compares again and plans the same selection, so it only writes what is still missing and can never write twice. Failures are recorded on the run, never retried blindly (`maxDequeueCount` 1). Compare and plan connect only the two environments they use.
+- **Local runner and exe**: the run happens in a background runspace; the server stays responsive.
+- **The rollback snapshot is written as the run goes**, so a run that stops halfway can still be rolled back.
+- **Interrupted runs** (worker restarted, runner closed) say so and offer to continue.
+- New engine cmdlets: `New-CcRunRecord`, `Invoke-CcRunJob`, `Invoke-CcRollbackJob`, `Test-CcRunStale`. `Invoke-CcPlan` takes `-OnEvent` and `-Deadline`.
+
+### Select a record with everything under it
+- **"With everything under it"** on a workstream (or any record with children) selects its routing configurations and steps, context variables, capacity links and channels, plus the rulesets those steps use, the queues those rulesets route to and the templates and hours involved. It walks through records that are the same in both environments, so a changed step under an unchanged routing configuration is found. The details list exactly what that includes.
+
+### Fixed
+- Records with no dependencies carried a phantom empty one (`@($null)` is a one-element array in PowerShell), which blocked them in the plan with "Needs a , which cannot be found". On a real Dev to Test compare this blocked all 41 decision contracts and, through them, 87 records.
+- An empty detect-only list produced one empty finding.
+
 ### Changed: the engine reads each environment's schema
 - **Columns and lookups come from metadata.** The manifest (now version 2) names the tables, their order and how records match; the engine reads every writable setting and every real lookup from each environment's `EntityDefinitions`. Version 1 listed columns by hand and had drifted badly: lookups such as `msdyn_rulesetid`, `msdyn_steporder`, `msdyn_workstream_id`, `ratingmodel` and assignment methods' queue were wrong or missing, so dependencies went undetected and most workstream, queue, channel and template settings were never compared or moved.
 - **Matching rebuilt.** Keys resolve through parents recursively, so a routing step matches across environments (before, its key kept the workstream's GUID). Session and notification templates match on unique name, which is how workstreams refer to them. Duplicate keys use a tie-breaker and otherwise show as **Ambiguous** instead of being paired at random. Ruleset definitions are normalised on both sides (the target used to be compared with raw GUIDs, so every ruleset showing a queue looked changed). Comparing an environment with itself now gives 176 the same and 0 changed on a real org, where it gave 11 false differences.

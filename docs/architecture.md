@@ -35,7 +35,7 @@ There is a lighter variant. See the two options below.
 | Shell | `App.tsx`, `PowerProvider.tsx` | Header, navigation (Migrate, History, Setup), theme, and the host handshake (`setConfig` + `getContext`). |
 | Pages | `pages/MigratePage.tsx`, `HistoryPage.tsx`, `SetupPage.tsx` | The guided flow, past runs, and (local runner only) app registrations with their checks. |
 | Steps | `components/migrate/*` | Environments, review, plan check, run, apply dialog. |
-| Flow | `hooks/useMigration.ts` | The journey over the service: selection, plan fixes, dry-run gate before apply, rollback. |
+| Flow | `hooks/useMigration.ts` | The journey over the service: selection (including a record with everything under it), plan fixes, dry-run gate before apply, background runs it polls and picks up again after a reload, rollback. |
 | Service | `services/*` | The seam. One interface, two adapters. |
 | Types | `types/alm.ts` | The API contract, shared by UI and backend. |
 

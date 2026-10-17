@@ -157,6 +157,18 @@ const RECORDS: MockRecord[] = [
     needs: [{ key: 'msdyn_liveworkstream|ws:mortgage', via: 'Work stream' }],
   },
   {
+    table: 'msdyn_routingconfiguration', matchKey: 'rc:billing', displayName: 'Contact center routing configuration', context: 'Billing chat', status: 'Equal', fields: [],
+    needs: [{ key: 'msdyn_liveworkstream|ws:billing', via: 'Work stream' }],
+  },
+  {
+    table: 'msdyn_routingconfigurationstep', matchKey: 'step:billing', displayName: 'Route to queue', context: 'Billing chat › Contact center routing configuration', status: 'Changed',
+    fields: [{ name: '_msdyn_rulesetid_value', label: 'Rule set', kind: 'lookup', source: "ruleset 'Route sales chats'", target: "ruleset 'Route billing (old)'" }],
+    needs: [
+      { key: 'msdyn_routingconfiguration|rc:billing', via: 'Routing configuration' },
+      { key: 'msdyn_decisionruleset|rs:sales', via: 'Rule set' },
+    ],
+  },
+  {
     table: 'msdyn_routingconfigurationstep', matchKey: 'step:mortgage', displayName: 'Route to queue', context: CFG, status: 'MissingInTarget', fields: [],
     needs: [
       { key: 'msdyn_routingconfiguration|rc:mortgage', via: 'Routing configuration' },
@@ -188,10 +200,11 @@ function labelOf(ref: string): string {
 }
 
 function dependsOf(r: MockRecord): DependencyRef[] {
-  if (r.status === 'Equal' || r.status === 'ExtraInTarget' || r.status === 'Ambiguous') return []
+  if (r.status === 'ExtraInTarget' || r.status === 'Ambiguous') return []
   return (r.needs ?? []).map((n) => {
     const [table, matchKey] = n.key.split('|')
-    return { table, matchKey, label: labelOf(n.key), via: n.via, deferred: !!n.deferred }
+    const kind = n.via === 'Rule set definition' ? 'embedded' : n.via.includes('template') ? 'name' : 'lookup'
+    return { table, matchKey, label: labelOf(n.key), via: n.via, deferred: !!n.deferred, kind }
   })
 }
 
@@ -372,7 +385,62 @@ export class MockAlmService implements AlmService {
     return delay(buildPlan(diff, selection, includeDependencies), 500)
   }
 
-  async apply(plan: Plan, mode: 'dryRun' | 'apply', _approved: boolean): Promise<Run> {
+  /** Like the backend: returns at once with a queued run and fills it in over time. */
+  async apply(plan: Plan, mode: 'dryRun' | 'apply', approved: boolean): Promise<Run> {
+    const final = this.finalRun(plan, mode, approved)
+    const items = final.stages.flatMap((st) => st.items.map((i) => ({ ...i, stage: st.stage })))
+    const started: Run = {
+      ...final,
+      state: 'Queued',
+      phase: 'queued',
+      progress: { done: 0, total: items.length, current: 'Waiting to start' },
+      summary: { created: 0, updated: 0, linked: 0, skipped: 0, blocked: 0, failed: 0 },
+      stages: [],
+      problems: [],
+      finishedAt: undefined,
+    }
+    this.runs.set(started.runId, started)
+    const step = (ms: number) => new Promise((r) => setTimeout(r, ms))
+    void (async () => {
+      const set = (patch: Partial<Run>) => this.runs.set(started.runId, { ...(this.runs.get(started.runId) as Run), ...patch })
+      await step(400)
+      set({ state: 'Running', phase: 'comparing', progress: { done: 0, total: items.length, current: 'Reading both environments' } })
+      await step(1300)
+      set({ phase: 'planning', progress: { done: 0, total: items.length, current: 'Checking the plan' } })
+      await step(600)
+      for (let n = 1; n <= items.length; n++) {
+        const it = items[n - 1]
+        set({
+          phase: it.stage === 99 ? 'linking' : 'writing',
+          progress: { done: n - 1, total: items.length, current: `${it.tableLabel}: ${it.context ? `${it.context} › ` : ''}${it.displayName}` },
+        })
+        await step(it.tableLabel === 'Workstreams' && it.op === 'create' && mode === 'apply' ? 1400 : 350)
+        const doneItems = items.slice(0, n)
+        const partial = this.withItems(final, doneItems)
+        set({ stages: partial.stages, summary: partial.summary, problems: partial.problems, progress: { done: n, total: items.length, current: null } })
+      }
+      set({ ...final, phase: 'done', progress: { done: items.length, total: items.length, current: null } })
+    })()
+    return delay(started, 250)
+  }
+
+  private withItems(final: Run, items: Array<RunItem & { stage: number }>): Run {
+    const stages = final.stages
+      .map((st) => ({ ...st, items: items.filter((i) => i.stage === st.stage) }))
+      .filter((st) => st.items.length > 0)
+    const count = (...o: ItemOutcome[]) => items.filter((i) => o.includes(i.outcome)).length
+    return {
+      ...final,
+      stages,
+      summary: {
+        created: count('created', 'wouldCreate'), updated: count('updated', 'wouldUpdate'), linked: count('linked', 'wouldLink'),
+        skipped: count('skipped'), blocked: count('blocked'), failed: count('failed'),
+      },
+      problems: items.filter((i) => ['blocked', 'skipped', 'failed'].includes(i.outcome)).map((i) => `${i.tableLabel} '${i.displayName}': ${i.message}`),
+    }
+  }
+
+  private finalRun(plan: Plan, mode: 'dryRun' | 'apply', _approved: boolean): Run {
     const dry = mode === 'dryRun'
     const items: Array<RunItem & { stage: number }> = []
     for (const o of plan.operations) {
@@ -438,8 +506,7 @@ export class MockAlmService implements AlmService {
       stages,
       problems: bad.map((i) => `${i.tableLabel} '${i.displayName}': ${i.message}`),
     }
-    this.runs.set(run.runId, run)
-    return delay(run, dry ? 1400 : 2400)
+    return run
   }
 
   listRuns(): Promise<RunListItem[]> {
@@ -455,18 +522,23 @@ export class MockAlmService implements AlmService {
   getRun(runId: string): Promise<Run> {
     const run = this.runs.get(runId)
     if (!run) return Promise.reject(new Error(`Run ${runId} not found`))
-    return delay(run, 200)
+    return delay(structuredClone(run), 120)
   }
 
   async rollback(runId: string): Promise<Run> {
     const run = this.runs.get(runId)
     if (!run) return Promise.reject(new Error(`Run ${runId} not found`))
-    const rolledBack: Run = {
-      ...run,
-      state: 'RolledBack',
-      cleanup: { restored: run.summary.updated, deleted: run.summary.created, unresolved: [] },
-    }
-    this.runs.set(runId, rolledBack)
-    return delay(rolledBack, 1600)
+    const rolling: Run = { ...run, state: 'RollingBack', phase: 'rollingBack', progress: { done: 0, total: 0, current: 'Restoring changed records and deleting created ones' } }
+    this.runs.set(runId, rolling)
+    setTimeout(() => {
+      this.runs.set(runId, {
+        ...run,
+        state: 'RolledBack',
+        phase: 'done',
+        progress: { done: 0, total: 0, current: null },
+        cleanup: { restored: run.summary.updated, deleted: run.summary.created, unresolved: [] },
+      })
+    }, 2200)
+    return delay(rolling, 250)
   }
 }

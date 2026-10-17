@@ -74,11 +74,7 @@ export function MigratePage({ m }: { m: Migration }) {
         </div>
       )}
 
-      {(m.busy === 'dryRun' || m.busy === 'apply' || m.busy === 'rollback') && (
-        <ProgressBar
-          label={m.busy === 'dryRun' ? 'Dry run: going through every write' : m.busy === 'apply' ? `Writing to ${m.target?.name}` : 'Rolling back'}
-        />
-      )}
+      {(m.busy === 'dryRun' || m.busy === 'apply') && m.step !== 'run' && <ProgressBar label="Starting the run" />}
 
       {m.step === 'review' && <ReviewStep m={m} />}
       {m.step === 'plan' && <PlanStep m={m} />}

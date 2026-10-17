@@ -12,7 +12,11 @@
         'Compare-CcConfig',
         'New-CcPlan',
         'Invoke-CcPlan',
-        'Restore-CcRun'
+        'Restore-CcRun',
+        'New-CcRunRecord',
+        'Invoke-CcRunJob',
+        'Invoke-CcRollbackJob',
+        'Test-CcRunStale'
     )
     CmdletsToExport   = @()
     VariablesToExport = @()

@@ -5,9 +5,22 @@
       "type": "httpTrigger",
       "direction": "in",
       "name": "Request",
-      "methods": ["post"],
+      "methods": [
+        "post"
+      ],
       "route": "apply"
     },
-    { "type": "http", "direction": "out", "name": "Response" }
+    {
+      "type": "http",
+      "direction": "out",
+      "name": "Response"
+    },
+    {
+      "type": "queue",
+      "direction": "out",
+      "name": "RunQueue",
+      "queueName": "ccalm-runs",
+      "connection": "AzureWebJobsStorage"
+    }
   ]
 }

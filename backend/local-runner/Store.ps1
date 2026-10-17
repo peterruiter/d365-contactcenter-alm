@@ -87,12 +87,20 @@ function Get-CcEngineRegistry([string[]] $EnvironmentId) {
 }
 
 function Save-CcRunRecord([string] $runId, $record) {
-    $record | ConvertTo-Json -Depth 40 | Set-Content -Path (Join-Path $script:CcRunsDir "run-$runId.json") -Encoding UTF8
+    # Write then rename, so a reader never sees half a file while a background run saves.
+    $path = Join-Path $script:CcRunsDir "run-$runId.json"
+    $tmp = "$path.$([guid]::NewGuid().ToString('N')).tmp"
+    $record | ConvertTo-Json -Depth 40 | Set-Content -Path $tmp -Encoding UTF8
+    Move-Item $tmp $path -Force
 }
 
 function Get-CcRunRecord([string] $runId) {
     if ($runId -notmatch '^[A-Za-z0-9_-]+$') { return $null }
     $path = Join-Path $script:CcRunsDir "run-$runId.json"
     if (-not (Test-Path $path)) { return $null }
-    return (Get-Content $path -Raw | ConvertFrom-Json)
+    for ($i = 0; $i -lt 5; $i++) {
+        try { return (Get-Content $path -Raw -Encoding UTF8 | ConvertFrom-Json) }
+        catch { Start-Sleep -Milliseconds 100 }   # the background run is replacing it right now
+    }
+    return $null
 }

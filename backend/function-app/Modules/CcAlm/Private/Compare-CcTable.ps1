@@ -100,8 +100,10 @@ function Compare-CcTable {
             status      = $status
             displayName = Get-CcRecordLabel -Record $rec -TablePlan $TablePlan
             context     = Get-CcRecordContext -Record $rec -TablePlan $TablePlan -Env $env -TablePlans $TablePlans
-            fields      = @($fields)
-            dependsOn   = @($deps)
+            # Filtered, not just @(): a function that returns nothing gives $null, and @($null) is a
+            # one-element array - which once showed up as a phantom "needs a , which cannot be found".
+            fields      = @($fields | Where-Object { $_ })
+            dependsOn   = @($deps | Where-Object { $_ })
             note        = $note
         }
     }
@@ -180,7 +182,9 @@ function Compare-CcTable {
         }
 
         $status = if ($fields.Count -gt 0) { 'Changed' } else { 'Equal' }
-        $deps = if ($status -eq 'Changed') { Get-CcDependencies -Record $srcRec -TablePlan $TablePlan -Env $Source -Maps $Maps -TablePlans $TablePlans } else { @() }
+        # Same records report their links too: "select a workstream with everything under it" walks
+        # from the workstream through an unchanged routing configuration to a changed step.
+        $deps = Get-CcDependencies -Record $srcRec -TablePlan $TablePlan -Env $Source -Maps $Maps -TablePlans $TablePlans
         $records.Add((New-Row $status $key $srcRec $tgtRec $fields $deps $null)) | Out-Null
     }
 

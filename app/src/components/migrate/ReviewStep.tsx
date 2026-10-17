@@ -1,5 +1,5 @@
 import { useId, useMemo, useState } from 'react'
-import { ChevronDownRegular, ChevronUpRegular } from '@fluentui/react-icons'
+import { ChevronDownRegular, ChevronUpRegular, TextBulletListTreeRegular } from '@fluentui/react-icons'
 import {
   Badge,
   Button,
@@ -18,6 +18,7 @@ import {
   Th,
   THead,
   Tr,
+  useToast,
 } from '../../ui'
 import { isMovable, refOf, type Migration } from '../../hooks/useMigration'
 import type { RecordDiff, RecordStatus, TableDiff } from '../../types/alm'
@@ -214,11 +215,23 @@ function TableBlock({ m, table, records }: { m: Migration; table: TableDiff; rec
 
 function RecordRow({ m, table, record: r }: { m: Migration; table: TableDiff; record: RecordDiff }) {
   const [open, setOpen] = useState(false)
+  const { toast } = useToast()
   const ref = refOf(table.table, r.matchKey)
   const movable = isMovable(r)
+  // Everything under this record (and what that uses), not counting the record itself.
+  const bundle = useMemo(() => (r.status === 'ExtraInTarget' || r.status === 'Ambiguous' ? [] : m.bundleOf(ref).filter((x) => x !== ref)), [m, ref, r.status])
+  const bundleUnselected = bundle.filter((x) => !m.selected.has(x)).length
+  const selectAll = () => {
+    const added = m.selectBundle(ref)
+    toast({
+      tone: 'success',
+      title: `${r.displayName} and everything under it`,
+      message: added ? `${plural(added, 'record')} added to the selection.` : 'All of it was already selected.',
+    })
+  }
   const st = RECORD_STATUS[r.status]
   const missingDeps = r.dependsOn.filter((d) => m.recordByRef.get(refOf(d.table, d.matchKey))?.record.status === 'MissingInTarget')
-  const hasDetail = r.fields.length > 0 || r.dependsOn.length > 0 || !!r.note
+  const hasDetail = r.fields.length > 0 || r.dependsOn.length > 0 || !!r.note || bundle.length > 0
   const detailId = useId()
 
   return (
@@ -239,6 +252,18 @@ function RecordRow({ m, table, record: r }: { m: Migration; table: TableDiff; re
             <span className="muted t-body-small nowrap" title={missingDeps.map((d) => d.label).join('\n')}>
               needs {plural(missingDeps.length, 'new record')}
             </span>
+          )}
+          {bundle.length > 0 && (
+            <button
+              type="button"
+              className="rec__toggle"
+              onClick={selectAll}
+              title={`Select ${r.displayName} with the ${plural(bundle.length, 'record')} under it and the ones they use`}
+              aria-label={`Select ${fullName(r.displayName, r.context)} with everything under it: ${plural(bundle.length, 'record')}`}
+            >
+              <TextBulletListTreeRegular fontSize={16} />
+              With everything under it ({bundle.length}){bundleUnselected === 0 ? ' ✓' : ''}
+            </button>
           )}
           <StatusLabel kind={st.kind} title={st.hint}>{st.label}</StatusLabel>
           {hasDetail && (
@@ -289,6 +314,32 @@ function RecordRow({ m, table, record: r }: { m: Migration; table: TableDiff; re
                   ))}
                 </TBody>
               </Table>
+            </div>
+          )}
+          {bundle.length > 0 && (
+            <div>
+              <div className="subhead">Under it, and what that uses ({bundle.length})</div>
+              <ul className="deps">
+                {bundle.slice(0, 15).map((b) => {
+                  const e = m.recordByRef.get(b)
+                  if (!e) return null
+                  const k = RECORD_STATUS[e.record.status]
+                  return (
+                    <li key={b}>
+                      <StatusDot kind={k.kind} label={k.label} />
+                      <span>
+                        {fullName(e.record.displayName, e.record.context)} <span className="deps__via">· {e.table.label}{m.selected.has(b) ? ' · selected' : ''}</span>
+                      </span>
+                    </li>
+                  )
+                })}
+              </ul>
+              {bundle.length > 15 && <p className="muted t-body-small">and {bundle.length - 15} more.</p>}
+              <div style={{ marginTop: 'var(--space-3)' }}>
+                <Button size="sm" variant="secondary" leadingIcon={<TextBulletListTreeRegular />} disabled={bundleUnselected === 0} onClick={selectAll}>
+                  {bundleUnselected === 0 ? 'All selected' : `Select all ${bundle.length + (movable ? 1 : 0)}`}
+                </Button>
+              </div>
             </div>
           )}
           {r.dependsOn.length > 0 && (

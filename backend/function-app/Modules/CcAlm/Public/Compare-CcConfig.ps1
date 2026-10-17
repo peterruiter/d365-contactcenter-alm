@@ -99,7 +99,7 @@ function Compare-CcConfig {
         generated  = (Get-Date).ToString('o')
         summary    = $summary
         tables     = $tableDiffs
-        detectOnly = @($detect)
+        detectOnly = @($detect | Where-Object { $_ })
         notices    = @($notices)
         # Kept for plan and run, so they do not read both environments again.
         _context   = [pscustomobject]@{

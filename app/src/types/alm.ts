@@ -39,6 +39,8 @@ export interface DependencyRef {
   via: string
   /** Linked in the final pass, because it points at a table written later. */
   deferred: boolean
+  /** lookup: a lookup column (a child points at its parent this way); name: a template named by unique name; embedded: a GUID inside a definition. */
+  kind?: 'lookup' | 'name' | 'embedded'
 }
 
 export interface RecordDiff {
@@ -194,7 +196,27 @@ export interface SelectionItem {
 
 // ---------------------------------------------------------------- Run
 
-export type RunState = 'Succeeded' | 'PartiallyFailed' | 'Failed' | 'RolledBack'
+export type RunState =
+  | 'Queued'
+  | 'Running'
+  | 'RollingBack'
+  | 'Interrupted'
+  | 'Succeeded'
+  | 'PartiallyFailed'
+  | 'Failed'
+  | 'RolledBack'
+
+/** States in which a run is still being worked on and should be polled. */
+export const ACTIVE_RUN_STATES: RunState[] = ['Queued', 'Running', 'RollingBack']
+
+export type RunPhase = 'queued' | 'comparing' | 'planning' | 'writing' | 'linking' | 'continuing' | 'rollingBack' | 'done'
+
+export interface RunProgress {
+  done: number
+  total: number
+  /** What it is doing right now, e.g. "Workstreams: Chat". */
+  current?: string | null
+}
 export type RunMode = 'dryRun' | 'apply'
 
 export type ItemOutcome =
@@ -250,6 +272,12 @@ export interface Run {
   source: string
   target: string
   state: RunState
+  /** Background runs: where it is and how far along. */
+  phase?: RunPhase
+  progress?: RunProgress
+  /** Why it failed or stopped, when it did. */
+  message?: string | null
+  updatedAt?: string
   snapshotId: string | null
   startedAt?: string
   finishedAt?: string

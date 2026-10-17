@@ -59,7 +59,7 @@ function New-CcPlan {
         while ($queue.Count -gt 0) {
             $ref = $queue.Dequeue()
             $entry = $byRef[$ref]
-            foreach ($d in @($entry.Record.dependsOn)) {
+            foreach ($d in @($entry.Record.dependsOn | Where-Object { $_ })) {
                 $dRef = "$($d.table)|$($d.matchKey)"
                 $dEntry = $byRef[$dRef]
                 if (-not $dEntry -or $dEntry.Record.status -ne 'MissingInTarget') { continue }
@@ -131,7 +131,7 @@ function New-CcPlan {
             }
         }
 
-        foreach ($d in @($r.dependsOn)) {
+        foreach ($d in @($r.dependsOn | Where-Object { $_ })) {
             $dRef = "$($d.table)|$($d.matchKey)"
             $label = if ($d.matchKey -like 'unresolved:*') { "a $(Get-CcItemLabel $plans[$d.table].Table) that no longer exists in the source" } else { Get-CcRefLabel $maps $d.table $d.matchKey $plans }
             $dep = [pscustomobject]@{ table = $d.table; matchKey = $d.matchKey; label = $label; via = $d.via; state = $null }

@@ -1,9 +1,10 @@
 import { useState } from 'react'
 import { ArrowCounterclockwiseRegular } from '@fluentui/react-icons'
-import { Button, Dialog, FilterChips, KeyValue, Notice, Panel, StatusLabel } from '../../ui'
+import { Button, Dialog, FilterChips, KeyValue, Notice, Panel, ProgressBar, StatusLabel } from '../../ui'
+import { ACTIVE_RUN_STATES } from '../../types/alm'
 import type { Migration } from '../../hooks/useMigration'
 import { ApplyDialog } from './ApplyDialog'
-import { fullName, isProblem, OP_LABEL, OUTCOME, plural, RUN_STATE } from './labels'
+import { fullName, isProblem, OP_LABEL, OUTCOME, PHASE_LABEL, plural, RUN_STATE } from './labels'
 
 /** Step 4: what a dry run or an apply did, record by record. */
 export function RunStep({ m }: { m: Migration }) {
@@ -14,18 +15,32 @@ export function RunStep({ m }: { m: Migration }) {
   if (!run) return null
 
   const dry = run.mode === 'dryRun'
+  const active = ACTIVE_RUN_STATES.includes(run.state)
+  const interrupted = run.state === 'Interrupted'
   const s = run.summary
+  const progress = run.progress
+  const measurable = !!progress && progress.total > 0 && (run.phase === 'writing' || run.phase === 'linking' || run.phase === 'continuing')
   const notMoved = s.skipped + s.blocked
   const problemsOnly = show.includes('problems')
   const rolledBack = run.state === 'RolledBack'
-  const canApply = dry && m.plan && m.plan.summary.ready > 0
-  const canRollback = !dry && !!run.snapshotId && !rolledBack
+  const canApply = dry && !active && !interrupted && m.plan && m.plan.summary.ready > 0
+  const canRollback = !dry && !active && !!run.snapshotId && !rolledBack
 
-  const title = rolledBack
-    ? `Rolled back in ${m.target?.name ?? run.target}`
-    : dry
-      ? 'Dry run finished'
-      : `Applied to ${m.target?.name ?? run.target}`
+  const targetName = m.target?.name ?? run.target
+  const title =
+    run.state === 'RollingBack'
+      ? `Rolling back in ${targetName}`
+      : active
+        ? dry
+          ? 'Dry run in progress'
+          : `Applying to ${targetName}`
+        : interrupted
+          ? `${dry ? 'Dry run' : 'Apply'} interrupted`
+          : rolledBack
+            ? `Rolled back in ${targetName}`
+            : dry
+              ? 'Dry run finished'
+              : `Applied to ${targetName}`
 
   return (
     <div className="workspace">
@@ -41,6 +56,47 @@ export function RunStep({ m }: { m: Migration }) {
             {RUN_STATE[run.state].label}
           </StatusLabel>
         </div>
+
+        {active && (
+          <Panel>
+            <div className="stack stack--tight">
+              <ProgressBar
+                label={run.phase ? PHASE_LABEL[run.phase] : 'Working'}
+                value={measurable ? progress?.done : undefined}
+                max={measurable ? progress?.total : undefined}
+                showValue={measurable}
+                valueText={measurable ? `${progress?.done} of ${progress?.total}` : undefined}
+              />
+              {progress?.current && <p className="t-body-small">{progress.current}</p>}
+              <p className="muted t-body-small">
+                This runs on the {import.meta.env.VITE_ALM_SOURCE === 'local' ? 'local runner' : 'backend'}, not in this page: you can leave and come back, and it carries on.
+              </p>
+            </div>
+          </Panel>
+        )}
+
+        {interrupted && (
+          <Notice
+            tone="warning"
+            title="This run stopped before it finished"
+            actions={
+              m.plan ? (
+                <Button size="sm" disabled={m.busy !== null} onClick={() => (dry ? void m.execute('dryRun', false) : setApplyOpen(true))}>
+                  Continue
+                </Button>
+              ) : undefined
+            }
+          >
+            {run.message ?? 'Continuing compares again and writes only what is still missing.'}
+            {!m.plan && ' Compare and check the plan again to continue it.'}
+          </Notice>
+        )}
+
+        {run.state === 'Failed' && run.message && (
+          <Notice tone="error" title="The run failed" live="none">
+            {run.message}
+          </Notice>
+        )}
 
         {rolledBack && run.cleanup && (
           <Notice tone={run.cleanup.unresolved.length ? 'warning' : 'success'} title="Rollback finished" live="none">
@@ -125,14 +181,17 @@ export function RunStep({ m }: { m: Migration }) {
                 Roll back this run
               </Button>
             )}
-            {m.plan && !rolledBack && (
+            {active && <p className="muted t-body-small">Actions come back when the run finishes.</p>}
+            {m.plan && !rolledBack && !active && (
               <Button variant="secondary" disabled={m.busy !== null} onClick={() => m.setStep('plan')}>
                 Back to the plan
               </Button>
             )}
-            <Button variant="secondary" disabled={m.busy !== null} onClick={m.startOver}>
-              Start a new comparison
-            </Button>
+            {!active && (
+              <Button variant="secondary" disabled={m.busy !== null} onClick={m.startOver}>
+                Start a new comparison
+              </Button>
+            )}
           </div>
         </Panel>
         <Panel title="Run details" titleAs="h2">

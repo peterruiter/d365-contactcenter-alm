@@ -168,6 +168,99 @@ function Get-CcRunnerEnvironments([string[]] $ids) {
 }
 
 $script:CcDiffCache = @{}
+$script:CcJobs = @{}
+
+# Runs in its own runspace, so a long apply never blocks the server: the app keeps polling GetRun
+# while records are written. Progress and the rollback snapshot go to the run's files as it goes.
+$script:CcJobScript = {
+    param($ModulePath, $ManifestPath, $Registry, $RunsDir, $RunId, $Kind)
+    $ErrorActionPreference = 'Stop'
+    $env:CCALM_MANIFEST_PATH = $ManifestPath
+    Import-Module $ModulePath -Force
+    $runFile = Join-Path $RunsDir "run-$RunId.json"
+    $snapFile = Join-Path $RunsDir "snapshot-$RunId.json"
+    $load = {
+        for ($i = 0; $i -lt 5; $i++) { try { return (Get-Content $runFile -Raw -Encoding UTF8 | ConvertFrom-Json) } catch { Start-Sleep -Milliseconds 100 } }
+        throw "Cannot read $runFile"
+    }.GetNewClosure()
+    $save = {
+        param($r)
+        $tmp = "$runFile.$([guid]::NewGuid().ToString('N')).tmp"
+        $r | ConvertTo-Json -Depth 40 | Set-Content $tmp -Encoding UTF8
+        Move-Item $tmp $runFile -Force
+    }.GetNewClosure()
+    $loadSnap = { if (Test-Path $snapFile) { Get-Content $snapFile -Raw -Encoding UTF8 | ConvertFrom-Json } }.GetNewClosure()
+    $saveSnap = {
+        param($s)
+        $tmp = "$snapFile.tmp"
+        $s | ConvertTo-Json -Depth 40 | Set-Content $tmp -Encoding UTF8
+        Move-Item $tmp $snapFile -Force
+    }.GetNewClosure()
+
+    $run = & $load
+    $envs = Connect-CcEnvironment -Registry $Registry -EnvironmentId @($run.source, $run.target) -SkipCheck
+    if ($Kind -eq 'rollback') {
+        Invoke-CcRollbackJob -Environments $envs -LoadRun $load -SaveRun $save -SnapshotPath $snapFile
+        return
+    }
+    $work = Join-Path $RunsDir "work-$RunId"
+    New-Item -ItemType Directory $work -Force | Out-Null
+    try {
+        Invoke-CcRunJob -Environments $envs -LoadRun $load -SaveRun $save -LoadSnapshot $loadSnap -SaveSnapshot $saveSnap -WorkDir $work -ManifestPath $ManifestPath | Out-Null
+    }
+    finally { Remove-Item $work -Recurse -Force -ErrorAction SilentlyContinue }
+}
+
+function Start-CcRunnerJob([string] $RunId, [string] $Kind, $Registry) {
+    $iss = [System.Management.Automation.Runspaces.InitialSessionState]::CreateDefault()
+    try { $iss.ExecutionPolicy = [Microsoft.PowerShell.ExecutionPolicy]::Bypass } catch { }
+    $rs = [runspacefactory]::CreateRunspace($iss)
+    $rs.Open()
+    $ps = [powershell]::Create()
+    $ps.Runspace = $rs
+    $modulePath = Join-Path (Get-Module CcAlm).ModuleBase 'CcAlm.psd1'
+    [void]$ps.AddScript($script:CcJobScript.ToString()).AddArgument($modulePath).AddArgument($env:CCALM_MANIFEST_PATH).AddArgument($Registry).AddArgument($script:CcRunsDir).AddArgument($RunId).AddArgument($Kind)
+    $script:CcJobs[$RunId] = @{ PS = $ps; Handle = $ps.BeginInvoke(); Runspace = $rs }
+}
+
+function Update-CcRunnerJobs {
+    # Collects finished background runs. One that ended without finishing its run record (an
+    # exception before the engine could record it) is marked Failed with the reason.
+    foreach ($id in @($script:CcJobs.Keys)) {
+        $j = $script:CcJobs[$id]
+        if (-not $j.Handle.IsCompleted) { continue }
+        $err = $null
+        try {
+            [void]$j.PS.EndInvoke($j.Handle)
+            if ($j.PS.Streams.Error.Count -gt 0) { $err = $j.PS.Streams.Error[0].ToString() }
+        }
+        catch { $err = $_.Exception.Message }
+        $j.PS.Dispose()
+        $j.Runspace.Dispose()
+        $script:CcJobs.Remove($id)
+        $run = Get-CcRunRecord $id
+        if ($run -and $run.state -in 'Queued', 'Running', 'RollingBack') {
+            $run = ConvertTo-CcRunHashtable $run
+            $run.state = 'Failed'
+            $run.phase = 'done'
+            $run.message = if ($err) { $err } else { 'The run stopped unexpectedly.' }
+            $run.updatedAt = (Get-Date).ToString('o')
+            Save-CcRunRecord $id $run
+        }
+    }
+}
+
+function Get-CcLiveRun($run) {
+    # A run that says it is busy but has no job here lost it: the runner was closed mid-run.
+    if ($run -and $run.state -in 'Queued', 'Running', 'RollingBack' -and -not $script:CcJobs.ContainsKey($run.runId)) {
+        $run = ConvertTo-CcRunHashtable $run
+        $run.state = 'Interrupted'
+        $run.phase = 'done'
+        $run.message = 'This run stopped before it finished, because the local runner was closed. Continuing it compares again and writes only what is still missing.'
+        Save-CcRunRecord $run.runId $run
+    }
+    return $run
+}
 
 function Set-CcCachedDiff($diff) {
     # One recent compare per source/target pair, for planning without reading both orgs again.
@@ -193,7 +286,23 @@ function Invoke-CcApiRoute($ctx, [string] $method, [string] $path) {
                 })
             return Send-CcJson $ctx 200 $ready
         }
-        '^POST /api/(compare|plan|apply)$' {
+        '^POST /api/apply$' {
+            # Dry run or apply, in the background; the app polls GetRun.
+            $body = Read-CcRequestBody $ctx
+            if (-not $body.sourceEnvId -or -not $body.targetEnvId) { return Send-CcError $ctx 400 'bad_request' 'sourceEnvId and targetEnvId are required.' }
+            $mode = if ($body.mode -eq 'apply') { 'apply' } else { 'dryRun' }
+            $target = (Read-CcStore).environments | Where-Object id -eq $body.targetEnvId | Select-Object -First 1
+            if (-not $target) { return Send-CcError $ctx 400 'bad_request' "Unknown target '$($body.targetEnvId)'." }
+            if ($mode -eq 'apply' -and $target.requireApproval -and -not [bool]$body.approved) {
+                return Send-CcError $ctx 400 'approval_required' "$($target.name) requires approval. Confirm the change has been signed off, then apply again."
+            }
+            $registry = Get-CcEngineRegistry @($body.sourceEnvId, $body.targetEnvId)
+            $rec = New-CcRunRecord -SourceId $body.sourceEnvId -TargetId $body.targetEnvId -Mode $mode -Selection (Get-CcSelection $body) -Approved ([bool]$body.approved)
+            Save-CcRunRecord $rec.runId $rec
+            Start-CcRunnerJob $rec.runId 'apply' $registry
+            return Send-CcJson $ctx 200 $rec
+        }
+        '^POST /api/(compare|plan)$' {
             $op = $Matches[1]
             $body = Read-CcRequestBody $ctx
             if (-not $body.sourceEnvId -or -not $body.targetEnvId) { return Send-CcError $ctx 400 'bad_request' 'sourceEnvId and targetEnvId are required.' }
@@ -217,52 +326,36 @@ function Invoke-CcApiRoute($ctx, [string] $method, [string] $path) {
                 return Send-CcJson $ctx 200 (ConvertTo-CcPlanContract $plan)
             }
 
-            # Apply and dry run: exactly the reviewed operation list, nothing added.
-            $plan = New-CcPlan -Diff $diff -Selection (Get-CcSelection $body) -IncludeDependencies $false
-            if ($plan.operations.Count -eq 0) {
-                return Send-CcJson $ctx 200 @{ runId = 'run_noop'; mode = $body.mode; source = $body.sourceEnvId; target = $body.targetEnvId; state = 'Succeeded'; snapshotId = $null; summary = @{ created = 0; updated = 0; linked = 0; skipped = 0; blocked = 0; failed = 0 }; stages = @(); problems = @() }
-            }
-            $mode = if ($body.mode -eq 'apply') { 'Apply' } else { 'DryRun' }
-            $outDir = Join-Path $script:CcRunsDir "work-$([guid]::NewGuid().ToString('N').Substring(0, 8))"
-            New-Item -ItemType Directory -Path $outDir | Out-Null
-            try {
-                $run = Invoke-CcPlan -Plan $plan -Environments $envs -Mode $mode -Approved:([bool]$body.approved) -OutputDir $outDir
-                $snapshotId = $null
-                if ($mode -eq 'Apply' -and $run.snapshot -and (Test-Path $run.snapshot)) {
-                    Copy-Item $run.snapshot (Join-Path $script:CcRunsDir "snapshot-$($run.runId).json")
-                    $snapshotId = $run.runId
-                }
-                $contract = ConvertTo-CcRunContract $run $snapshotId
-                Save-CcRunRecord $run.runId $contract
-                return Send-CcJson $ctx 200 $contract
-            }
-            finally { Remove-Item $outDir -Recurse -Force -ErrorAction SilentlyContinue }
         }
         '^GET /api/runs$' {
             # Recent runs, newest first, without their item lists.
             $runs = @(Get-ChildItem $script:CcRunsDir -Filter 'run-*.json' -ErrorAction SilentlyContinue |
                     Sort-Object LastWriteTime -Descending | Select-Object -First 25 | ForEach-Object {
-                        $r = Get-Content $_.FullName -Raw -Encoding UTF8 | ConvertFrom-Json
+                        $r = Get-CcLiveRun (Get-CcRunRecord ($_.BaseName -replace '^run-'))
+                        if (-not $r) { return }
                         [ordered]@{ runId = $r.runId; mode = $r.mode; source = $r.source; target = $r.target; state = $r.state; startedAt = $r.startedAt; finishedAt = $r.finishedAt; summary = $r.summary; snapshotId = $r.snapshotId }
                     })
             return Send-CcJson $ctx 200 $runs
         }
         '^GET /api/run/([A-Za-z0-9_-]+)$' {
-            $run = Get-CcRunRecord $Matches[1]
+            $run = Get-CcLiveRun (Get-CcRunRecord $Matches[1])
             if (-not $run) { return Send-CcError $ctx 404 'not_found' "Run $($Matches[1]) not found." }
             return Send-CcJson $ctx 200 $run
         }
         '^POST /api/run/([A-Za-z0-9_-]+)/rollback$' {
             $id = $Matches[1]
-            $run = Get-CcRunRecord $id
+            $run = Get-CcLiveRun (Get-CcRunRecord $id)
             if (-not $run) { return Send-CcError $ctx 404 'not_found' "Run $id not found." }
             if (-not $run.snapshotId) { return Send-CcError $ctx 400 'no_snapshot' 'This run has no snapshot. A dry run cannot be rolled back.' }
-            $snapshot = Join-Path $script:CcRunsDir "snapshot-$id.json"
-            $envs = Get-CcRunnerEnvironments @($run.target)
-            $result = Restore-CcRun -SnapshotPath $snapshot -Environments $envs -Confirm:$false
-            $run.state = 'RolledBack'
-            $run | Add-Member -NotePropertyName cleanup -NotePropertyValue ([ordered]@{ restored = $result.restored; deleted = $result.deleted; unresolved = @($result.unresolved) }) -Force
+            if ($script:CcJobs.ContainsKey($id)) { return Send-CcError $ctx 409 'busy' 'This run is still in progress. Roll it back once it has finished.' }
+            $registry = Get-CcEngineRegistry @($run.source, $run.target)
+            $run = ConvertTo-CcRunHashtable $run
+            $run.state = 'RollingBack'
+            $run.phase = 'rollingBack'
+            $run.progress.current = 'Waiting to start'
+            $run.updatedAt = (Get-Date).ToString('o')
             Save-CcRunRecord $id $run
+            Start-CcRunnerJob $id 'rollback' $registry
             return Send-CcJson $ctx 200 $run
         }
         '^GET /api/setup$' {
@@ -306,7 +399,7 @@ function Start-CcLocalRunner([int] $Port, [string] $StaticDir, [switch] $OpenBro
         while ($listener.IsListening) {
             $task = $listener.GetContextAsync()
             # Short waits so Ctrl+C is honoured between them.
-            while (-not $task.Wait(250)) { }
+            while (-not $task.Wait(250)) { Update-CcRunnerJobs }
             $ctx = $task.Result
             $req = $ctx.Request
             $path = $req.Url.AbsolutePath

@@ -1,5 +1,5 @@
 import type { StatusKind } from '../../ui'
-import type { DependencyState, ItemOutcome, OpKind, RecordStatus, RunState } from '../../types/alm'
+import type { DependencyState, ItemOutcome, OpKind, RecordStatus, RunPhase, RunState } from '../../types/alm'
 
 // One vocabulary for the whole app: what a status is called and which dot it gets.
 
@@ -39,10 +39,25 @@ export const OUTCOME: Record<ItemOutcome, { label: string; kind: StatusKind }> =
 }
 
 export const RUN_STATE: Record<RunState, { label: string; kind: StatusKind }> = {
+  Queued: { label: 'Waiting to start', kind: 'running' },
+  Running: { label: 'Running', kind: 'running' },
+  RollingBack: { label: 'Rolling back', kind: 'running' },
+  Interrupted: { label: 'Interrupted', kind: 'blocked' },
   Succeeded: { label: 'Succeeded', kind: 'done' },
   PartiallyFailed: { label: 'Finished with problems', kind: 'blocked' },
   Failed: { label: 'Failed', kind: 'failed' },
   RolledBack: { label: 'Rolled back', kind: 'skipped' },
+}
+
+export const PHASE_LABEL: Record<RunPhase, string> = {
+  queued: 'Waiting to start',
+  comparing: 'Reading both environments',
+  planning: 'Checking the plan',
+  writing: 'Writing',
+  linking: 'Linking records written earlier',
+  continuing: 'Continuing in a moment',
+  rollingBack: 'Rolling back',
+  done: 'Finished',
 }
 
 export const isProblem = (o: ItemOutcome) => o === 'failed' || o === 'blocked' || o === 'skipped'

@@ -2,12 +2,26 @@
   "version": "2.0",
   "logging": {
     "applicationInsights": {
-      "samplingSettings": { "isEnabled": true, "excludedTypes": "Request" }
+      "samplingSettings": {
+        "isEnabled": true,
+        "excludedTypes": "Request"
+      }
     }
   },
   "extensionBundle": {
     "id": "Microsoft.Azure.Functions.ExtensionBundle",
     "version": "[4.*, 5.0.0)"
   },
-  "managedDependency": { "enabled": true }
+  "managedDependency": {
+    "enabled": true
+  },
+  "functionTimeout": "00:10:00",
+  "extensions": {
+    "queues": {
+      "maxDequeueCount": 1,
+      "batchSize": 1,
+      "newBatchThreshold": 0,
+      "visibilityTimeout": "00:00:05"
+    }
+  }
 }
