@@ -55,6 +55,7 @@ export const PHASE_LABEL: Record<RunPhase, string> = {
   planning: 'Checking the plan',
   writing: 'Writing',
   linking: 'Linking records written earlier',
+  verifying: 'Checking the target against the source',
   continuing: 'Continuing in a moment',
   rollingBack: 'Rolling back',
   done: 'Finished',

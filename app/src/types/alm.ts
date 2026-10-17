@@ -209,7 +209,7 @@ export type RunState =
 /** States in which a run is still being worked on and should be polled. */
 export const ACTIVE_RUN_STATES: RunState[] = ['Queued', 'Running', 'RollingBack']
 
-export type RunPhase = 'queued' | 'comparing' | 'planning' | 'writing' | 'linking' | 'continuing' | 'rollingBack' | 'done'
+export type RunPhase = 'queued' | 'comparing' | 'planning' | 'writing' | 'linking' | 'verifying' | 'continuing' | 'rollingBack' | 'done'
 
 export interface RunProgress {
   done: number
@@ -266,6 +266,44 @@ export interface RunCleanup {
   unresolved: string[]
 }
 
+export interface VerificationField {
+  label: string
+  source: string | null
+  target: string | null
+  /** Why this one cannot match, when Dataverse is the reason. */
+  note?: string | null
+}
+
+export interface VerificationDifference {
+  table: string
+  tableLabel: string
+  displayName: string
+  context?: string | null
+  status: 'Changed' | 'Missing' | 'Ambiguous' | 'NotFound' | string
+  message: string
+  fields: VerificationField[]
+}
+
+export interface VerificationAdded {
+  table: string
+  tableLabel: string
+  displayName: string
+  context?: string | null
+}
+
+/** After an apply: the target compared again against the source, record by record. */
+export interface RunVerification {
+  state: 'Verified' | 'Differences' | 'Error'
+  checkedAt: string
+  /** Records the run wrote, and how many of them now match the source. */
+  checked: number
+  matched: number
+  differences: VerificationDifference[]
+  /** Records that appeared in the target during the run without being in the source. */
+  added: VerificationAdded[]
+  message?: string | null
+}
+
 export interface Run {
   runId: string
   mode: RunMode
@@ -285,6 +323,7 @@ export interface Run {
   stages: StageResult[]
   problems: string[]
   cleanup?: RunCleanup
+  verification?: RunVerification | null
 }
 
 export interface RunListItem {

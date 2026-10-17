@@ -4,6 +4,7 @@ import { Button, Dialog, FilterChips, KeyValue, Notice, Panel, ProgressBar, Stat
 import { ACTIVE_RUN_STATES } from '../../types/alm'
 import type { Migration } from '../../hooks/useMigration'
 import { ApplyDialog } from './ApplyDialog'
+import { VerificationPanel } from './VerificationPanel'
 import { fullName, isProblem, OP_LABEL, OUTCOME, PHASE_LABEL, plural, RUN_STATE } from './labels'
 
 /** Step 4: what a dry run or an apply did, record by record. */
@@ -110,6 +111,8 @@ export function RunStep({ m }: { m: Migration }) {
             )}
           </Notice>
         )}
+
+        {!dry && !active && !rolledBack && run.verification && <VerificationPanel v={run.verification} targetName={targetName} />}
 
         <div className="stats">
           <div className="stat"><span className="stat__num">{s.created}</span><span className="stat__label">{dry ? 'would be created' : 'created'}</span></div>

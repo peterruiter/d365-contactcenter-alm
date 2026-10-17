@@ -75,7 +75,7 @@ function Invoke-CcPlan {
 
     function Add-Item($o, $outcome, $message, [int] $stage) {
         $item = [pscustomobject]@{
-            seq = $o.seq; stage = $stage; table = $o.table; tableLabel = $o.tableLabel
+            seq = $o.seq; stage = $stage; table = $o.table; matchKey = $o.matchKey; tableLabel = $o.tableLabel
             displayName = $o.displayName; context = $o.context; op = $o.op; outcome = $outcome; message = $message
         }
         $items.Add($item) | Out-Null
@@ -149,8 +149,11 @@ function Invoke-CcPlan {
             }
             if ($tplan.Table.doubleWrite) {
                 # The second write lands the ruleset's dependency mappings, against the record's real id.
+                # It is an update, so it carries only what an update may set: a create's body
+                # includes the unique name, which Dataverse does not accept on an update.
                 Start-Sleep -Seconds 2
-                Invoke-CcUpsert -Environment $target -EntitySet $tplan.EntitySet -PrimaryId $tplan.PrimaryId -Payload $built.Payload -TargetGuid $id | Out-Null
+                $second = if ($writeOp -eq 'create') { (Build-CcWritePayload -SourceRecord $src -TablePlan $tplan -Op 'update' -Maps $maps -TablePlans $plans).Payload } else { $built.Payload }
+                Invoke-CcUpsert -Environment $target -EntitySet $tplan.EntitySet -PrimaryId $tplan.PrimaryId -Payload $second -TargetGuid $id | Out-Null
             }
             $outcome = if ($o.op -eq 'create') { 'created' } else { 'updated' }
             Add-Item $o $outcome ("Done.$note").Trim() $o.stage
@@ -171,7 +174,7 @@ function Invoke-CcPlan {
         if ($OnEvent) { & $OnEvent 'start' @{ phase = 'linking'; op = $l.Op } }
         $targetGuid = $maps.TargetKeyToGuid["$($l.Entity)|$($l.Key)"]
         $what = "$($l.Lookup.Label) of $(Get-CcItemLabel $plans[$l.Op.table].Table) '$($l.Op.displayName)'"
-        $linkOp = [pscustomobject]@{ seq = $l.Op.seq; table = $l.Op.table; tableLabel = $l.Op.tableLabel; displayName = $l.Op.displayName; context = $l.Op.context; op = 'link' }
+        $linkOp = [pscustomobject]@{ seq = $l.Op.seq; table = $l.Op.table; matchKey = $l.Op.matchKey; tableLabel = $l.Op.tableLabel; displayName = $l.Op.displayName; context = $l.Op.context; op = 'link' }
         $refLabel = Get-CcRefLabel $maps $l.Entity $l.Key $plans
         if (-not $targetGuid) {
             Add-Item $linkOp 'skipped' "$what not set: $refLabel is not in the target." 99

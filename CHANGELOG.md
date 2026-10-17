@@ -12,10 +12,20 @@ All notable changes to this project are recorded here. Format follows [Keep a Ch
 - **Interrupted runs** (worker restarted, runner closed) say so and offer to continue.
 - New engine cmdlets: `New-CcRunRecord`, `Invoke-CcRunJob`, `Invoke-CcRollbackJob`, `Test-CcRunStale`. `Invoke-CcPlan` takes `-OnEvent` and `-Deadline`.
 
+### Checked after every apply
+- **An apply now ends by checking its own work.** It compares the two environments again and reads back every record it created, changed or linked. The run then says "Test matches the source", or lists each record that still differs with the setting and both values. Where Dataverse is the reason (a setting it does not accept when a record is created, or one it does not allow to change later), that is explained next to it. Records that appeared in the target during the run without being in the source, such as the routing configuration Dataverse provisions for some new workstreams, are listed too.
+- In a background run on Azure the check takes a slice of its own when the slice that did the writing has no room left for a full compare. A check that cannot run is reported on the run and never fails it.
+
+### Offline tests
+- **`scripts/test.ps1`** runs the engine's Pester tests without a network or an environment. They include unit tests, plus a synthetic Dev and Test on Microsoft's real Contact Center schema (`tests/fixtures/schema.json`). The scenario covers matching across GUIDs, duplicate names and the tie-breaker, ambiguous records, rulesets with embedded GUIDs, the link pass, managed and per-environment blockers, records with no dependencies, failed writes, writes that Dataverse changes afterwards, provisioning, runs split over time budgets, and rollback back to exactly the state before. They also run on every push (`.github/workflows/tests.yml`).
+- **An in-memory Dataverse** (`tests/support/FakeDataverse.ps1`) answers the engine's Web API calls. It is as strict as Dataverse about unknown columns, read-only columns and lookup binds, and its clock is virtual, so provisioning waits and time budgets pass instantly.
+- **Recordings of real environments.** `scripts/record-fixture.ps1` reads two environments with your own `az login`, read-only, and saves what the compare saw to `tests/fixtures/recorded/<name>`, which git ignores because it holds real configuration. The tests then replay it: compare and plan as recorded, dry run, apply into a copy of the target, check, and roll back. A real Dev to Test of 125 written records replays in under a minute.
+
 ### Select a record with everything under it
 - **"With everything under it"** on a workstream (or any record with children) selects its routing configurations and steps, context variables, capacity links and channels, plus the rulesets those steps use, the queues those rulesets route to and the templates and hours involved. It walks through records that are the same in both environments, so a changed step under an unchanged routing configuration is found. The details list exactly what that includes.
 
 ### Fixed
+- A new ruleset's second write (the one that makes Dataverse record its dependencies) reused the create body, which includes the ruleset's unique name. An update cannot set that, so the ruleset could fail and hold back the routing steps that use it. The second write now sends only what an update may set. Found by the new offline tests.
 - Records with no dependencies carried a phantom empty one (`@($null)` is a one-element array in PowerShell), which blocked them in the plan with "Needs a , which cannot be found". On a real Dev to Test compare this blocked all 41 decision contracts and, through them, 87 records.
 - An empty detect-only list produced one empty finding.
 

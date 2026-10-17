@@ -419,6 +419,10 @@ export class MockAlmService implements AlmService {
         const partial = this.withItems(final, doneItems)
         set({ stages: partial.stages, summary: partial.summary, problems: partial.problems, progress: { done: n, total: items.length, current: null } })
       }
+      if (mode === 'apply') {
+        set({ phase: 'verifying', progress: { done: items.length, total: items.length, current: 'Checking the target against the source' } })
+        await step(1200)
+      }
       set({ ...final, phase: 'done', progress: { done: items.length, total: items.length, current: null } })
     })()
     return delay(started, 250)
@@ -505,6 +509,24 @@ export class MockAlmService implements AlmService {
       },
       stages,
       problems: bad.map((i) => `${i.tableLabel} '${i.displayName}': ${i.message}`),
+    }
+    if (!dry) {
+      // Like the engine's check afterwards: every written record read back and compared again.
+      const written = new Set(items.filter((i) => ['created', 'updated', 'linked'].includes(i.outcome)).map((i) => `${i.table}|${i.context ?? ''}|${i.displayName}`))
+      const newWorkstreams = items.filter((i) => i.tableLabel === 'Workstreams' && i.outcome === 'created')
+      run.verification = {
+        state: 'Verified',
+        checkedAt: new Date(Date.now() + 2400).toISOString(),
+        checked: written.size,
+        matched: written.size,
+        differences: [],
+        added: newWorkstreams.map((w) => ({
+          table: 'msdyn_routingconfiguration',
+          tableLabel: 'Routing configurations',
+          displayName: `RC - Workstream: ${w.displayName}`,
+          context: w.displayName,
+        })),
+      }
     }
     return run
   }

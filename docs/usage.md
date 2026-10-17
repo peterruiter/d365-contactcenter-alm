@@ -38,9 +38,11 @@ Dry runs, applies and rollbacks run in the background: the run view shows a prog
 
 The run view lists every record per stage with its outcome (created, updated, linked, skipped, blocked, failed) and the reason in plain words. Provisioning warnings show up here; they are the usual source of "it looked fine but wasn't". A record that failed only holds back the records that depend on it; the rest of the run continues. Dependencies are checked in the plan step before anything runs, so a dry run of a plan without blockers reports exactly what applying will do.
 
+An apply ends by checking its own work: it compares again and reads back every record it wrote. The run says "Test matches the source" or lists each record that still differs, with the setting and both values. When Dataverse is the reason (some settings cannot be set when a record is created, others cannot change afterwards) that is said next to it. Records that appeared in the target during the run without being in the source, such as a routing configuration Dataverse provisions for a new workstream, are listed separately.
+
 ## 6. Roll back
 
-After an apply, Roll back this run restores the target from the snapshot the run took. It puts changed records back and reports records the run created. A half-provisioned workstream needs a manual look, because async side-effects do not reverse cleanly.
+After an apply, Roll back this run restores the target from the snapshot the run took: changed records get their settings and lookups back, and records the run created are deleted, children first. Anything Dataverse refuses to delete is listed afterwards. Records Dataverse provisioned on its own go with their parent where Dataverse cascades the delete.
 
 ## Reading the status
 
@@ -56,5 +58,5 @@ After an apply, Roll back this run restores the target from the snapshot the run
 1. Compare Dev to Test. Read the diff.
 2. Build a plan. Read the order.
 3. Dry run. Read the warnings.
-4. Apply to Test. Check it in the app.
+4. Apply to Test. Read the check at the top of the run: it says whether Test now matches.
 5. Only then point at Acc and Prod.

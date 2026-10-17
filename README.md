@@ -117,7 +117,8 @@ Steps and auth in [docs/backend.md](docs/backend.md).
 ## Known limits
 
 - Async provisioning has no done signal. The engine polls with a timeout and warns, it does not pretend success.
-- Rollback restores records but cannot reverse provisioning side-effects. A half-provisioned workstream needs a manual look. It also does not delete records the run created; that is a manual cleanup.
+- Rollback restores changed records and deletes the ones a run created. It cannot reverse every provisioning side-effect: what Dataverse refuses to delete is listed.
+- After an apply the engine compares again and reports each written record that does not match the source, so "it looked fine but wasn't" shows up in the run instead of in Test.
 - Dependencies are checked before anything runs. A record whose parent, template or embedded reference is not in the target is added to the plan automatically, or shown as blocked with an "Add …" fix. Records pointing at a table written later (a workstream's default queue) are linked in a final pass. A dry run simulates the IDs it would create, so it reports exactly what an apply would do.
 - Operating-hours calendar association is a second pass, not yet wired to a live org.
 - Some entity set names (quick replies, tags) need confirming per org. The manifest notes them.
@@ -132,11 +133,12 @@ Steps and auth in [docs/backend.md](docs/backend.md).
 | `backend/cli/` | The same engine as a command-line tool, for pipelines. |
 | `backend/local-runner/` | Local web server, profile store and setup checks behind `scripts/run-local.ps1`. |
 | `connector/` | Custom connector definition (OpenAPI + Entra auth). |
-| `scripts/` | `deploy.ps1`, `init-app.ps1`, `deploy-backend.ps1`, `run-local.ps1`, `build-runner-release.ps1`. |
+| `scripts/` | `deploy.ps1`, `init-app.ps1`, `deploy-backend.ps1`, `run-local.ps1`, `build-runner-release.ps1`, `test.ps1`, `record-fixture.ps1`. |
+| `tests/` | Offline Pester tests: unit tests, a synthetic Dev and Test on the real schema, and replays of recorded environments. See [docs/testing.md](docs/testing.md). |
 | `Start-LocalRunner.cmd` | Double-click launcher for the local runner. |
 | `runner-exe/` | The local runner as one self-contained exe (.NET 10 + PowerShell 7 SDK). |
 | `build.ps1` | Install, typecheck, build the app. |
-| `docs/` | [getting-started](docs/getting-started.md), [architecture](docs/architecture.md), [setup](docs/setup.md), [usage](docs/usage.md), [usage (CLI/engine reference)](docs/usage-engine-reference.md), [backend](docs/backend.md), [local runner](docs/local-runner.md), [manifest](docs/manifest.md), [backend service principal](docs/backend-service-principal.md) |
+| `docs/` | [getting-started](docs/getting-started.md), [architecture](docs/architecture.md), [setup](docs/setup.md), [usage](docs/usage.md), [usage (CLI/engine reference)](docs/usage-engine-reference.md), [backend](docs/backend.md), [local runner](docs/local-runner.md), [manifest](docs/manifest.md), [backend service principal](docs/backend-service-principal.md), [testing](docs/testing.md) |
 
 ## Roadmap
 
@@ -144,7 +146,9 @@ Steps and auth in [docs/backend.md](docs/backend.md).
 - [x] Custom connector definition for the backend
 - [x] Connector adapter wired into the app (published app calls the backend through the connector)
 - [x] Published and running inside Dynamics against a real environment, end to end
-- [ ] Live run polling and streamed stage progress
+- [x] Background runs with live progress
+- [x] Check after every apply that the target matches the source
+- [x] Offline regression tests on synthetic and recorded environments
 - [ ] Manual-match override for records the engine cannot pair on name
 - [ ] Operating-hours calendar-row copy wired to a live org
 

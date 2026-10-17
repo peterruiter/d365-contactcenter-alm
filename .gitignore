@@ -38,3 +38,6 @@ out/
 
 # Registry copy shipped into the function app at deploy
 backend/function-app/environments.json
+
+# Recorded test fixtures hold real configuration from real environments (scripts/record-fixture.ps1).
+tests/fixtures/recorded/

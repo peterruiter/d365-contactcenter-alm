@@ -2,9 +2,11 @@ function Invoke-CcRunJob {
     <#
     .SYNOPSIS
         Runs (or continues) one stored background run: compares, plans exactly the requested
-        selection, and writes, saving progress after every record. With a time budget it stops
-        cleanly before running out and returns Continue = $true; the caller schedules another slice,
-        which compares again so only what is still missing is written.
+        selection, and writes, saving progress after every record. An apply then compares again and
+        checks that every record it wrote now matches the source (run.verification). With a time
+        budget it stops cleanly before running out and returns Continue = $true; the caller
+        schedules another slice, which compares again so only what is still missing is written, or
+        does only the check when that is all that is left.
     .PARAMETER LoadRun / SaveRun / LoadSnapshot / SaveSnapshot
         Storage, supplied by the host (files for the local runner, blobs for the Function).
         LoadSnapshot returns $null when there is none yet.
@@ -39,12 +41,27 @@ function Invoke-CcRunJob {
     try {
         $run.state = 'Running'
         $run.executions = [int]$run.executions + 1
+
+        # Everything is written; an earlier slice left only the check.
+        if ($run.verifyPending) {
+            Invoke-CcRunVerification -Run $run -Environments $Environments -ManifestPath $ManifestPath -Save $save
+            $run.verifyPending = $false
+            Complete-CcRun -Run $run
+            & $save -Force
+            return [pscustomobject]@{ Continue = $false; RunId = $run.runId }
+        }
+
         $run.phase = 'comparing'
         $run.progress.current = 'Reading both environments'
         & $save -Force
 
         $sel = @($run.request.selection | ForEach-Object { @{ table = $_.table; matchKey = $_.matchKey } })
+        $compareStarted = Get-Date
         $diff = Compare-CcConfig -Environments $Environments -SourceId $run.source -TargetId $run.target -ManifestPath $ManifestPath 6>$null
+        $compareSeconds = ((Get-Date) - $compareStarted).TotalSeconds
+        # What was only in the target before anything was written, so the check afterwards can
+        # tell what Dataverse added during the run. Taken once, by the first slice.
+        if ($run.mode -eq 'apply' -and $null -eq $run.extraBefore) { $run.extraBefore = @(Get-CcExtraRefs $diff) }
 
         $run.phase = 'planning'
         $run.progress.current = 'Checking the plan'
@@ -119,14 +136,20 @@ function Invoke-CcRunJob {
             return [pscustomobject]@{ Continue = $true; RunId = $run.runId }
         }
 
-        $ok = 'created', 'updated', 'linked', 'unchanged', 'wouldCreate', 'wouldUpdate', 'wouldLink'
-        $bad = @($run.items | Where-Object { $_.outcome -notin $ok })
-        $good = @($run.items | Where-Object { $_.outcome -in $ok -and $_.outcome -ne 'unchanged' })
-        $run.state = if ($bad.Count -eq 0) { 'Succeeded' } elseif ($good.Count -eq 0) { 'Failed' } else { 'PartiallyFailed' }
-        $run.phase = 'done'
-        $run.progress.done = $run.progress.total
-        $run.progress.current = $null
-        $run.finishedAt = (Get-Date).ToString('o')
+        $wrote = @($run.items | Where-Object { $_ -and $_.outcome -in 'created', 'updated', 'linked' }).Count -gt 0
+        if ($run.mode -eq 'apply' -and $wrote) {
+            # The check is a full compare; when this slice has no room left for one, the next does it.
+            $left = ($deadline - (Get-Date)).TotalSeconds
+            if ($TimeBudgetSeconds -gt 0 -and $left -lt ($compareSeconds * 1.5 + 15)) {
+                $run.verifyPending = $true
+                $run.phase = 'continuing'
+                $run.progress.current = 'Checking the result in a moment'
+                & $save -Force
+                return [pscustomobject]@{ Continue = $true; RunId = $run.runId }
+            }
+            Invoke-CcRunVerification -Run $run -Environments $Environments -ManifestPath $ManifestPath -Save $save
+        }
+        Complete-CcRun -Run $run
         & $save -Force
         return [pscustomobject]@{ Continue = $false; RunId = $run.runId }
     }

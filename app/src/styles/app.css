@@ -246,6 +246,8 @@ button.stat:hover { background: var(--surface-cloud-lite); }
 }
 .item:first-child { border-top: none; }
 .item__msg { font-size: 14px; color: var(--text-secondary); overflow-wrap: anywhere; }
+.verify-fields { list-style: none; margin: var(--space-2) 0 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-2); font-size: 14px; overflow-wrap: anywhere; }
+.verify-fields__label { font-weight: 500; }
 @media (max-width: 767px) {
   .item { grid-template-columns: minmax(0, 1fr); gap: var(--space-1); }
 }

@@ -30,6 +30,39 @@ function Update-CcRunTotals {
     $Run.problems = @($items | Where-Object { $_.outcome -notin $ok } | ForEach-Object { "$($_.tableLabel) '$($_.displayName)': $($_.message)" })
 }
 
+function Complete-CcRun {
+    # The final state of a run, from its items: Succeeded, PartiallyFailed or Failed.
+    param($Run)
+    $ok = 'created', 'updated', 'linked', 'unchanged', 'wouldCreate', 'wouldUpdate', 'wouldLink'
+    $bad = @($Run.items | Where-Object { $_ -and $_.outcome -notin $ok })
+    $good = @($Run.items | Where-Object { $_ -and $_.outcome -in $ok -and $_.outcome -ne 'unchanged' })
+    $Run.state = if ($bad.Count -eq 0) { 'Succeeded' } elseif ($good.Count -eq 0) { 'Failed' } else { 'PartiallyFailed' }
+    $Run.phase = 'done'
+    $Run.progress.done = $Run.progress.total
+    $Run.progress.current = $null
+    $Run.finishedAt = (Get-Date).ToString('o')
+}
+
+function Invoke-CcRunVerification {
+    # Compares again after an apply and stores what still differs on the run. A check that cannot
+    # run (the target went away, a token expired) is reported on the run; it never fails the run,
+    # whose writes stand either way.
+    param($Run, [object[]] $Environments, [string] $ManifestPath, [scriptblock] $Save)
+    $Run.phase = 'verifying'
+    $Run.progress.current = 'Checking the target against the source'
+    & $Save -Force
+    try {
+        $diff = Compare-CcConfig -Environments $Environments -SourceId $Run.source -TargetId $Run.target -ManifestPath $ManifestPath 6>$null
+        $Run.verification = Get-CcVerification -Diff $diff -Items @($Run.items) -ExtraBefore $Run.extraBefore
+    }
+    catch {
+        $Run.verification = [ordered]@{
+            state = 'Error'; checkedAt = (Get-Date).ToString('o'); checked = 0; matched = 0; differences = @(); added = @()
+            message = "The check afterwards could not run: $(Get-CcErrorMessage $_.Exception.Message)"
+        }
+    }
+}
+
 function ConvertTo-CcHashtable {
     # A run read back from JSON is a PSCustomObject; turn it (and its nested objects) into ordered
     # hashtables so properties can be added and set the same way as on a new run.
