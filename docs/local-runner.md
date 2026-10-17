@@ -84,6 +84,14 @@ An environment that passes (warnings are fine) shows up in **Compare**. Changing
 
 Nothing goes into the repo.
 
+## Version and updates
+
+The footer shows which build you are running: `Version 0.3.0 · build 15 (dc70c0e)`. The build number is the number of commits in the repo when it was built, so a newer build always has a higher number.
+
+When the runner starts, it asks GitHub for the latest release, at most every six hours. It does this itself, not from the browser, so it goes through the machine's proxy. When that release is newer, a banner says so, with a link to download it. To update, download the new exe or zip, close the running one and start the new one. Profiles, environments and secrets live in `%LOCALAPPDATA%\CcAlm` and stay as they are. **Not now** hides the banner until a build after that one comes out. Without access to GitHub there is simply no banner.
+
+A fork can point the check at its own release with the `CCALM_UPDATE_URL` environment variable (the URL of that release's `build.json`).
+
 ## Options
 
 | Parameter | Default | |
@@ -99,8 +107,11 @@ Working on the app itself? Run the runner, then `npm run dev:runner` in `app`: V
 
 ```powershell
 ./scripts/build-runner-release.ps1
-gh release upload localrunner ./out/ContactCenterALM-LocalRunner.zip ./out/ContactCenterALM-LocalRunner.exe --clobber
+git tag -f localrunner HEAD; git push -f origin localrunner
+gh release upload localrunner ./out/ContactCenterALM-LocalRunner.zip ./out/ContactCenterALM-LocalRunner.exe ./out/build.json --clobber
 ```
+
+Build from a clean, pushed commit: the build number and commit come from git, and the script warns when there are uncommitted changes. `build.json` is what running copies compare themselves with, so always upload it with the other two.
 
 It builds the app in runner mode and zips it with the engine, the runner and the launcher, in the repo's own folder layout. The zip leaves out the app source, which is how `run-local.ps1` knows never to build.
 

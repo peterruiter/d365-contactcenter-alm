@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react'
 import { AppFooter, AppHeader, Link, Tabs, ThemeToggle } from './ui'
+import { UpdateBanner } from './components/UpdateBanner'
+import { buildLabel } from './buildInfo'
 import { MigratePage } from './pages/MigratePage'
 import { HistoryPage } from './pages/HistoryPage'
 import { SetupPage } from './pages/SetupPage'
@@ -44,6 +46,7 @@ export default function App() {
         actions={<ThemeToggle tone="heavy" label="Dark" />}
       />
       <main className="app-main" id="main">
+        {isLocalRunner && <UpdateBanner />}
         {page === 'migrate' && <MigratePage m={m} />}
         {page === 'history' && <HistoryPage runs={m.runs} environments={m.environments} onRefresh={m.refreshRuns} />}
         {page === 'setup' && (
@@ -56,7 +59,12 @@ export default function App() {
         )}
       </main>
       <AppFooter
-        left={<span>{brand.footer.disclaimer}</span>}
+        left={
+          <span className="stack stack--tight">
+            <span>{brand.footer.disclaimer}</span>
+            <span title={`Built ${new Date(__CCALM_BUILD__.builtAt).toLocaleString()}`}>{buildLabel()}</span>
+          </span>
+        }
         right={
           <span className="row">
             <span>{brand.footer.creator}</span>

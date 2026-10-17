@@ -5,13 +5,15 @@
       ContactCenterALM-LocalRunner.zip  the runner files; needs PowerShell 7 and nothing else
       ContactCenterALM-LocalRunner.exe  one self-contained file with .NET and PowerShell 7 inside;
                                         needs nothing at all
+      build.json                        which build this is; runners compare it with their own to
+                                        offer an update, so upload it with the other two
 .PARAMETER OutputDir
     Where the assets go. Default ./out.
 .PARAMETER SkipExe
     Only build the zip (the exe needs the .NET 10 SDK).
 .EXAMPLE
     ./scripts/build-runner-release.ps1
-    gh release upload localrunner ./out/ContactCenterALM-LocalRunner.zip ./out/ContactCenterALM-LocalRunner.exe --clobber
+    gh release upload localrunner ./out/ContactCenterALM-LocalRunner.zip ./out/ContactCenterALM-LocalRunner.exe ./out/build.json --clobber
 #>
 [CmdletBinding()]
 param(
@@ -22,6 +24,24 @@ param(
 $ErrorActionPreference = 'Stop'
 $repo = Split-Path $PSScriptRoot -Parent
 $name = 'ContactCenterALM-LocalRunner'
+
+# One build identity for the app, the exe and build.json. The build number is the commit count on
+# the branch, so a later release always has a higher one.
+$pkg = Get-Content (Join-Path $repo 'app/package.json') -Raw | ConvertFrom-Json
+$buildInfo = [ordered]@{
+    version = $pkg.version
+    build   = [int](git -C $repo rev-list --count HEAD)
+    commit  = (git -C $repo rev-parse --short HEAD)
+    builtAt = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ')
+}
+if (git -C $repo status --porcelain --untracked-files=no -- app/src backend config scripts runner-exe) {
+    Write-Warning 'There are uncommitted changes: this build carries the number of the last commit, not of what is built.'
+}
+$env:CCALM_BUILD_VERSION = $buildInfo.version
+$env:CCALM_BUILD_NUMBER = $buildInfo.build
+$env:CCALM_BUILD_COMMIT = $buildInfo.commit
+$env:CCALM_BUILD_AT = $buildInfo.builtAt
+$version = "$($buildInfo.version) build $($buildInfo.build) ($($buildInfo.commit))"
 
 Push-Location (Join-Path $repo 'app')
 try {
@@ -54,9 +74,8 @@ foreach ($item in $copy) {
     Copy-Item $src $dst -Recurse
 }
 
-$version = (git -C $repo rev-parse --short HEAD)
 @"
-Contact Center ALM - local runner (build $version)
+Contact Center ALM - local runner, version $version
 
 1. Install PowerShell 7 if you do not have it:  winget install --id Microsoft.PowerShell -e
 2. Double-click Start-LocalRunner.cmd and give a profile name (one per client).
@@ -71,10 +90,11 @@ Project:    https://github.com/peterruiter/d365-contactcenter-alm
 "@ | Set-Content (Join-Path $root 'README.txt') -Encoding UTF8
 
 New-Item -ItemType Directory -Path $OutputDir -Force | Out-Null
+$buildInfo | ConvertTo-Json | Set-Content (Join-Path $OutputDir 'build.json') -Encoding utf8NoBOM
 $zip = Join-Path $OutputDir "$name.zip"
 if (Test-Path $zip) { Remove-Item $zip -Force }
 Compress-Archive -Path $root -DestinationPath $zip
-Write-Host "Built $zip ($('{0:N1} MB' -f ((Get-Item $zip).Length / 1MB)), build $version)" -ForegroundColor Green
+Write-Host "Built $zip ($('{0:N1} MB' -f ((Get-Item $zip).Length / 1MB)), version $version)" -ForegroundColor Green
 
 if (-not $SkipExe) {
     # The same files, without the top folder or the launcher, embedded in the exe.
@@ -87,11 +107,12 @@ if (-not $SkipExe) {
     Compress-Archive -Path (Join-Path $root '*') -DestinationPath $payload
 
     $publishDir = Join-Path $stage 'exe'
-    dotnet publish $exeProject -c Release -o $publishDir -p:InformationalVersion=$version --nologo -v quiet
+    dotnet publish $exeProject -c Release -o $publishDir -p:InformationalVersion="$($buildInfo.version)+$($buildInfo.build).$($buildInfo.commit)" --nologo -v quiet
     if ($LASTEXITCODE) { throw 'dotnet publish failed.' }
     $exe = Join-Path $OutputDir "$name.exe"
     Copy-Item (Join-Path $publishDir "$name.exe") $exe -Force
-    Write-Host "Built $exe ($('{0:N1} MB' -f ((Get-Item $exe).Length / 1MB)), build $version)" -ForegroundColor Green
+    Write-Host "Built $exe ($('{0:N1} MB' -f ((Get-Item $exe).Length / 1MB)), version $version)" -ForegroundColor Green
 }
 
 Remove-Item $stage -Recurse -Force
+Write-Host "Built $(Join-Path $OutputDir 'build.json'): version $version" -ForegroundColor Green

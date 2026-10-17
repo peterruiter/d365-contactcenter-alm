@@ -8,3 +8,6 @@ interface ImportMetaEnv {
 interface ImportMeta {
   readonly env: ImportMetaEnv
 }
+
+/** Stamped at build time by vite.config.ts. */
+declare const __CCALM_BUILD__: { version: string; build: number; commit: string; builtAt: string }

@@ -4,6 +4,12 @@ All notable changes to this project are recorded here. Format follows [Keep a Ch
 
 ## [Unreleased]
 
+### Version and updates
+- **The app shows which build it is**: `Version 0.3.0 · build N (commit)` in the footer, in Dynamics and in the local runner. The build number is the commit count, so a newer build always has a higher number. The exe carries the same version in its file properties.
+- **The local runner tells you when a newer release is on GitHub.** It reads the release's `build.json` itself, at most every six hours, and shows a banner with the download link. Without access to GitHub there is no banner and nothing breaks. `CCALM_UPDATE_URL` points a fork at its own release.
+- The release script stamps one identity into the app, the exe, the readme and `build.json`, and warns when building with uncommitted changes.
+- Version 0.3.0.
+
 ### Runs in the background
 - **Dry runs, applies and rollbacks run in the background.** The request returns at once with a run; the app polls it and shows a progress bar, the phase, the record being written and every outcome as it lands. A long Prod promotion no longer hits the connector's 2-minute timeout or the Function's HTTP limit. Leave the page and come back, or reload, and the run is picked up where it is.
 - **Azure Function**: a queue-triggered `RunWorker` does the work in slices of about 7 minutes and queues its own continuation, inside the 10-minute Functions limit. A continuation compares again and plans the same selection, so it only writes what is still missing and can never write twice. Failures are recorded on the run, never retried blindly (`maxDequeueCount` 1). Compare and plan connect only the two environments they use.

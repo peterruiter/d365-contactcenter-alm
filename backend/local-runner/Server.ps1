@@ -278,8 +278,39 @@ function Get-CcSelection($body) {
     return $null
 }
 
+# The latest local runner release on GitHub: the build.json the release script uploads next to the
+# exe and the zip. Asked by the runner, not the browser (no CORS, no per-browser rate limit, and it
+# goes through the machine's proxy), at most every six hours. CCALM_UPDATE_URL points a fork at
+# its own release.
+$script:CcReleasePage = 'https://github.com/peterruiter/d365-contactcenter-alm/releases/tag/localrunner'
+$script:CcUpdateUrl = if ($env:CCALM_UPDATE_URL) { $env:CCALM_UPDATE_URL } else { 'https://github.com/peterruiter/d365-contactcenter-alm/releases/download/localrunner/build.json' }
+$script:CcUpdate = $null
+
+function Get-CcLatestRelease([switch] $Refresh) {
+    $c = $script:CcUpdate
+    if (-not $Refresh -and $c -and $c.At -gt (Get-Date).AddHours(-6)) { return $c.Info }
+    $info = [ordered]@{ latest = $null; releaseUrl = $script:CcReleasePage; checkedAt = (Get-Date).ToString('o'); error = $null }
+    try {
+        $r = Invoke-WebRequest -Uri $script:CcUpdateUrl -TimeoutSec 8 -UseBasicParsing -ErrorAction Stop
+        # Release assets come as application/octet-stream, so the body may arrive as bytes.
+        $text = if ($r.Content -is [byte[]]) { [Text.Encoding]::UTF8.GetString($r.Content) } else { [string]$r.Content }
+        $j = $text | ConvertFrom-Json
+        $builtAt = if ($j.builtAt -is [datetime]) { $j.builtAt.ToUniversalTime().ToString('o') } else { [string]$j.builtAt }
+        $info.latest = [ordered]@{ version = [string]$j.version; build = [int]$j.build; commit = [string]$j.commit; builtAt = $builtAt }
+    }
+    catch {
+        # Offline, blocked by a proxy, or no build.json on the release yet: no update banner.
+        $info.error = $_.Exception.Message
+    }
+    $script:CcUpdate = @{ Info = $info; At = Get-Date }
+    return $info
+}
+
 function Invoke-CcApiRoute($ctx, [string] $method, [string] $path) {
     switch -Regex ("$method $path") {
+        '^GET /api/update$' {
+            return Send-CcJson $ctx 200 (Get-CcLatestRelease -Refresh:([bool]$ctx.Request.QueryString['refresh']))
+        }
         '^GET /api/environments$' {
             $ready = @((Read-CcStore).environments | Where-Object { Test-CcReady $_ } | ForEach-Object {
                     [ordered]@{ id = $_.id; name = $_.name; url = $_.url; role = $(if ($_.role) { $_.role } else { 'any' }); requireApproval = [bool]$_.requireApproval }

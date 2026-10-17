@@ -1,5 +1,6 @@
 import { json } from './backendAlmService'
 import type { EnvRole } from '../types/alm'
+import type { UpdateInfo } from '../buildInfo'
 
 // Setup API of the local runner (backend/local-runner/Server.ps1). Only used when
 // VITE_ALM_SOURCE=local. Secrets go in, never come back out: the runner only reports hasSecret.
@@ -78,4 +79,9 @@ export async function deleteEnvironment(id: string): Promise<void> {
 
 export async function runCheck(id: string, checkId: string): Promise<SetupEnvironment> {
   return json(await fetch(`/api/setup/environments/${id}/checks/${checkId}`, { method: 'POST', headers }))
+}
+
+/** The latest local runner release on GitHub, as the runner last saw it. `refresh` asks again now. */
+export async function getUpdate(refresh = false): Promise<UpdateInfo> {
+  return json(await fetch(`/api/update${refresh ? '?refresh=1' : ''}`, { headers }))
 }
