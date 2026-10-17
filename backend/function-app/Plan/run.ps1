@@ -8,7 +8,12 @@ try {
     }
 
     $envs = Get-CcConnected @($body.sourceEnvId, $body.targetEnvId)
-    $diff = Compare-CcConfig -Environments $envs -SourceId $body.sourceEnvId -TargetId $body.targetEnvId
+    # From the reads of the compare the person reviewed, when they are still there: no Dataverse
+    # calls at all. Otherwise (an old compare, a missing diffId) read both environments again.
+    $readArgs = @{}
+    $reads = if ($body.diffId) { Get-CcReads ([string]$body.diffId) } else { $null }
+    if ($reads) { $readArgs = @{ ReadCache = $reads } }
+    $diff = Compare-CcConfig -Environments $envs -SourceId $body.sourceEnvId -TargetId $body.targetEnvId @readArgs
 
     $selection = if ($body.selection) {
         @($body.selection | ForEach-Object { @{ table = $_.table; matchKey = $_.matchKey } })

@@ -9,7 +9,9 @@ function New-CcRunRecord {
         [Parameter(Mandatory)] [string] $TargetId,
         [Parameter(Mandatory)] [ValidateSet('apply', 'dryRun')] [string] $Mode,
         [object[]] $Selection,
-        [bool] $Approved
+        [bool] $Approved,
+        # The compare the run was planned from; with its reads kept, the run need not read again.
+        [string] $DiffId
     )
     $now = (Get-Date).ToString('o')
     [ordered]@{
@@ -30,6 +32,6 @@ function New-CcRunRecord {
         problems   = @()
         snapshotId = $null
         executions = 0
-        request    = [ordered]@{ selection = @($Selection | ForEach-Object { [ordered]@{ table = $_.table; matchKey = $_.matchKey } }); approved = $Approved }
+        request    = [ordered]@{ selection = @($Selection | ForEach-Object { [ordered]@{ table = $_.table; matchKey = $_.matchKey } }); approved = $Approved; diffId = $(if ($DiffId) { $DiffId } else { $null }) }
     }
 }

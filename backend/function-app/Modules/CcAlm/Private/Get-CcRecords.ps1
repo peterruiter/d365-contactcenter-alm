@@ -15,7 +15,7 @@ function Get-CcRecords {
     $records = [System.Collections.Generic.List[object]]::new()
     $path = "$EntitySet`?`$select=$($Select -join ',')"
     do {
-        $page = Invoke-CcWebApi -Environment $Environment -Method Get -Path $path
+        $page = Invoke-CcCachedGet -Environment $Environment -Path $path -Kind records
         if ($page.value) { foreach ($r in $page.value) { $records.Add($r) } }
         $path = $page.'@odata.nextLink'
     } while ($path)

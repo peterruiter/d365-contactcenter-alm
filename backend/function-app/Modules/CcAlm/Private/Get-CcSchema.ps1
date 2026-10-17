@@ -24,14 +24,16 @@ function Get-CcTableSchema {
 
     $cacheKey = "$($Environment.Url)|$LogicalName"
     $cached = $script:CcSchemaCache[$cacheKey]
-    if ($cached -and $cached.LoadedAt -gt (Get-Date).AddMinutes(-$script:CcSchemaTtlMinutes)) { return $cached }
+    # With a read cache in use, metadata goes through it, so the cache ends up complete even on a
+    # process that already had this table's schema.
+    if (-not $script:CcReadCache -and $cached -and $cached.LoadedAt -gt (Get-Date).AddMinutes(-$script:CcSchemaTtlMinutes)) { return $cached }
 
     $path = "EntityDefinitions(LogicalName='$LogicalName')?`$select=LogicalName,EntitySetName,PrimaryIdAttribute,PrimaryNameAttribute,DisplayCollectionName" +
         "&`$expand=Attributes(`$select=LogicalName,AttributeType,IsValidForCreate,IsValidForUpdate,IsValidForRead,RequiredLevel,AttributeOf,DisplayName)," +
         "ManyToOneRelationships(`$select=ReferencingAttribute,ReferencedEntity,ReferencingEntityNavigationPropertyName)"
 
     try {
-        $d = Invoke-CcWebApi -Environment $Environment -Method Get -Path $path -Prefer $null
+        $d = Invoke-CcCachedGet -Environment $Environment -Path $path -Kind schema -Prefer $null
     }
     catch {
         if ($_.Exception.Message -match '404|does not exist|Could not find') {

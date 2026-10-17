@@ -52,12 +52,14 @@ function Invoke-CcTestRun {
         [ValidateSet('apply', 'dryRun')] [string] $Mode = 'apply',
         [object[]] $Selection,
         [int] $TimeBudgetSeconds = 0,
-        [int] $MaxSlices = 50
+        [int] $MaxSlices = 50,
+        # The read cache of the compare the run was planned from (Invoke-CcRunJob -LoadReads).
+        [pscustomobject] $Reads
     )
     $work = Join-Path ([IO.Path]::GetTempPath()) "ccalm-tests-$([guid]::NewGuid().ToString('N').Substring(0, 8))"
     New-Item -ItemType Directory -Path $work -Force | Out-Null
     $store = @{
-        Run  = New-CcRunRecord -SourceId $SourceId -TargetId $TargetId -Mode $Mode -Selection $Selection -Approved $true
+        Run  = New-CcRunRecord -SourceId $SourceId -TargetId $TargetId -Mode $Mode -Selection $Selection -Approved $true -DiffId $(if ($Reads) { 'dif_000000000000' } else { '' })
         Snap = $null
     }
     $slices = 0
@@ -68,7 +70,8 @@ function Invoke-CcTestRun {
             -LoadRun { $store.Run | ConvertTo-Json -Depth 40 | ConvertFrom-Json } `
             -SaveRun { param($r) $store.Run = $r } `
             -LoadSnapshot { if ($store.Snap) { $store.Snap | ConvertTo-Json -Depth 40 | ConvertFrom-Json } } `
-            -SaveSnapshot { param($s) $store.Snap = $s }
+            -SaveSnapshot { param($s) $store.Snap = $s } `
+            -LoadReads $(if ($Reads) { { param($id) $Reads }.GetNewClosure() } else { $null })
     } while ($res.Continue -and $slices -lt $MaxSlices)
 
     $snapPath = $null

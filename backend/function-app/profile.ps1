@@ -87,6 +87,40 @@ function Get-CcBlobFile([string] $name, [string] $destination) {
     return $destination
 }
 
+# --- Reads kept from a compare ---------------------------------------------------
+# What a compare read from both environments, stored under its diffId so the plan check and the
+# runs started from it do not read both environments again. A day old, they are deleted.
+
+function Save-CcReads([string] $DiffId, $Cache) {
+    $ctx = Get-CcBlobContext
+    $container = Confirm-CcRunsContainer
+    $tmp = Join-Path ([System.IO.Path]::GetTempPath()) "reads-$DiffId.json"
+    try {
+        Export-CcReadCache -Cache $Cache -Path $tmp
+        Set-AzStorageBlobContent -File $tmp -Container $container -Blob "reads-$DiffId.json" -Context $ctx -Force | Out-Null
+    }
+    finally { Remove-Item $tmp -ErrorAction SilentlyContinue }
+    try {
+        $old = (Get-Date).ToUniversalTime().AddDays(-1)
+        Get-AzStorageBlob -Container $container -Prefix 'reads-' -Context $ctx |
+            Where-Object { $_.LastModified.UtcDateTime -lt $old } |
+            ForEach-Object { Remove-AzStorageBlob -Blob $_.Name -Container $container -Context $ctx -Force }
+    }
+    catch { Write-Warning "Could not delete old reads: $($_.Exception.Message)" }
+}
+
+function Get-CcReads([string] $DiffId) {
+    # $null when there is no such compare or it is too old: the caller then reads Dataverse.
+    if ($DiffId -notmatch '^dif_[0-9a-f]{12}$') { return $null }
+    $tmp = Join-Path ([System.IO.Path]::GetTempPath()) "reads-$DiffId-$([guid]::NewGuid().ToString('N').Substring(0, 6)).json"
+    try {
+        Get-CcBlobFile "reads-$DiffId.json" $tmp | Out-Null
+        return Import-CcReadCache -Path $tmp -MaxAgeMinutes 60
+    }
+    catch { return $null }
+    finally { Remove-Item $tmp -ErrorAction SilentlyContinue }
+}
+
 # --- HTTP helpers --------------------------------------------------------------
 
 function Read-CcBody($Request) {

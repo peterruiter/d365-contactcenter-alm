@@ -62,6 +62,9 @@ function New-CcFakeOrg {
         Tables    = $tables
         BySet     = $bySet
         Writes    = [System.Collections.Generic.List[object]]::new()
+        # GETs answered: metadata (MetadataReads) and records (RecordReads).
+        MetadataReads = 0
+        RecordReads   = 0
         Provision = [bool]$ProvisionRoutingConfiguration
         # & $FailWhen <method> <entitySet> <body>: return a message to make that write fail.
         FailWhen  = $null
@@ -210,6 +213,7 @@ function Invoke-CcFakeRequest {
     if ($p -eq 'WhoAmI') { return [pscustomobject]@{ UserId = '00000000-0000-0000-0000-00000000aaaa' } }
 
     if ($p -match "^EntityDefinitions\(LogicalName='([^']+)'\)") {
+        $Org.MetadataReads++
         $m = $Org.Metadata[$Matches[1]]
         if (-not $m) { throw (Get-CcFakeError $Method $p 404 "Could not find an entity with name $($Matches[1]).") }
         return $m
@@ -232,6 +236,7 @@ function Invoke-CcFakeRequest {
 
     switch ($Method) {
         'Get' {
+            $Org.RecordReads++
             $q = @{}
             foreach ($part in ([string]$query -split '&')) {
                 if ($part -match '^\$(\w+)=(.*)$') { $q[$Matches[1]] = [uri]::UnescapeDataString($Matches[2]) }

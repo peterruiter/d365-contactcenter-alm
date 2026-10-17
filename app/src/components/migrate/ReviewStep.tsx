@@ -69,6 +69,10 @@ export function ReviewStep({ m }: { m: Migration }) {
     }
   }
   const nothingToMove = movableRefs.length === 0
+  // What the filters and search show: the master checkbox works on exactly that.
+  const shownRefs = groups.flatMap(([, tables]) => tables.flatMap(({ table, records }) => records.filter(isMovable).map((r) => refOf(table.table, r.matchKey))))
+  const shownOn = shownRefs.filter((r) => m.selected.has(r)).length
+  const filtered = shownRefs.length !== movableRefs.length
 
   return (
     <div className="workspace">
@@ -96,6 +100,20 @@ export function ReviewStep({ m }: { m: Migration }) {
             />
           </div>
 
+          {shownRefs.length > 0 && (
+            <div className="select-all">
+              <Checkbox
+                label={filtered ? `Select all ${plural(shownRefs.length, 'record')} shown` : `Select all ${plural(shownRefs.length, 'record')}`}
+                checked={shownOn === shownRefs.length}
+                indeterminate={shownOn > 0 && shownOn < shownRefs.length}
+                onChange={(e) => m.setMany(shownRefs, e.target.checked)}
+              />
+              <span className="muted t-body-small">
+                {selectedCount} of {movableRefs.length} selected
+              </span>
+            </div>
+          )}
+
           {groups.length === 0 ? (
             <EmptyState title={nothingToMove ? 'The target already matches the source' : 'Nothing matches these filters'}>
               {nothingToMove
@@ -103,9 +121,21 @@ export function ReviewStep({ m }: { m: Migration }) {
                 : 'Change the filters or the search to see more records.'}
             </EmptyState>
           ) : (
-            groups.map(([group, tables]) => (
+            groups.map(([group, tables]) => {
+              const groupRefs = tables.flatMap(({ table, records }) => records.filter(isMovable).map((r) => refOf(table.table, r.matchKey)))
+              const groupOn = groupRefs.filter((r) => m.selected.has(r)).length
+              return (
               <section className="group" key={group} aria-labelledby={`g-${group}`}>
                 <div className="group__head">
+                  {groupRefs.length > 0 && (
+                    <Checkbox
+                      label={`Select all of ${group}`}
+                      hideLabel
+                      checked={groupOn === groupRefs.length}
+                      indeterminate={groupOn > 0 && groupOn < groupRefs.length}
+                      onChange={(e) => m.setMany(groupRefs, e.target.checked)}
+                    />
+                  )}
                   <h2 className="group__title" id={`g-${group}`}>{group}</h2>
                   <span className="muted t-body-small">{plural(tables.reduce((n, t) => n + t.records.length, 0), 'record')}</span>
                 </div>
@@ -113,7 +143,8 @@ export function ReviewStep({ m }: { m: Migration }) {
                   <TableBlock key={table.table} m={m} table={table} records={records} />
                 ))}
               </section>
-            ))
+              )
+            })
           )}
         </div>
       </div>

@@ -190,6 +190,8 @@ $script:CcJobScript = {
         Move-Item $tmp $runFile -Force
     }.GetNewClosure()
     $loadSnap = { if (Test-Path $snapFile) { Get-Content $snapFile -Raw -Encoding UTF8 | ConvertFrom-Json } }.GetNewClosure()
+    # What the compare this run was planned from read, so a dry run reads nothing again.
+    $loadReads = { param($diffId) if ($diffId -match '^dif_[0-9a-f]{12}$') { Import-CcReadCache -Path (Join-Path $RunsDir "reads-$diffId.json") -MaxAgeMinutes 60 } }.GetNewClosure()
     $saveSnap = {
         param($s)
         $tmp = "$snapFile.tmp"
@@ -206,7 +208,7 @@ $script:CcJobScript = {
     $work = Join-Path $RunsDir "work-$RunId"
     New-Item -ItemType Directory $work -Force | Out-Null
     try {
-        Invoke-CcRunJob -Environments $envs -LoadRun $load -SaveRun $save -LoadSnapshot $loadSnap -SaveSnapshot $saveSnap -WorkDir $work -ManifestPath $ManifestPath | Out-Null
+        Invoke-CcRunJob -Environments $envs -LoadRun $load -SaveRun $save -LoadSnapshot $loadSnap -SaveSnapshot $saveSnap -LoadReads $loadReads -WorkDir $work -ManifestPath $ManifestPath | Out-Null
     }
     finally { Remove-Item $work -Recurse -Force -ErrorAction SilentlyContinue }
 }
@@ -260,6 +262,17 @@ function Get-CcLiveRun($run) {
         Save-CcRunRecord $run.runId $run
     }
     return $run
+}
+
+function Save-CcRunnerReads([string] $DiffId, $Reads) {
+    # Kept with the run records; a day old, they are deleted. They hold both environments'
+    # configuration, so they stay in the profile folder like everything else.
+    try {
+        Export-CcReadCache -Cache $Reads -Path (Join-Path $script:CcRunsDir "reads-$DiffId.json")
+        Get-ChildItem $script:CcRunsDir -Filter 'reads-*.json' -ErrorAction SilentlyContinue |
+            Where-Object LastWriteTime -lt (Get-Date).AddDays(-1) | Remove-Item -Force -ErrorAction SilentlyContinue
+    }
+    catch { Write-Warning "Reads not kept for ${DiffId}: $($_.Exception.Message)" }
 }
 
 function Set-CcCachedDiff($diff) {
@@ -328,7 +341,7 @@ function Invoke-CcApiRoute($ctx, [string] $method, [string] $path) {
                 return Send-CcError $ctx 400 'approval_required' "$($target.name) requires approval. Confirm the change has been signed off, then apply again."
             }
             $registry = Get-CcEngineRegistry @($body.sourceEnvId, $body.targetEnvId)
-            $rec = New-CcRunRecord -SourceId $body.sourceEnvId -TargetId $body.targetEnvId -Mode $mode -Selection (Get-CcSelection $body) -Approved ([bool]$body.approved)
+            $rec = New-CcRunRecord -SourceId $body.sourceEnvId -TargetId $body.targetEnvId -Mode $mode -Selection (Get-CcSelection $body) -Approved ([bool]$body.approved) -DiffId ([string]$body.diffId)
             Save-CcRunRecord $rec.runId $rec
             Start-CcRunnerJob $rec.runId 'apply' $registry
             return Send-CcJson $ctx 200 $rec
@@ -340,14 +353,20 @@ function Invoke-CcApiRoute($ctx, [string] $method, [string] $path) {
             $envs = Get-CcRunnerEnvironments @($body.sourceEnvId, $body.targetEnvId)
 
             # Planning reuses the compare it was built from (instant, and exactly what the person
-            # reviewed). Applying always reads both environments again, so it never writes from
-            # a stale picture of the target.
+            # reviewed): the diff in memory, or else its reads from disk. The compare's reads are
+            # kept for the runs too: a dry run reads nothing again, an apply only the target.
             $diff = $null
             if ($op -eq 'plan' -and $body.diffId) { $diff = Get-CcCachedDiff $body.diffId $body.sourceEnvId $body.targetEnvId }
             if (-not $diff) {
                 $tables = if ($op -eq 'compare' -and $body.tables) { @($body.tables) } else { $null }
-                $diff = Compare-CcConfig -Environments $envs -SourceId $body.sourceEnvId -TargetId $body.targetEnvId -Tables $tables
+                $readArgs = @{}
+                $reads = $null
+                if ($op -eq 'plan' -and $body.diffId -match '^dif_[0-9a-f]{12}$') { $reads = Import-CcReadCache -Path (Join-Path $script:CcRunsDir "reads-$($body.diffId).json") }
+                if (-not $reads -and $op -eq 'compare') { $reads = New-CcReadCache }
+                if ($reads) { $readArgs = @{ ReadCache = $reads } }
+                $diff = Compare-CcConfig -Environments $envs -SourceId $body.sourceEnvId -TargetId $body.targetEnvId -Tables $tables @readArgs
                 Set-CcCachedDiff $diff
+                if ($op -eq 'compare') { Save-CcRunnerReads $diff.diffId $reads }
             }
             if ($op -eq 'compare') { return Send-CcJson $ctx 200 (ConvertTo-CcDiffContract $diff) }
 

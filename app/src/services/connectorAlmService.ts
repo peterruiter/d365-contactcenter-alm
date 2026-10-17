@@ -61,6 +61,8 @@ export class ConnectorAlmService implements AlmService {
       unwrap<Run>(
         await this.client.apply({
           sourceEnvId: plan.source,
+          // The compare this plan came from: the run reuses what it read instead of reading again.
+          diffId: plan.diffId,
           targetEnvId: plan.target,
           selection,
           mode,

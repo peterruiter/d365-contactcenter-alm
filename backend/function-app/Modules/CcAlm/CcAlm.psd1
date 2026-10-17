@@ -16,6 +16,9 @@
         'New-CcRunRecord',
         'Invoke-CcRunJob',
         'Invoke-CcRollbackJob',
+        'New-CcReadCache',
+        'Export-CcReadCache',
+        'Import-CcReadCache',
         'Test-CcRunStale'
     )
     CmdletsToExport   = @()

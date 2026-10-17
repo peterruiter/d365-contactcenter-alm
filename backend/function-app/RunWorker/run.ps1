@@ -29,8 +29,9 @@ try {
     $saveSnap = { param($s) Save-CcBlobJson $snapName $s }.GetNewClosure()
     $work = Join-Path ([System.IO.Path]::GetTempPath()) "ccalm-$runId"
     New-Item -ItemType Directory -Path $work -Force | Out-Null
+    $loadReads = { param($diffId) Get-CcReads $diffId }
     $result = Invoke-CcRunJob -Environments $envs -LoadRun $load -SaveRun $save -LoadSnapshot $loadSnap -SaveSnapshot $saveSnap `
-        -WorkDir $work -TimeBudgetSeconds 420
+        -LoadReads $loadReads -WorkDir $work -TimeBudgetSeconds 420
     Remove-Item $work -Recurse -Force -ErrorAction SilentlyContinue
     if ($result.Continue) {
         Push-OutputBinding -Name RunQueue -Value (@{ runId = $runId; kind = 'apply' } | ConvertTo-Json -Compress)

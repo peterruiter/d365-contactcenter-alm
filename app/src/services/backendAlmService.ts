@@ -74,6 +74,8 @@ export class BackendAlmService implements AlmService {
     return normaliseRun(await json<Run>(
       await this.post('/apply', {
         sourceEnvId: plan.source,
+        // The compare this plan came from: the run reuses what it read instead of reading again.
+        diffId: plan.diffId,
         targetEnvId: plan.target,
         selection,
         mode,

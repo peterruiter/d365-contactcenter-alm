@@ -60,7 +60,9 @@
                     "type": "object",
                     "properties": { "table": { "type": "string" }, "matchKey": { "type": "string" } }
                   }
-                }
+                },
+                "diffId": { "type": "string", "description": "The compare this plan is built from; its reads are reused." },
+                "includeDependencies": { "type": "boolean", "description": "Also plan the new records the selection needs." }
               }
             }
           }
@@ -84,7 +86,8 @@
                 "selection": { "type": "array", "items": { "type": "object" } },
                 "mode": { "type": "string", "enum": ["dryRun", "apply"] },
                 "approved": { "type": "boolean" },
-                "idempotencyKey": { "type": "string" }
+                "idempotencyKey": { "type": "string" },
+                "diffId": { "type": "string", "description": "The compare the plan came from; a run reuses its reads." }
               }
             }
           }

@@ -129,7 +129,8 @@ button.stat:hover { background: var(--surface-cloud-lite); }
   padding-bottom: var(--space-2);
   border-bottom: 2px solid var(--text-primary);
 }
-.group__title { font-size: 24px; font-weight: 300; }
+.group__title { font-size: 24px; font-weight: 300; flex: 1; }
+.group__head .ui-checkbox, .group__head input[type='checkbox'] { align-self: center; }
 
 .tbl { margin-top: var(--space-4); }
 .tbl__head {
@@ -307,3 +308,6 @@ button.stat:hover { background: var(--surface-cloud-lite); }
 
 /* Local runner: a newer release on GitHub. */
 .update-banner { margin-bottom: var(--space-6); }
+
+/* Review: the master select-all above the list. */
+.select-all { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); flex-wrap: wrap; padding: var(--space-3) var(--space-4); margin: var(--space-4) 0; border: 1px solid var(--border-primary); border-radius: var(--radius-sm); background: var(--surface-fog-lite); }

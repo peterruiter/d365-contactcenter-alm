@@ -47,12 +47,14 @@ function Invoke-CcRunVerification {
     # Compares again after an apply and stores what still differs on the run. A check that cannot
     # run (the target went away, a token expired) is reported on the run; it never fails the run,
     # whose writes stand either way.
-    param($Run, [object[]] $Environments, [string] $ManifestPath, [scriptblock] $Save)
+    param($Run, [object[]] $Environments, [string] $ManifestPath, [scriptblock] $Save, [hashtable] $ReadArgs = @{})
     $Run.phase = 'verifying'
     $Run.progress.current = 'Checking the target against the source'
     & $Save -Force
     try {
-        $diff = Compare-CcConfig -Environments $Environments -SourceId $Run.source -TargetId $Run.target -ManifestPath $ManifestPath 6>$null
+        # The target is always read again (an apply's ReadArgs say so); the source comes from the
+        # cache when there is one, since the run never writes to it.
+        $diff = Compare-CcConfig -Environments $Environments -SourceId $Run.source -TargetId $Run.target -ManifestPath $ManifestPath @ReadArgs 6>$null
         $Run.verification = Get-CcVerification -Diff $diff -Items @($Run.items) -ExtraBefore $Run.extraBefore
     }
     catch {

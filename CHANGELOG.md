@@ -4,6 +4,13 @@ All notable changes to this project are recorded here. Format follows [Keep a Ch
 
 ## [Unreleased]
 
+### Faster plan checks and runs
+- **A compare's reads are reused.** The plan check, the dry run and the apply after a compare used to read both environments in full again, so one compare, plan, dry run and apply read everything five times. Now the compare keeps what it read, for an hour: in a blob for the Function, in the profile folder for the local runner. The plan check and the dry run read nothing from Dataverse. An apply re-reads only the target's records, the one thing that must be current before writing, and so does the check afterwards. Metadata and the source come from the compare. Without a usable compare (older than an hour, or none) everything is read again as before. Stored reads are deleted after a day.
+- New engine cmdlets `New-CcReadCache`, `Export-CcReadCache` and `Import-CcReadCache`. `Compare-CcConfig` takes `-ReadCache` and `-FreshRecords`, `Invoke-CcRunJob` takes `-LoadReads`, and `New-CcRunRecord` takes `-DiffId`. The connector definition declares `diffId` on plan and apply, and `includeDependencies` on plan.
+
+### Selecting
+- **One checkbox above the list selects or clears everything shown**, combined with the filters and the search, and every group heading has its own.
+
 ### Version and updates
 - **The app shows which build it is**: `Version 0.3.0 · build N (commit)` in the footer, in Dynamics and in the local runner. The build number is the commit count, so a newer build always has a higher number. The exe carries the same version in its file properties.
 - **The local runner tells you when a newer release is on GitHub.** It reads the release's `build.json` itself, at most every six hours, and shows a banner with the download link. Without access to GitHub there is no banner and nothing breaks. `CCALM_UPDATE_URL` points a fork at its own release.

@@ -10,6 +10,10 @@ function Invoke-CcRunJob {
     .PARAMETER LoadRun / SaveRun / LoadSnapshot / SaveSnapshot
         Storage, supplied by the host (files for the local runner, blobs for the Function).
         LoadSnapshot returns $null when there is none yet.
+    .PARAMETER LoadReads
+        Optional: & $LoadReads <diffId> returns the read cache of the compare the run was planned
+        from (Import-CcReadCache), or $null. With it a dry run reads nothing from Dataverse, and an
+        apply re-reads only the target's records, the one thing that must be current before writing.
     #>
     [CmdletBinding()]
     param(
@@ -18,6 +22,7 @@ function Invoke-CcRunJob {
         [Parameter(Mandatory)] [scriptblock] $SaveRun,
         [Parameter(Mandatory)] [scriptblock] $LoadSnapshot,
         [Parameter(Mandatory)] [scriptblock] $SaveSnapshot,
+        [scriptblock] $LoadReads,
         [int] $TimeBudgetSeconds = 0,
         [string] $WorkDir = ([IO.Path]::GetTempPath()),
         [string] $ManifestPath = (Get-CcDefaultManifestPath)
@@ -38,13 +43,21 @@ function Invoke-CcRunJob {
         $state.LastSave = Get-Date
     }.GetNewClosure()
 
+    # The compare this run was planned from, when the host kept its reads.
+    $reads = $null
+    if ($LoadReads -and $run.request.diffId) {
+        try { $reads = & $LoadReads ([string]$run.request.diffId) } catch { $reads = $null }
+    }
+    $readArgs = @{}
+    if ($reads) { $readArgs = @{ ReadCache = $reads; FreshRecords = @(if ($run.mode -eq 'apply') { $run.target }) } }
+
     try {
         $run.state = 'Running'
         $run.executions = [int]$run.executions + 1
 
         # Everything is written; an earlier slice left only the check.
         if ($run.verifyPending) {
-            Invoke-CcRunVerification -Run $run -Environments $Environments -ManifestPath $ManifestPath -Save $save
+            Invoke-CcRunVerification -Run $run -Environments $Environments -ManifestPath $ManifestPath -Save $save -ReadArgs $readArgs
             $run.verifyPending = $false
             Complete-CcRun -Run $run
             & $save -Force
@@ -52,12 +65,12 @@ function Invoke-CcRunJob {
         }
 
         $run.phase = 'comparing'
-        $run.progress.current = 'Reading both environments'
+        $run.progress.current = if (-not $reads) { 'Reading both environments' } elseif ($run.mode -eq 'apply') { "Reading the target again before writing" } else { 'Using what the compare read' }
         & $save -Force
 
         $sel = @($run.request.selection | ForEach-Object { @{ table = $_.table; matchKey = $_.matchKey } })
         $compareStarted = Get-Date
-        $diff = Compare-CcConfig -Environments $Environments -SourceId $run.source -TargetId $run.target -ManifestPath $ManifestPath 6>$null
+        $diff = Compare-CcConfig -Environments $Environments -SourceId $run.source -TargetId $run.target -ManifestPath $ManifestPath @readArgs 6>$null
         $compareSeconds = ((Get-Date) - $compareStarted).TotalSeconds
         # What was only in the target before anything was written, so the check afterwards can
         # tell what Dataverse added during the run. Taken once, by the first slice.
@@ -147,7 +160,7 @@ function Invoke-CcRunJob {
                 & $save -Force
                 return [pscustomobject]@{ Continue = $true; RunId = $run.runId }
             }
-            Invoke-CcRunVerification -Run $run -Environments $Environments -ManifestPath $ManifestPath -Save $save
+            Invoke-CcRunVerification -Run $run -Environments $Environments -ManifestPath $ManifestPath -Save $save -ReadArgs $readArgs
         }
         Complete-CcRun -Run $run
         & $save -Force

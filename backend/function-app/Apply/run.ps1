@@ -20,7 +20,7 @@ try {
     }
 
     $selection = @($body.selection | ForEach-Object { @{ table = $_.table; matchKey = $_.matchKey } })
-    $run = New-CcRunRecord -SourceId $body.sourceEnvId -TargetId $body.targetEnvId -Mode $mode -Selection $selection -Approved $approved
+    $run = New-CcRunRecord -SourceId $body.sourceEnvId -TargetId $body.targetEnvId -Mode $mode -Selection $selection -Approved $approved -DiffId ([string]$body.diffId)
     Save-CcBlobJson "run-$($run.runId).json" $run
     Push-OutputBinding -Name RunQueue -Value (@{ runId = $run.runId; kind = 'apply' } | ConvertTo-Json -Compress)
     Push-CcJson 200 $run
