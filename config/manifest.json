@@ -34,6 +34,19 @@
       "notes": "System reference data for the live chat widget locale."
     },
     {
+      "order": 0,
+      "stage": 0,
+      "logicalName": "msdyn_masterentityroutingconfiguration",
+      "item": "record routing hub",
+      "move": "reference",
+      "label": "Record routing hubs",
+      "group": "Reference",
+      "matchKeys": [
+        "msdyn_entitylogicalname"
+      ],
+      "notes": "One per table that has record routing (Case routing hub for incident). A record workstream (email, case) must point at its table's hub, so the lookup is mapped by table name. Set up record routing for that table in the target first; its intake rules are not moved."
+    },
+    {
       "order": 1, "stage": 1, "logicalName": "msdyn_operatinghour", "item": "operating hours record", "move": "upsert",
       "label": "Operating hours", "group": "Foundations", "matchKeys": ["msdyn_name"],
       "exclude": ["msdyn_calendarid"],

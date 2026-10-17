@@ -37,7 +37,9 @@ function New-CcPlan {
     $neededBy = @{}                # ref -> list of labels of records that pulled it in
     $ignored = [System.Collections.Generic.List[object]]::new()
 
-    $start = if ($Selection) { @($Selection | ForEach-Object { "$($_.table)|$($_.matchKey)" }) }
+    # No -Selection at all plans everything; an empty selection plans nothing. Testing it for
+    # truth instead made an empty list - a run whose selection was lost - plan every record.
+    $start = if ($null -ne $Selection) { @($Selection | Where-Object { $_ } | ForEach-Object { "$($_.table)|$($_.matchKey)" }) }
              else { @($byRef.Keys | Where-Object { & $movable $_ }) }
     foreach ($ref in $start) {
         if (& $movable $ref) { $planned[$ref] = 'selected' }

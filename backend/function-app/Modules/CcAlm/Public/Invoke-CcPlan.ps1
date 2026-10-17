@@ -20,7 +20,7 @@ function Invoke-CcPlan {
         [ValidateSet('DryRun', 'Apply')] [string] $Mode = 'DryRun',
         [switch] $Approved,
         [string] $OutputDir = './out',
-        [int] $ProvisioningTimeoutSeconds = 90,
+        [int] $ProvisioningTimeoutSeconds = 60,
         # Called as & $OnEvent <type> <data> while the run goes: 'start' (an operation or link is about
         # to be written; data = @{ phase; op }), 'item' (one outcome; data = the item), 'updated' (the
         # pre-run state of every record about to be changed; data = snapshot entries), 'created' (a

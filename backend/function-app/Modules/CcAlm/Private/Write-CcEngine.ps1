@@ -111,16 +111,20 @@ function Invoke-CcUpsert {
 function Wait-CcProvisioning {
     <#
     .SYNOPSIS
-        After creating a workstream, waits until Dataverse has provisioned its routing configuration.
-        There is no public "done" flag, so this polls for the side-effect records.
+        After creating a workstream, waits until Dataverse has provisioned it. There is no public
+        "done" flag. What it provisions is the workstream's routing contract (a decision contract,
+        set on the workstream some 15-20 seconds after the create); it does not create a routing
+        configuration, so waiting for one only ever ran out the timeout. Waiting matters: the link
+        pass sets the routing contract to the one the moved rulesets use, and provisioning that
+        finished after it would overwrite it.
     #>
-    param([pscustomobject] $Environment, [string] $WorkstreamId, [int] $TimeoutSeconds = 90)
+    param([pscustomobject] $Environment, [string] $WorkstreamId, [int] $TimeoutSeconds = 60)
     $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
-    $path = "msdyn_routingconfigurations?`$filter=_msdyn_liveworkstreamid_value eq $WorkstreamId&`$select=msdyn_routingconfigurationid"
+    $path = "msdyn_liveworkstreams($WorkstreamId)?`$select=_msdyn_routingcontractid_value"
     while ((Get-Date) -lt $deadline) {
         $r = Invoke-CcWebApi -Environment $Environment -Method Get -Path $path
-        if ($r.value -and @($r.value).Count -gt 0) { return $true }
-        Start-Sleep -Seconds 4
+        if ($r -and $r._msdyn_routingcontractid_value) { return $true }
+        Start-Sleep -Seconds 3
     }
     return $false
 }

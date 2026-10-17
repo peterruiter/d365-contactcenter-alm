@@ -116,6 +116,13 @@ Describe 'Plan' {
         @($p.operations | Where-Object autoIncluded).Count | Should -Be ($p.operations.Count - 1)
     }
 
+    It 'plans nothing for an empty selection, and everything only when no selection is given' {
+        $none = New-CcPlan -Diff $diff -Selection @() 6>$null
+        @($none.operations).Count | Should -Be 0
+        $all = New-CcPlan -Diff $diff 6>$null
+        @($all.operations).Count | Should -Be @($plan.operations).Count
+    }
+
     It 'offers the fix when a needed record is left out' {
         $diffStep = Get-CcDiffRow $diff msdyn_routingconfigurationstep 'Route to queue' 'Mortgage chat › Contact center routing configuration'
         $p = New-CcPlan -Diff $diff -Selection @(@{ table = 'msdyn_routingconfigurationstep'; matchKey = $diffStep.matchKey }) -IncludeDependencies $false 6>$null
