@@ -44,6 +44,18 @@ foreach ($logical in ($raw.Keys | Sort-Object)) {
                     ReferencingEntityNavigationPropertyName = $_.ReferencingEntityNavigationPropertyName
                 }
             })
+        ManyToManyRelationships = @($m.ManyToManyRelationships | Sort-Object { $_.SchemaName } | ForEach-Object {
+                [ordered]@{
+                    SchemaName                    = $_.SchemaName
+                    Entity1LogicalName            = $_.Entity1LogicalName
+                    Entity2LogicalName            = $_.Entity2LogicalName
+                    IntersectEntityName           = $_.IntersectEntityName
+                    Entity1IntersectAttribute     = $_.Entity1IntersectAttribute
+                    Entity2IntersectAttribute     = $_.Entity2IntersectAttribute
+                    Entity1NavigationPropertyName = $_.Entity1NavigationPropertyName
+                    Entity2NavigationPropertyName = $_.Entity2NavigationPropertyName
+                }
+            })
     }
 }
 $path = Join-Path $PSScriptRoot '../fixtures/schema.json'

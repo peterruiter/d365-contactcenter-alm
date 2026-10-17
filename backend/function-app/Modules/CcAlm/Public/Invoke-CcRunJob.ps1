@@ -97,7 +97,7 @@ function Invoke-CcRunJob {
         $snapshot = $null
         if ($run.mode -eq 'apply') {
             $snapshot = & $LoadSnapshot
-            if (-not $snapshot) { $snapshot = [ordered]@{ environment = $run.target; runId = $run.runId; taken = (Get-Date).ToString('o'); updated = @(); created = @() } }
+            if (-not $snapshot) { $snapshot = [ordered]@{ environment = $run.target; runId = $run.runId; taken = (Get-Date).ToString('o'); updated = @(); created = @(); associated = @() } }
             else { $snapshot = ConvertTo-CcHashtable $snapshot }
             $run.snapshotId = $run.runId
         }
@@ -131,6 +131,10 @@ function Invoke-CcRunJob {
                 }
                 'created' {
                     $snapshot.created = @($snapshot.created) + @($data)
+                    & $SaveSnapshot $snapshot
+                }
+                'associated' {
+                    $snapshot.associated = @($snapshot.associated | Where-Object { $_ }) + @($data)
                     & $SaveSnapshot $snapshot
                 }
             }

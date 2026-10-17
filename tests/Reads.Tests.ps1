@@ -80,7 +80,7 @@ Describe 'An apply from stored reads' {
 
     It 'writes from the target as it is now, not as it was at the compare' {
         @($s.Test.Tables['msdyn_octag'].Rows | Where-Object msdyn_name -eq 'Escalated').Count | Should -Be 1
-        @($run.items | Where-Object { $_.displayName -eq 'Escalated' }).Count | Should -Be 0
+        @($run.items | Where-Object { $_.table -eq 'msdyn_octag' -and $_.displayName -eq 'Escalated' }).Count | Should -Be 0
     }
 
     It 'ends the same as an apply from fresh reads' {

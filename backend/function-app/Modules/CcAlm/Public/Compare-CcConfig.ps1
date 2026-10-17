@@ -94,6 +94,15 @@ function Compare-CcConfig {
             $tableDiffs.Add($td) | Out-Null
         }
 
+        # Many-to-many links between moved records (quick replies on workstreams), as tables of their own.
+        foreach ($def in @(Get-CcAssociationPlans -Manifest $manifest -TablePlans $tablePlans -Source $source -Target $target)) {
+            $tablePlans[$def.SchemaName] = New-CcAssociationTablePlan $def
+            if ($Tables -and $Tables -notcontains $def.SchemaName -and $Tables -notcontains $def.Entity1 -and $Tables -notcontains $def.Entity2) { continue }
+            $sp = Read-CcAssociationPairs -Environment $source -EntitySet $def.SourceSet -Def $def
+            $tp = Read-CcAssociationPairs -Environment $target -EntitySet $def.TargetSet -Def $def
+            $tableDiffs.Add((Compare-CcAssociations -Def $def -SourcePairs $sp -TargetPairs $tp -Maps $maps -TablePlans $tablePlans -Source $srcData -Target $tgtData)) | Out-Null
+        }
+
         $detect = Get-CcDetectOnly -Manifest $manifest -Source $srcData -Target $tgtData -TablePlans $tablePlans
 
         $all = @($tableDiffs | ForEach-Object { $_.records } | ForEach-Object { $_ })

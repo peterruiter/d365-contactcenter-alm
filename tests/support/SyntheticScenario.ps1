@@ -33,6 +33,8 @@
 #   tags VIP x2, Escalated                         tag Old tag                     VIP Ambiguous,
 #                                                                                  Old tag extra
 #   Omnichannel configuration (3 declines)         same (1 decline)                Changed
+#   Greeting on Mortgage chat and Billing chat,    -                               3 links new
+#     tagged Escalated (many-to-many links)
 
 function Get-CcSchemaFixture {
     $path = Join-Path $PSScriptRoot '../fixtures/schema.json'
@@ -107,6 +109,11 @@ function New-CcSyntheticScenario {
     $d.vip1 = Add-CcFakeRecord $dev msdyn_octag @{ msdyn_name = 'VIP' }
     $d.vip2 = Add-CcFakeRecord $dev msdyn_octag @{ msdyn_name = 'VIP' }
     $d.escalated = Add-CcFakeRecord $dev msdyn_octag @{ msdyn_name = 'Escalated' }
+
+    # Many-to-many links, only in Dev.
+    Add-CcFakeAssociation $dev msdyn_msdyn_cannedmessage_liveworkstream $d.greeting $d.mortgageChat
+    Add-CcFakeAssociation $dev msdyn_msdyn_cannedmessage_liveworkstream $d.greeting $d.billingChat
+    Add-CcFakeAssociation $dev msdyn_msdyn_cannedmessage_msdyn_octag $d.greeting $d.escalated
 
     # Only in Test.
     $ids.test.oldTag = Add-CcFakeRecord $test msdyn_octag @{ msdyn_name = 'Old tag' }

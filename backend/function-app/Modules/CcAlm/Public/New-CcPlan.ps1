@@ -88,6 +88,7 @@ function New-CcPlan {
         $r = $entry.Record
         $op = if ($r.status -eq 'MissingInTarget') { 'create' } else { 'update' }
         if ($t.move -eq 'create-once' -and $op -eq 'update') { $op = 'skip-existing' }
+        if ($t.move -eq 'associate') { $op = 'link' }   # a many-to-many link, written once both ends exist
         $seq++
         $o = [pscustomobject]@{
             seq          = $seq
@@ -215,7 +216,7 @@ function New-CcPlan {
             autoIncluded = @($ops | Where-Object autoIncluded).Count
             creates      = @($ops | Where-Object op -eq 'create').Count
             updates      = @($ops | Where-Object op -eq 'update').Count
-            links        = @($ops | ForEach-Object { $_.dependencies } | Where-Object state -eq 'linkedLater').Count
+            links        = @($ops | ForEach-Object { $_.dependencies } | Where-Object state -eq 'linkedLater').Count + @($ops | Where-Object op -eq 'link').Count
         }
         _context   = $ctx
     }

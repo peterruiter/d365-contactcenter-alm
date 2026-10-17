@@ -30,7 +30,8 @@ function Get-CcTableSchema {
 
     $path = "EntityDefinitions(LogicalName='$LogicalName')?`$select=LogicalName,EntitySetName,PrimaryIdAttribute,PrimaryNameAttribute,DisplayCollectionName" +
         "&`$expand=Attributes(`$select=LogicalName,AttributeType,IsValidForCreate,IsValidForUpdate,IsValidForRead,RequiredLevel,AttributeOf,DisplayName)," +
-        "ManyToOneRelationships(`$select=ReferencingAttribute,ReferencedEntity,ReferencingEntityNavigationPropertyName)"
+        "ManyToOneRelationships(`$select=ReferencingAttribute,ReferencedEntity,ReferencingEntityNavigationPropertyName)," +
+        "ManyToManyRelationships(`$select=SchemaName,Entity1LogicalName,Entity2LogicalName,IntersectEntityName,Entity1IntersectAttribute,Entity2IntersectAttribute,Entity1NavigationPropertyName,Entity2NavigationPropertyName)"
 
     try {
         $d = Invoke-CcCachedGet -Environment $Environment -Path $path -Kind schema -Prefer $null
@@ -83,6 +84,8 @@ function Get-CcTableSchema {
         Label       = $tableLabel
         Attributes  = $attributes
         Lookups     = $lookups
+        # Many-to-many relationships (a quick reply on several workstreams); see Get-CcAssociations.
+        ManyToMany  = @($d.ManyToManyRelationships | Where-Object { $_ })
         LoadedAt    = Get-Date
     }
     $script:CcSchemaCache[$cacheKey] = $schema

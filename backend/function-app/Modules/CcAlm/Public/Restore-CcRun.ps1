@@ -23,6 +23,7 @@ function Restore-CcRun {
 
     $restored = 0
     $deleted = 0
+    $unlinked = 0
     $unresolved = [System.Collections.Generic.List[string]]::new()
 
     foreach ($e in @($snapshot.updated)) {
@@ -45,6 +46,20 @@ function Restore-CcRun {
         }
     }
 
+    # Links the run made between records that stay; links to records about to be deleted go with them.
+    foreach ($a in @($snapshot.associated | Where-Object { $_ })) {
+        if (-not $PSCmdlet.ShouldProcess("link $($a.label) in $($target.Name)", 'unlink')) { continue }
+        try {
+            Invoke-CcWebApi -Environment $target -Method Delete -Path "$($a.entitySet)($($a.id))/$($a.nav)($($a.otherId))/`$ref" -Prefer $null | Out-Null
+            $unlinked++
+        }
+        catch {
+            $msg = Get-CcErrorMessage $_.Exception.Message
+            if ($msg -match 'does not exist|404') { $unlinked++; continue }
+            $unresolved.Add("Could not unlink $($a.label): $msg") | Out-Null
+        }
+    }
+
     if ($DeleteCreated) {
         foreach ($c in @($snapshot.created | Where-Object { $_ } | Sort-Object { [int]$_.order } -Descending)) {
             if (-not $PSCmdlet.ShouldProcess("$($c.table) '$($c.label)' in $($target.Name)", 'delete')) { continue }
@@ -64,6 +79,7 @@ function Restore-CcRun {
         state      = 'RolledBack'
         restored   = $restored
         deleted    = $deleted
+        unlinked   = $unlinked
         unresolved = @($unresolved)
     }
     Write-Host "Rollback: $restored records restored, $deleted created records deleted, $($unresolved.Count) not resolved." -ForegroundColor Cyan

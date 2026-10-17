@@ -20,7 +20,7 @@ function Invoke-CcRollbackJob {
         & $SaveRun $run
         $result = Restore-CcRun -SnapshotPath $SnapshotPath -Environments $Environments -Confirm:$false 6>$null
         $run.state = 'RolledBack'
-        $run.cleanup = [ordered]@{ restored = $result.restored; deleted = $result.deleted; unresolved = @($result.unresolved) }
+        $run.cleanup = [ordered]@{ restored = $result.restored; deleted = $result.deleted; unlinked = $result.unlinked; unresolved = @($result.unresolved) }
     }
     catch {
         $run.state = 'PartiallyFailed'

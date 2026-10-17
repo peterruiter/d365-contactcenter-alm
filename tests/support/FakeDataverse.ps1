@@ -183,6 +183,20 @@ function Add-CcFakeRecord {
     return $Id.ToLowerInvariant()
 }
 
+function Add-CcFakeAssociation {
+    # Links two records through a many-to-many relationship, as a row of its intersect table.
+    param([pscustomobject] $Org, [string] $SchemaName, [string] $Id1, [string] $Id2)
+    $m2m = $Org.Tables.Values | ForEach-Object { @($_.Meta.ManyToManyRelationships) } | Where-Object { $_ -and $_.SchemaName -eq $SchemaName } | Select-Object -First 1
+    if (-not $m2m) { throw "Fake org has no relationship $SchemaName." }
+    $it = $Org.Tables[$m2m.IntersectEntityName]
+    if (-not $it) { throw "Fake org has no intersect table $($m2m.IntersectEntityName)." }
+    $r = [pscustomobject]@{}
+    $r | Add-Member -NotePropertyName $it.PrimaryId -NotePropertyValue ([guid]::NewGuid().ToString())
+    $r | Add-Member -NotePropertyName $m2m.Entity1IntersectAttribute -NotePropertyValue $Id1.ToLowerInvariant()
+    $r | Add-Member -NotePropertyName $m2m.Entity2IntersectAttribute -NotePropertyValue $Id2.ToLowerInvariant()
+    $it.Rows.Add($r)
+}
+
 function Select-CcFakeColumns {
     # A row as a $select read returns it: the asked-for columns (null when the row has no value)
     # and their annotations.
@@ -219,10 +233,10 @@ function Invoke-CcFakeRequest {
         return $m
     }
 
-    if ($p -notmatch '^([A-Za-z_]+)(?:\(([0-9a-fA-F-]{36})\))?(?:/([A-Za-z_]+)/\$ref)?(?:\?(.*))?$') {
+    if ($p -notmatch '^([A-Za-z_]+)(?:\(([0-9a-fA-F-]{36})\))?(?:/([A-Za-z_]+)(?:\(([0-9a-fA-F-]{36})\))?/\$ref)?(?:\?(.*))?$') {
         throw (Get-CcFakeError $Method $p 400 "The fake does not understand '$p'.")
     }
-    $set, $id, $refNav, $query = $Matches[1], $Matches[2], $Matches[3], $Matches[4]
+    $set, $id, $refNav, $refId, $query = $Matches[1], $Matches[2], $Matches[3], $Matches[4], $Matches[5]
     $t = $Org.BySet[$set]
     if (-not $t) { throw (Get-CcFakeError $Method $p 404 "Resource not found for the segment '$set'.") }
 
@@ -232,6 +246,32 @@ function Invoke-CcFakeRequest {
             if ($msg) { throw (Get-CcFakeError $Method $p 400 $msg) }
         }
         $Org.Writes.Add([pscustomobject]@{ Method = $Method; Set = $set; Id = $id; Nav = $refNav; Body = $body }) | Out-Null
+    }
+
+    # A many-to-many link: POST set(id)/nav/$ref with @odata.id, DELETE set(id)/nav(otherId)/$ref.
+    $m2m = if ($refNav) { @($t.Meta.ManyToManyRelationships) | Where-Object { $_ -and ($_.Entity1NavigationPropertyName -eq $refNav -or $_.Entity2NavigationPropertyName -eq $refNav) } | Select-Object -First 1 } else { $null }
+    if ($m2m -and $Method -in 'Post', 'Delete') {
+        if (-not (Get-CcFakeRow $t $id)) { throw (Get-CcFakeError $Method $p 404 "$($t.Logical) With Id = $id Does Not Exist") }
+        $otherLogical = if ($t.Logical -eq $m2m.Entity1LogicalName) { $m2m.Entity2LogicalName } else { $m2m.Entity1LogicalName }
+        $otherId = $refId
+        if ($Method -eq 'Post') {
+            if ([string]$body.'@odata.id' -notmatch '/([A-Za-z_]+)\(([0-9a-fA-F-]{36})\)$') { throw (Get-CcFakeError $Method $p 400 'Bad @odata.id.') }
+            $otherId = $Matches[2]
+            if (-not (Get-CcFakeRow $Org.Tables[$otherLogical] $otherId)) { throw (Get-CcFakeError $Method $p 404 "$otherLogical With Id = $otherId Does Not Exist") }
+        }
+        $id1 = if ($t.Logical -eq $m2m.Entity1LogicalName) { $id } else { $otherId }
+        $id2 = if ($t.Logical -eq $m2m.Entity1LogicalName) { $otherId } else { $id }
+        $it = $Org.Tables[$m2m.IntersectEntityName]
+        $existing = @($it.Rows | Where-Object { ([string]$_.($m2m.Entity1IntersectAttribute)) -eq $id1.ToLowerInvariant() -and ([string]$_.($m2m.Entity2IntersectAttribute)) -eq $id2.ToLowerInvariant() })
+        if ($Method -eq 'Post') {
+            if ($existing) { throw (Get-CcFakeError $Method $p 400 'Cannot insert duplicate key.') }
+            Add-CcFakeAssociation $Org $m2m.SchemaName $id1 $id2
+        }
+        else {
+            if (-not $existing) { throw (Get-CcFakeError $Method $p 404 'The association does not exist.') }
+            foreach ($e in $existing) { [void]$it.Rows.Remove($e) }
+        }
+        return $null
     }
 
     switch ($Method) {

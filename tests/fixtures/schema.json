@@ -617,7 +617,8 @@
         "ReferencedEntity": "transactioncurrency",
         "ReferencingEntityNavigationPropertyName": "transactioncurrencyid"
       }
-    ]
+    ],
+    "ManyToManyRelationships": []
   },
   "msdyn_assignmentconfiguration": {
     "LogicalName": "msdyn_assignmentconfiguration",
@@ -1373,7 +1374,8 @@
         "ReferencedEntity": "systemuser",
         "ReferencingEntityNavigationPropertyName": "owninguser"
       }
-    ]
+    ],
+    "ManyToManyRelationships": []
   },
   "msdyn_assignmentconfigurationstep": {
     "LogicalName": "msdyn_assignmentconfigurationstep",
@@ -2190,7 +2192,8 @@
         "ReferencedEntity": "systemuser",
         "ReferencingEntityNavigationPropertyName": "owninguser"
       }
-    ]
+    ],
+    "ManyToManyRelationships": []
   },
   "msdyn_cannedmessage": {
     "LogicalName": "msdyn_cannedmessage",
@@ -2677,6 +2680,28 @@
         "ReferencingAttribute": "organizationid",
         "ReferencedEntity": "organization",
         "ReferencingEntityNavigationPropertyName": "organizationid"
+      }
+    ],
+    "ManyToManyRelationships": [
+      {
+        "SchemaName": "msdyn_msdyn_cannedmessage_liveworkstream",
+        "Entity1LogicalName": "msdyn_cannedmessage",
+        "Entity2LogicalName": "msdyn_liveworkstream",
+        "IntersectEntityName": "msdyn_msdyn_cannedmessage_liveworkstream",
+        "Entity1IntersectAttribute": "msdyn_cannedmessageid",
+        "Entity2IntersectAttribute": "msdyn_liveworkstreamid",
+        "Entity1NavigationPropertyName": "msdyn_msdyn_cannedmessage_liveworkstream",
+        "Entity2NavigationPropertyName": "msdyn_msdyn_cannedmessage_liveworkstream"
+      },
+      {
+        "SchemaName": "msdyn_msdyn_cannedmessage_msdyn_octag",
+        "Entity1LogicalName": "msdyn_cannedmessage",
+        "Entity2LogicalName": "msdyn_octag",
+        "IntersectEntityName": "msdyn_msdyn_cannedmessage_msdyn_octag",
+        "Entity1IntersectAttribute": "msdyn_cannedmessageid",
+        "Entity2IntersectAttribute": "msdyn_octagid",
+        "Entity1NavigationPropertyName": "msdyn_msdyn_cannedmessage_msdyn_octag",
+        "Entity2NavigationPropertyName": "msdyn_msdyn_cannedmessage_msdyn_octag"
       }
     ]
   },
@@ -3429,7 +3454,8 @@
         "ReferencedEntity": "systemuser",
         "ReferencingEntityNavigationPropertyName": "owninguser"
       }
-    ]
+    ],
+    "ManyToManyRelationships": []
   },
   "msdyn_chatwidgetlanguage": {
     "LogicalName": "msdyn_chatwidgetlanguage",
@@ -3972,7 +3998,8 @@
         "ReferencedEntity": "systemuser",
         "ReferencingEntityNavigationPropertyName": "owninguser"
       }
-    ]
+    ],
+    "ManyToManyRelationships": []
   },
   "msdyn_decisioncontract": {
     "LogicalName": "msdyn_decisioncontract",
@@ -4667,7 +4694,8 @@
         "ReferencedEntity": "systemuser",
         "ReferencingEntityNavigationPropertyName": "owninguser"
       }
-    ]
+    ],
+    "ManyToManyRelationships": []
   },
   "msdyn_decisionruleset": {
     "LogicalName": "msdyn_decisionruleset",
@@ -5705,7 +5733,8 @@
         "ReferencedEntity": "systemuser",
         "ReferencingEntityNavigationPropertyName": "owninguser"
       }
-    ]
+    ],
+    "ManyToManyRelationships": []
   },
   "msdyn_livechatconfig": {
     "LogicalName": "msdyn_livechatconfig",
@@ -8541,7 +8570,8 @@
         "ReferencedEntity": "systemuser",
         "ReferencingEntityNavigationPropertyName": "owninguser"
       }
-    ]
+    ],
+    "ManyToManyRelationships": []
   },
   "msdyn_liveworkstream": {
     "LogicalName": "msdyn_liveworkstream",
@@ -11075,6 +11105,48 @@
         "ReferencedEntity": "systemuser",
         "ReferencingEntityNavigationPropertyName": "owninguser"
       }
+    ],
+    "ManyToManyRelationships": [
+      {
+        "SchemaName": "msdyn_msdyn_cannedmessage_liveworkstream",
+        "Entity1LogicalName": "msdyn_cannedmessage",
+        "Entity2LogicalName": "msdyn_liveworkstream",
+        "IntersectEntityName": "msdyn_msdyn_cannedmessage_liveworkstream",
+        "Entity1IntersectAttribute": "msdyn_cannedmessageid",
+        "Entity2IntersectAttribute": "msdyn_liveworkstreamid",
+        "Entity1NavigationPropertyName": "msdyn_msdyn_cannedmessage_liveworkstream",
+        "Entity2NavigationPropertyName": "msdyn_msdyn_cannedmessage_liveworkstream"
+      },
+      {
+        "SchemaName": "msdyn_msdyn_liveworkstream_systemuser",
+        "Entity1LogicalName": "msdyn_liveworkstream",
+        "Entity2LogicalName": "systemuser",
+        "IntersectEntityName": "msdyn_msdyn_liveworkstream_systemuser",
+        "Entity1IntersectAttribute": "msdyn_liveworkstreamid",
+        "Entity2IntersectAttribute": "systemuserid",
+        "Entity1NavigationPropertyName": "msdyn_msdyn_liveworkstream_systemuser",
+        "Entity2NavigationPropertyName": "msdyn_msdyn_liveworkstream_systemuser"
+      },
+      {
+        "SchemaName": "msdyn_msdyn_ocrichobject_liveworkstream",
+        "Entity1LogicalName": "msdyn_ocrichobject",
+        "Entity2LogicalName": "msdyn_liveworkstream",
+        "IntersectEntityName": "msdyn_msdyn_ocrichobject_liveworkstream",
+        "Entity1IntersectAttribute": "msdyn_ocrichobjectid",
+        "Entity2IntersectAttribute": "msdyn_liveworkstreamid",
+        "Entity1NavigationPropertyName": "msdyn_msdyn_ocrichobject_liveworkstream",
+        "Entity2NavigationPropertyName": "msdyn_msdyn_ocrichobject_liveworkstream"
+      },
+      {
+        "SchemaName": "msdyn_ocdispositioncode_liveworkstream_msdyn_liveworkstream",
+        "Entity1LogicalName": "msdyn_liveworkstream",
+        "Entity2LogicalName": "msdyn_ocdispositioncode",
+        "IntersectEntityName": "msdyn_ocdispositioncode_msdyn_liveworkstream",
+        "Entity1IntersectAttribute": "msdyn_liveworkstreamid",
+        "Entity2IntersectAttribute": "msdyn_ocdispositioncodeid",
+        "Entity1NavigationPropertyName": "msdyn_ocdispositioncode_liveworkstream_msdyn_liveworkstream",
+        "Entity2NavigationPropertyName": "msdyn_ocdispositioncode_liveworkstream_msdyn_liveworkstream"
+      }
     ]
   },
   "msdyn_liveworkstreamcapacityprofile": {
@@ -11836,6 +11908,876 @@
         "ReferencingAttribute": "owninguser",
         "ReferencedEntity": "systemuser",
         "ReferencingEntityNavigationPropertyName": "owninguser"
+      }
+    ],
+    "ManyToManyRelationships": []
+  },
+  "msdyn_masterentityroutingconfiguration": {
+    "LogicalName": "msdyn_masterentityroutingconfiguration",
+    "EntitySetName": "msdyn_masterentityroutingconfigurations",
+    "PrimaryIdAttribute": "msdyn_masterentityroutingconfigurationid",
+    "PrimaryNameAttribute": "msdyn_name",
+    "DisplayCollectionName": {
+      "UserLocalizedLabel": {
+        "Label": "Master Entity Routing Configurations"
+      }
+    },
+    "Attributes": [
+      {
+        "LogicalName": "componentidunique",
+        "AttributeType": "Uniqueidentifier",
+        "AttributeOf": null,
+        "IsValidForCreate": false,
+        "IsValidForRead": true,
+        "IsValidForUpdate": false,
+        "RequiredLevel": {
+          "Value": "SystemRequired"
+        },
+        "DisplayName": {
+          "UserLocalizedLabel": {
+            "Label": "Row id unique"
+          }
+        }
+      },
+      {
+        "LogicalName": "componentstate",
+        "AttributeType": "Picklist",
+        "AttributeOf": null,
+        "IsValidForCreate": false,
+        "IsValidForRead": true,
+        "IsValidForUpdate": false,
+        "RequiredLevel": {
+          "Value": "SystemRequired"
+        },
+        "DisplayName": {
+          "UserLocalizedLabel": {
+            "Label": "Component State"
+          }
+        }
+      },
+      {
+        "LogicalName": "componentstatename",
+        "AttributeType": "Virtual",
+        "AttributeOf": "componentstate",
+        "IsValidForCreate": false,
+        "IsValidForRead": true,
+        "IsValidForUpdate": false,
+        "RequiredLevel": {
+          "Value": "None"
+        },
+        "DisplayName": null
+      },
+      {
+        "LogicalName": "createdby",
+        "AttributeType": "Lookup",
+        "AttributeOf": null,
+        "IsValidForCreate": false,
+        "IsValidForRead": true,
+        "IsValidForUpdate": false,
+        "RequiredLevel": {
+          "Value": "None"
+        },
+        "DisplayName": {
+          "UserLocalizedLabel": {
+            "Label": "Created By"
+          }
+        }
+      },
+      {
+        "LogicalName": "createdbyname",
+        "AttributeType": "String",
+        "AttributeOf": "createdby",
+        "IsValidForCreate": false,
+        "IsValidForRead": true,
+        "IsValidForUpdate": false,
+        "RequiredLevel": {
+          "Value": "None"
+        },
+        "DisplayName": null
+      },
+      {
+        "LogicalName": "createdbyyominame",
+        "AttributeType": "String",
+        "AttributeOf": "createdby",
+        "IsValidForCreate": false,
+        "IsValidForRead": true,
+        "IsValidForUpdate": false,
+        "RequiredLevel": {
+          "Value": "SystemRequired"
+        },
+        "DisplayName": null
+      },
+      {
+        "LogicalName": "createdon",
+        "AttributeType": "DateTime",
+        "AttributeOf": null,
+        "IsValidForCreate": false,
+        "IsValidForRead": true,
+        "IsValidForUpdate": false,
+        "RequiredLevel": {
+          "Value": "None"
+        },
+        "DisplayName": {
+          "UserLocalizedLabel": {
+            "Label": "Created On"
+          }
+        }
+      },
+      {
+        "LogicalName": "createdonbehalfby",
+        "AttributeType": "Lookup",
+        "AttributeOf": null,
+        "IsValidForCreate": false,
+        "IsValidForRead": true,
+        "IsValidForUpdate": false,
+        "RequiredLevel": {
+          "Value": "None"
+        },
+        "DisplayName": {
+          "UserLocalizedLabel": {
+            "Label": "Created By (Delegate)"
+          }
+        }
+      },
+      {
+        "LogicalName": "createdonbehalfbyname",
+        "AttributeType": "String",
+        "AttributeOf": "createdonbehalfby",
+        "IsValidForCreate": false,
+        "IsValidForRead": true,
+        "IsValidForUpdate": false,
+        "RequiredLevel": {
+          "Value": "None"
+        },
+        "DisplayName": null
+      },
+      {
+        "LogicalName": "createdonbehalfbyyominame",
+        "AttributeType": "String",
+        "AttributeOf": "createdonbehalfby",
+        "IsValidForCreate": false,
+        "IsValidForRead": true,
+        "IsValidForUpdate": false,
+        "RequiredLevel": {
+          "Value": "SystemRequired"
+        },
+        "DisplayName": null
+      },
+      {
+        "LogicalName": "importsequencenumber",
+        "AttributeType": "Integer",
+        "AttributeOf": null,
+        "IsValidForCreate": true,
+        "IsValidForRead": true,
+        "IsValidForUpdate": false,
+        "RequiredLevel": {
+          "Value": "None"
+        },
+        "DisplayName": {
+          "UserLocalizedLabel": {
+            "Label": "Import Sequence Number"
+          }
+        }
+      },
+      {
+        "LogicalName": "iscustomizable",
+        "AttributeType": "ManagedProperty",
+        "AttributeOf": null,
+        "IsValidForCreate": true,
+        "IsValidForRead": true,
+        "IsValidForUpdate": true,
+        "RequiredLevel": {
+          "Value": "SystemRequired"
+        },
+        "DisplayName": {
+          "UserLocalizedLabel": {
+            "Label": "Is Customizable"
+          }
+        }
+      },
+      {
+        "LogicalName": "ismanaged",
+        "AttributeType": "Boolean",
+        "AttributeOf": null,
+        "IsValidForCreate": false,
+        "IsValidForRead": true,
+        "IsValidForUpdate": false,
+        "RequiredLevel": {
+          "Value": "SystemRequired"
+        },
+        "DisplayName": {
+          "UserLocalizedLabel": {
+            "Label": "Is Managed"
+          }
+        }
+      },
+      {
+        "LogicalName": "ismanagedname",
+        "AttributeType": "Virtual",
+        "AttributeOf": "ismanaged",
+        "IsValidForCreate": false,
+        "IsValidForRead": true,
+        "IsValidForUpdate": false,
+        "RequiredLevel": {
+          "Value": "None"
+        },
+        "DisplayName": null
+      },
+      {
+        "LogicalName": "modifiedby",
+        "AttributeType": "Lookup",
+        "AttributeOf": null,
+        "IsValidForCreate": false,
+        "IsValidForRead": true,
+        "IsValidForUpdate": false,
+        "RequiredLevel": {
+          "Value": "None"
+        },
+        "DisplayName": {
+          "UserLocalizedLabel": {
+            "Label": "Modified By"
+          }
+        }
+      },
+      {
+        "LogicalName": "modifiedbyname",
+        "AttributeType": "String",
+        "AttributeOf": "modifiedby",
+        "IsValidForCreate": false,
+        "IsValidForRead": true,
+        "IsValidForUpdate": false,
+        "RequiredLevel": {
+          "Value": "None"
+        },
+        "DisplayName": null
+      },
+      {
+        "LogicalName": "modifiedbyyominame",
+        "AttributeType": "String",
+        "AttributeOf": "modifiedby",
+        "IsValidForCreate": false,
+        "IsValidForRead": true,
+        "IsValidForUpdate": false,
+        "RequiredLevel": {
+          "Value": "SystemRequired"
+        },
+        "DisplayName": null
+      },
+      {
+        "LogicalName": "modifiedon",
+        "AttributeType": "DateTime",
+        "AttributeOf": null,
+        "IsValidForCreate": false,
+        "IsValidForRead": true,
+        "IsValidForUpdate": false,
+        "RequiredLevel": {
+          "Value": "None"
+        },
+        "DisplayName": {
+          "UserLocalizedLabel": {
+            "Label": "Modified On"
+          }
+        }
+      },
+      {
+        "LogicalName": "modifiedonbehalfby",
+        "AttributeType": "Lookup",
+        "AttributeOf": null,
+        "IsValidForCreate": false,
+        "IsValidForRead": true,
+        "IsValidForUpdate": false,
+        "RequiredLevel": {
+          "Value": "None"
+        },
+        "DisplayName": {
+          "UserLocalizedLabel": {
+            "Label": "Modified By (Delegate)"
+          }
+        }
+      },
+      {
+        "LogicalName": "modifiedonbehalfbyname",
+        "AttributeType": "String",
+        "AttributeOf": "modifiedonbehalfby",
+        "IsValidForCreate": false,
+        "IsValidForRead": true,
+        "IsValidForUpdate": false,
+        "RequiredLevel": {
+          "Value": "None"
+        },
+        "DisplayName": null
+      },
+      {
+        "LogicalName": "modifiedonbehalfbyyominame",
+        "AttributeType": "String",
+        "AttributeOf": "modifiedonbehalfby",
+        "IsValidForCreate": false,
+        "IsValidForRead": true,
+        "IsValidForUpdate": false,
+        "RequiredLevel": {
+          "Value": "SystemRequired"
+        },
+        "DisplayName": null
+      },
+      {
+        "LogicalName": "msdyn_entitylogicalname",
+        "AttributeType": "String",
+        "AttributeOf": null,
+        "IsValidForCreate": true,
+        "IsValidForRead": true,
+        "IsValidForUpdate": false,
+        "RequiredLevel": {
+          "Value": "SystemRequired"
+        },
+        "DisplayName": {
+          "UserLocalizedLabel": {
+            "Label": "Entity"
+          }
+        }
+      },
+      {
+        "LogicalName": "msdyn_masterentityroutingconfigurationid",
+        "AttributeType": "Uniqueidentifier",
+        "AttributeOf": null,
+        "IsValidForCreate": true,
+        "IsValidForRead": true,
+        "IsValidForUpdate": false,
+        "RequiredLevel": {
+          "Value": "SystemRequired"
+        },
+        "DisplayName": {
+          "UserLocalizedLabel": {
+            "Label": "Master Entity Routing Configuration"
+          }
+        }
+      },
+      {
+        "LogicalName": "msdyn_name",
+        "AttributeType": "String",
+        "AttributeOf": null,
+        "IsValidForCreate": true,
+        "IsValidForRead": true,
+        "IsValidForUpdate": true,
+        "RequiredLevel": {
+          "Value": "ApplicationRequired"
+        },
+        "DisplayName": {
+          "UserLocalizedLabel": {
+            "Label": "Name"
+          }
+        }
+      },
+      {
+        "LogicalName": "msdyn_rulesetid",
+        "AttributeType": "Lookup",
+        "AttributeOf": null,
+        "IsValidForCreate": true,
+        "IsValidForRead": true,
+        "IsValidForUpdate": true,
+        "RequiredLevel": {
+          "Value": "None"
+        },
+        "DisplayName": {
+          "UserLocalizedLabel": {
+            "Label": "Rule set"
+          }
+        }
+      },
+      {
+        "LogicalName": "msdyn_rulesetidname",
+        "AttributeType": "String",
+        "AttributeOf": "msdyn_rulesetid",
+        "IsValidForCreate": false,
+        "IsValidForRead": true,
+        "IsValidForUpdate": false,
+        "RequiredLevel": {
+          "Value": "None"
+        },
+        "DisplayName": null
+      },
+      {
+        "LogicalName": "msdyn_uniquename",
+        "AttributeType": "String",
+        "AttributeOf": null,
+        "IsValidForCreate": true,
+        "IsValidForRead": true,
+        "IsValidForUpdate": false,
+        "RequiredLevel": {
+          "Value": "SystemRequired"
+        },
+        "DisplayName": {
+          "UserLocalizedLabel": {
+            "Label": "Unique Name"
+          }
+        }
+      },
+      {
+        "LogicalName": "overriddencreatedon",
+        "AttributeType": "DateTime",
+        "AttributeOf": null,
+        "IsValidForCreate": true,
+        "IsValidForRead": true,
+        "IsValidForUpdate": false,
+        "RequiredLevel": {
+          "Value": "None"
+        },
+        "DisplayName": {
+          "UserLocalizedLabel": {
+            "Label": "Record Created On"
+          }
+        }
+      },
+      {
+        "LogicalName": "overwritetime",
+        "AttributeType": "DateTime",
+        "AttributeOf": null,
+        "IsValidForCreate": false,
+        "IsValidForRead": true,
+        "IsValidForUpdate": false,
+        "RequiredLevel": {
+          "Value": "SystemRequired"
+        },
+        "DisplayName": {
+          "UserLocalizedLabel": {
+            "Label": "Record Overwrite Time"
+          }
+        }
+      },
+      {
+        "LogicalName": "ownerid",
+        "AttributeType": "Owner",
+        "AttributeOf": null,
+        "IsValidForCreate": true,
+        "IsValidForRead": true,
+        "IsValidForUpdate": true,
+        "RequiredLevel": {
+          "Value": "SystemRequired"
+        },
+        "DisplayName": {
+          "UserLocalizedLabel": {
+            "Label": "Owner"
+          }
+        }
+      },
+      {
+        "LogicalName": "owneridname",
+        "AttributeType": "String",
+        "AttributeOf": "ownerid",
+        "IsValidForCreate": false,
+        "IsValidForRead": true,
+        "IsValidForUpdate": false,
+        "RequiredLevel": {
+          "Value": "SystemRequired"
+        },
+        "DisplayName": null
+      },
+      {
+        "LogicalName": "owneridtype",
+        "AttributeType": "EntityName",
+        "AttributeOf": "ownerid",
+        "IsValidForCreate": true,
+        "IsValidForRead": true,
+        "IsValidForUpdate": true,
+        "RequiredLevel": {
+          "Value": "SystemRequired"
+        },
+        "DisplayName": null
+      },
+      {
+        "LogicalName": "owneridyominame",
+        "AttributeType": "String",
+        "AttributeOf": "ownerid",
+        "IsValidForCreate": false,
+        "IsValidForRead": true,
+        "IsValidForUpdate": false,
+        "RequiredLevel": {
+          "Value": "SystemRequired"
+        },
+        "DisplayName": null
+      },
+      {
+        "LogicalName": "owningbusinessunit",
+        "AttributeType": "Lookup",
+        "AttributeOf": null,
+        "IsValidForCreate": false,
+        "IsValidForRead": true,
+        "IsValidForUpdate": false,
+        "RequiredLevel": {
+          "Value": "None"
+        },
+        "DisplayName": {
+          "UserLocalizedLabel": {
+            "Label": "Owning Business Unit"
+          }
+        }
+      },
+      {
+        "LogicalName": "owningbusinessunitname",
+        "AttributeType": "String",
+        "AttributeOf": "owningbusinessunit",
+        "IsValidForCreate": false,
+        "IsValidForRead": true,
+        "IsValidForUpdate": false,
+        "RequiredLevel": {
+          "Value": "SystemRequired"
+        },
+        "DisplayName": null
+      },
+      {
+        "LogicalName": "owningteam",
+        "AttributeType": "Lookup",
+        "AttributeOf": null,
+        "IsValidForCreate": false,
+        "IsValidForRead": true,
+        "IsValidForUpdate": false,
+        "RequiredLevel": {
+          "Value": "None"
+        },
+        "DisplayName": {
+          "UserLocalizedLabel": {
+            "Label": "Owning Team"
+          }
+        }
+      },
+      {
+        "LogicalName": "owninguser",
+        "AttributeType": "Lookup",
+        "AttributeOf": null,
+        "IsValidForCreate": false,
+        "IsValidForRead": true,
+        "IsValidForUpdate": false,
+        "RequiredLevel": {
+          "Value": "None"
+        },
+        "DisplayName": {
+          "UserLocalizedLabel": {
+            "Label": "Owning User"
+          }
+        }
+      },
+      {
+        "LogicalName": "solutionid",
+        "AttributeType": "Uniqueidentifier",
+        "AttributeOf": null,
+        "IsValidForCreate": false,
+        "IsValidForRead": true,
+        "IsValidForUpdate": false,
+        "RequiredLevel": {
+          "Value": "SystemRequired"
+        },
+        "DisplayName": {
+          "UserLocalizedLabel": {
+            "Label": "Solution"
+          }
+        }
+      },
+      {
+        "LogicalName": "statecode",
+        "AttributeType": "State",
+        "AttributeOf": null,
+        "IsValidForCreate": false,
+        "IsValidForRead": true,
+        "IsValidForUpdate": true,
+        "RequiredLevel": {
+          "Value": "SystemRequired"
+        },
+        "DisplayName": {
+          "UserLocalizedLabel": {
+            "Label": "Status"
+          }
+        }
+      },
+      {
+        "LogicalName": "statecodename",
+        "AttributeType": "Virtual",
+        "AttributeOf": "statecode",
+        "IsValidForCreate": false,
+        "IsValidForRead": true,
+        "IsValidForUpdate": false,
+        "RequiredLevel": {
+          "Value": "None"
+        },
+        "DisplayName": null
+      },
+      {
+        "LogicalName": "statuscode",
+        "AttributeType": "Status",
+        "AttributeOf": null,
+        "IsValidForCreate": true,
+        "IsValidForRead": true,
+        "IsValidForUpdate": true,
+        "RequiredLevel": {
+          "Value": "None"
+        },
+        "DisplayName": {
+          "UserLocalizedLabel": {
+            "Label": "Status Reason"
+          }
+        }
+      },
+      {
+        "LogicalName": "statuscodename",
+        "AttributeType": "Virtual",
+        "AttributeOf": "statuscode",
+        "IsValidForCreate": false,
+        "IsValidForRead": true,
+        "IsValidForUpdate": false,
+        "RequiredLevel": {
+          "Value": "None"
+        },
+        "DisplayName": null
+      },
+      {
+        "LogicalName": "supportingsolutionid",
+        "AttributeType": "Uniqueidentifier",
+        "AttributeOf": null,
+        "IsValidForCreate": false,
+        "IsValidForRead": false,
+        "IsValidForUpdate": false,
+        "RequiredLevel": {
+          "Value": "None"
+        },
+        "DisplayName": {
+          "UserLocalizedLabel": {
+            "Label": "Solution"
+          }
+        }
+      },
+      {
+        "LogicalName": "timezoneruleversionnumber",
+        "AttributeType": "Integer",
+        "AttributeOf": null,
+        "IsValidForCreate": true,
+        "IsValidForRead": true,
+        "IsValidForUpdate": true,
+        "RequiredLevel": {
+          "Value": "None"
+        },
+        "DisplayName": {
+          "UserLocalizedLabel": {
+            "Label": "Time Zone Rule Version Number"
+          }
+        }
+      },
+      {
+        "LogicalName": "utcconversiontimezonecode",
+        "AttributeType": "Integer",
+        "AttributeOf": null,
+        "IsValidForCreate": true,
+        "IsValidForRead": true,
+        "IsValidForUpdate": true,
+        "RequiredLevel": {
+          "Value": "None"
+        },
+        "DisplayName": {
+          "UserLocalizedLabel": {
+            "Label": "UTC Conversion Time Zone Code"
+          }
+        }
+      },
+      {
+        "LogicalName": "versionnumber",
+        "AttributeType": "BigInt",
+        "AttributeOf": null,
+        "IsValidForCreate": false,
+        "IsValidForRead": true,
+        "IsValidForUpdate": false,
+        "RequiredLevel": {
+          "Value": "None"
+        },
+        "DisplayName": {
+          "UserLocalizedLabel": {
+            "Label": "Version Number"
+          }
+        }
+      }
+    ],
+    "ManyToOneRelationships": [
+      {
+        "ReferencingAttribute": "createdby",
+        "ReferencedEntity": "systemuser",
+        "ReferencingEntityNavigationPropertyName": "createdby"
+      },
+      {
+        "ReferencingAttribute": "createdonbehalfby",
+        "ReferencedEntity": "systemuser",
+        "ReferencingEntityNavigationPropertyName": "createdonbehalfby"
+      },
+      {
+        "ReferencingAttribute": "modifiedby",
+        "ReferencedEntity": "systemuser",
+        "ReferencingEntityNavigationPropertyName": "modifiedby"
+      },
+      {
+        "ReferencingAttribute": "modifiedonbehalfby",
+        "ReferencedEntity": "systemuser",
+        "ReferencingEntityNavigationPropertyName": "modifiedonbehalfby"
+      },
+      {
+        "ReferencingAttribute": "msdyn_rulesetid",
+        "ReferencedEntity": "msdyn_decisionruleset",
+        "ReferencingEntityNavigationPropertyName": "msdyn_rulesetid"
+      },
+      {
+        "ReferencingAttribute": "ownerid",
+        "ReferencedEntity": "owner",
+        "ReferencingEntityNavigationPropertyName": "ownerid"
+      },
+      {
+        "ReferencingAttribute": "owningbusinessunit",
+        "ReferencedEntity": "businessunit",
+        "ReferencingEntityNavigationPropertyName": "owningbusinessunit"
+      },
+      {
+        "ReferencingAttribute": "owningteam",
+        "ReferencedEntity": "team",
+        "ReferencingEntityNavigationPropertyName": "owningteam"
+      },
+      {
+        "ReferencingAttribute": "owninguser",
+        "ReferencedEntity": "systemuser",
+        "ReferencingEntityNavigationPropertyName": "owninguser"
+      }
+    ],
+    "ManyToManyRelationships": []
+  },
+  "msdyn_msdyn_cannedmessage_liveworkstream": {
+    "LogicalName": "msdyn_msdyn_cannedmessage_liveworkstream",
+    "EntitySetName": "msdyn_msdyn_cannedmessage_liveworkstreamset",
+    "PrimaryIdAttribute": "msdyn_msdyn_cannedmessage_liveworkstreamid",
+    "PrimaryNameAttribute": null,
+    "DisplayCollectionName": null,
+    "Attributes": [
+      {
+        "LogicalName": "msdyn_cannedmessageid",
+        "AttributeType": "Uniqueidentifier",
+        "AttributeOf": null,
+        "IsValidForCreate": false,
+        "IsValidForRead": true,
+        "IsValidForUpdate": false,
+        "RequiredLevel": {
+          "Value": "SystemRequired"
+        },
+        "DisplayName": null
+      },
+      {
+        "LogicalName": "msdyn_liveworkstreamid",
+        "AttributeType": "Uniqueidentifier",
+        "AttributeOf": null,
+        "IsValidForCreate": false,
+        "IsValidForRead": true,
+        "IsValidForUpdate": false,
+        "RequiredLevel": {
+          "Value": "SystemRequired"
+        },
+        "DisplayName": null
+      },
+      {
+        "LogicalName": "msdyn_msdyn_cannedmessage_liveworkstreamid",
+        "AttributeType": "Uniqueidentifier",
+        "AttributeOf": null,
+        "IsValidForCreate": false,
+        "IsValidForRead": true,
+        "IsValidForUpdate": false,
+        "RequiredLevel": {
+          "Value": "SystemRequired"
+        },
+        "DisplayName": null
+      },
+      {
+        "LogicalName": "versionnumber",
+        "AttributeType": "BigInt",
+        "AttributeOf": null,
+        "IsValidForCreate": false,
+        "IsValidForRead": true,
+        "IsValidForUpdate": false,
+        "RequiredLevel": {
+          "Value": "None"
+        },
+        "DisplayName": null
+      }
+    ],
+    "ManyToOneRelationships": [],
+    "ManyToManyRelationships": [
+      {
+        "SchemaName": "msdyn_msdyn_cannedmessage_liveworkstream",
+        "Entity1LogicalName": "msdyn_cannedmessage",
+        "Entity2LogicalName": "msdyn_liveworkstream",
+        "IntersectEntityName": "msdyn_msdyn_cannedmessage_liveworkstream",
+        "Entity1IntersectAttribute": "msdyn_cannedmessageid",
+        "Entity2IntersectAttribute": "msdyn_liveworkstreamid",
+        "Entity1NavigationPropertyName": "msdyn_msdyn_cannedmessage_liveworkstream",
+        "Entity2NavigationPropertyName": "msdyn_msdyn_cannedmessage_liveworkstream"
+      }
+    ]
+  },
+  "msdyn_msdyn_cannedmessage_msdyn_octag": {
+    "LogicalName": "msdyn_msdyn_cannedmessage_msdyn_octag",
+    "EntitySetName": "msdyn_msdyn_cannedmessage_msdyn_octagset",
+    "PrimaryIdAttribute": "msdyn_msdyn_cannedmessage_msdyn_octagid",
+    "PrimaryNameAttribute": null,
+    "DisplayCollectionName": null,
+    "Attributes": [
+      {
+        "LogicalName": "msdyn_cannedmessageid",
+        "AttributeType": "Uniqueidentifier",
+        "AttributeOf": null,
+        "IsValidForCreate": false,
+        "IsValidForRead": true,
+        "IsValidForUpdate": false,
+        "RequiredLevel": {
+          "Value": "SystemRequired"
+        },
+        "DisplayName": null
+      },
+      {
+        "LogicalName": "msdyn_msdyn_cannedmessage_msdyn_octagid",
+        "AttributeType": "Uniqueidentifier",
+        "AttributeOf": null,
+        "IsValidForCreate": false,
+        "IsValidForRead": true,
+        "IsValidForUpdate": false,
+        "RequiredLevel": {
+          "Value": "SystemRequired"
+        },
+        "DisplayName": null
+      },
+      {
+        "LogicalName": "msdyn_octagid",
+        "AttributeType": "Uniqueidentifier",
+        "AttributeOf": null,
+        "IsValidForCreate": false,
+        "IsValidForRead": true,
+        "IsValidForUpdate": false,
+        "RequiredLevel": {
+          "Value": "SystemRequired"
+        },
+        "DisplayName": null
+      },
+      {
+        "LogicalName": "versionnumber",
+        "AttributeType": "BigInt",
+        "AttributeOf": null,
+        "IsValidForCreate": false,
+        "IsValidForRead": true,
+        "IsValidForUpdate": false,
+        "RequiredLevel": {
+          "Value": "None"
+        },
+        "DisplayName": null
+      }
+    ],
+    "ManyToOneRelationships": [],
+    "ManyToManyRelationships": [
+      {
+        "SchemaName": "msdyn_msdyn_cannedmessage_msdyn_octag",
+        "Entity1LogicalName": "msdyn_cannedmessage",
+        "Entity2LogicalName": "msdyn_octag",
+        "IntersectEntityName": "msdyn_msdyn_cannedmessage_msdyn_octag",
+        "Entity1IntersectAttribute": "msdyn_cannedmessageid",
+        "Entity2IntersectAttribute": "msdyn_octagid",
+        "Entity1NavigationPropertyName": "msdyn_msdyn_cannedmessage_msdyn_octag",
+        "Entity2NavigationPropertyName": "msdyn_msdyn_cannedmessage_msdyn_octag"
       }
     ]
   },
@@ -12836,6 +13778,18 @@
         "ReferencedEntity": "systemuser",
         "ReferencingEntityNavigationPropertyName": "owninguser"
       }
+    ],
+    "ManyToManyRelationships": [
+      {
+        "SchemaName": "msdyn_notificationtemplate_notificationfield",
+        "Entity1LogicalName": "msdyn_notificationtemplate",
+        "Entity2LogicalName": "msdyn_notificationfield",
+        "IntersectEntityName": "msdyn_notificationtemplate_notificationfield",
+        "Entity1IntersectAttribute": "msdyn_notificationtemplateid",
+        "Entity2IntersectAttribute": "msdyn_notificationfieldid",
+        "Entity1NavigationPropertyName": "msdyn_notificationtemplate_notificationfield",
+        "Entity2NavigationPropertyName": "msdyn_notificationtemplate_notificationfield"
+      }
     ]
   },
   "msdyn_oclanguage": {
@@ -13531,7 +14485,8 @@
         "ReferencedEntity": "systemuser",
         "ReferencingEntityNavigationPropertyName": "owninguser"
       }
-    ]
+    ],
+    "ManyToManyRelationships": []
   },
   "msdyn_ocliveworkstreamcontextvariable": {
     "LogicalName": "msdyn_ocliveworkstreamcontextvariable",
@@ -14415,7 +15370,8 @@
         "ReferencedEntity": "systemuser",
         "ReferencingEntityNavigationPropertyName": "owninguser"
       }
-    ]
+    ],
+    "ManyToManyRelationships": []
   },
   "msdyn_ocsmschannelsetting": {
     "LogicalName": "msdyn_ocsmschannelsetting",
@@ -15554,7 +16510,8 @@
         "ReferencedEntity": "organization",
         "ReferencingEntityNavigationPropertyName": "organizationid"
       }
-    ]
+    ],
+    "ManyToManyRelationships": []
   },
   "msdyn_octag": {
     "LogicalName": "msdyn_octag",
@@ -16117,6 +17074,38 @@
         "ReferencingAttribute": "organizationid",
         "ReferencedEntity": "organization",
         "ReferencingEntityNavigationPropertyName": "organizationid"
+      }
+    ],
+    "ManyToManyRelationships": [
+      {
+        "SchemaName": "msdyn_msdyn_cannedmessage_msdyn_octag",
+        "Entity1LogicalName": "msdyn_cannedmessage",
+        "Entity2LogicalName": "msdyn_octag",
+        "IntersectEntityName": "msdyn_msdyn_cannedmessage_msdyn_octag",
+        "Entity1IntersectAttribute": "msdyn_cannedmessageid",
+        "Entity2IntersectAttribute": "msdyn_octagid",
+        "Entity1NavigationPropertyName": "msdyn_msdyn_cannedmessage_msdyn_octag",
+        "Entity2NavigationPropertyName": "msdyn_msdyn_cannedmessage_msdyn_octag"
+      },
+      {
+        "SchemaName": "msdyn_msdyn_ocrichobject_msdyn_octag",
+        "Entity1LogicalName": "msdyn_ocrichobject",
+        "Entity2LogicalName": "msdyn_octag",
+        "IntersectEntityName": "msdyn_msdyn_ocrichobject_msdyn_octag",
+        "Entity1IntersectAttribute": "msdyn_ocrichobjectid",
+        "Entity2IntersectAttribute": "msdyn_octagid",
+        "Entity1NavigationPropertyName": "msdyn_msdyn_ocrichobject_msdyn_octag",
+        "Entity2NavigationPropertyName": "msdyn_msdyn_ocrichobject_msdyn_octag"
+      },
+      {
+        "SchemaName": "msdyn_msdyn_personalmessage_msdyn_octag",
+        "Entity1LogicalName": "msdyn_personalmessage",
+        "Entity2LogicalName": "msdyn_octag",
+        "IntersectEntityName": "msdyn_msdyn_personalmessage_msdyn_octag",
+        "Entity1IntersectAttribute": "msdyn_personalmessageid",
+        "Entity2IntersectAttribute": "msdyn_octagid",
+        "Entity1NavigationPropertyName": "msdyn_msdyn_personalmessage_msdyn_octag",
+        "Entity2NavigationPropertyName": "msdyn_msdyn_personalmessage_msdyn_octag"
       }
     ]
   },
@@ -17864,7 +18853,8 @@
         "ReferencedEntity": "systemuser",
         "ReferencingEntityNavigationPropertyName": "owninguser"
       }
-    ]
+    ],
+    "ManyToManyRelationships": []
   },
   "msdyn_ocwhatsappchannelnumber": {
     "LogicalName": "msdyn_ocwhatsappchannelnumber",
@@ -19085,7 +20075,8 @@
         "ReferencedEntity": "systemuser",
         "ReferencingEntityNavigationPropertyName": "owninguser"
       }
-    ]
+    ],
+    "ManyToManyRelationships": []
   },
   "msdyn_omnichannelconfiguration": {
     "LogicalName": "msdyn_omnichannelconfiguration",
@@ -21352,7 +22343,8 @@
         "ReferencedEntity": "organization",
         "ReferencingEntityNavigationPropertyName": "organizationid"
       }
-    ]
+    ],
+    "ManyToManyRelationships": []
   },
   "msdyn_operatinghour": {
     "LogicalName": "msdyn_operatinghour",
@@ -22183,7 +23175,8 @@
         "ReferencedEntity": "systemuser",
         "ReferencingEntityNavigationPropertyName": "owninguser"
       }
-    ]
+    ],
+    "ManyToManyRelationships": []
   },
   "msdyn_routingconfiguration": {
     "LogicalName": "msdyn_routingconfiguration",
@@ -22923,7 +23916,8 @@
         "ReferencedEntity": "systemuser",
         "ReferencingEntityNavigationPropertyName": "owninguser"
       }
-    ]
+    ],
+    "ManyToManyRelationships": []
   },
   "msdyn_routingconfigurationstep": {
     "LogicalName": "msdyn_routingconfigurationstep",
@@ -23712,7 +24706,8 @@
         "ReferencedEntity": "systemuser",
         "ReferencingEntityNavigationPropertyName": "owninguser"
       }
-    ]
+    ],
+    "ManyToManyRelationships": []
   },
   "msdyn_sessiontemplate": {
     "LogicalName": "msdyn_sessiontemplate",
@@ -24660,6 +25655,38 @@
         "ReferencingAttribute": "owninguser",
         "ReferencedEntity": "systemuser",
         "ReferencingEntityNavigationPropertyName": "owninguser"
+      }
+    ],
+    "ManyToManyRelationships": [
+      {
+        "SchemaName": "msdyn_appconfiguration_sessiontemplate",
+        "Entity1LogicalName": "msdyn_appconfiguration",
+        "Entity2LogicalName": "msdyn_sessiontemplate",
+        "IntersectEntityName": "msdyn_appconfiguration_sessiontemplate",
+        "Entity1IntersectAttribute": "msdyn_appconfigurationid",
+        "Entity2IntersectAttribute": "msdyn_sessiontemplateid",
+        "Entity1NavigationPropertyName": "msdyn_appconfiguration_sessiontemplate",
+        "Entity2NavigationPropertyName": "msdyn_appconfiguration_sessiontemplate"
+      },
+      {
+        "SchemaName": "msdyn_msdyn_prod_agentscript_msdyn_sessiontemplat",
+        "Entity1LogicalName": "msdyn_productivityagentscript",
+        "Entity2LogicalName": "msdyn_sessiontemplate",
+        "IntersectEntityName": "msdyn_msdyn_prod_agentscript_msdyn_sessiontempl",
+        "Entity1IntersectAttribute": "msdyn_productivityagentscriptid",
+        "Entity2IntersectAttribute": "msdyn_sessiontemplateid",
+        "Entity1NavigationPropertyName": "msdyn_msdyn_prod_agentscript_msdyn_sessiontemplat",
+        "Entity2NavigationPropertyName": "msdyn_msdyn_prod_agentscript_msdyn_sessiontemplat"
+      },
+      {
+        "SchemaName": "msdyn_sessiontemplate_applicationtab",
+        "Entity1LogicalName": "msdyn_sessiontemplate",
+        "Entity2LogicalName": "msdyn_applicationtabtemplate",
+        "IntersectEntityName": "msdyn_sessiontemplate_applicationtab",
+        "Entity1IntersectAttribute": "msdyn_sessiontemplateid",
+        "Entity2IntersectAttribute": "msdyn_applicationtabtemplateid",
+        "Entity1NavigationPropertyName": "msdyn_sessiontemplate_applicationtab",
+        "Entity2NavigationPropertyName": "msdyn_sessiontemplate_applicationtab"
       }
     ]
   },
@@ -26253,6 +27280,38 @@
         "ReferencedEntity": "transactioncurrency",
         "ReferencingEntityNavigationPropertyName": "transactioncurrencyid"
       }
+    ],
+    "ManyToManyRelationships": [
+      {
+        "SchemaName": "cap_UserAuthorityMatrix_Queue_Queue",
+        "Entity1LogicalName": "queue",
+        "Entity2LogicalName": "cap_userauthoritymatrix",
+        "IntersectEntityName": "cap_userauthoritymatrix_queue",
+        "Entity1IntersectAttribute": "queueid",
+        "Entity2IntersectAttribute": "cap_userauthoritymatrixid",
+        "Entity1NavigationPropertyName": "cap_UserAuthorityMatrix_Queue_Queue",
+        "Entity2NavigationPropertyName": "cap_UserAuthorityMatrix_Queue_Queue"
+      },
+      {
+        "SchemaName": "msdyn_convertrule_queue_association",
+        "Entity1LogicalName": "convertrule",
+        "Entity2LogicalName": "queue",
+        "IntersectEntityName": "msdyn_convertrule_queue_association",
+        "Entity1IntersectAttribute": "convertruleid",
+        "Entity2IntersectAttribute": "queueid",
+        "Entity1NavigationPropertyName": "msdyn_convertrule_queue_association",
+        "Entity2NavigationPropertyName": "msdyn_convertrule_queue_association"
+      },
+      {
+        "SchemaName": "queuemembership_association",
+        "Entity1LogicalName": "queue",
+        "Entity2LogicalName": "systemuser",
+        "IntersectEntityName": "queuemembership",
+        "Entity1IntersectAttribute": "queueid",
+        "Entity2IntersectAttribute": "systemuserid",
+        "Entity1NavigationPropertyName": "queuemembership_association",
+        "Entity2NavigationPropertyName": "queuemembership_association"
+      }
     ]
   },
   "ratingmodel": {
@@ -26861,7 +27920,8 @@
         "ReferencedEntity": "transactioncurrency",
         "ReferencingEntityNavigationPropertyName": "transactioncurrencyid"
       }
-    ]
+    ],
+    "ManyToManyRelationships": []
   },
   "ratingvalue": {
     "LogicalName": "ratingvalue",
@@ -27486,6 +28546,7 @@
         "ReferencedEntity": "transactioncurrency",
         "ReferencingEntityNavigationPropertyName": "transactioncurrencyid"
       }
-    ]
+    ],
+    "ManyToManyRelationships": []
   }
 }

@@ -56,7 +56,7 @@ function Invoke-CcPlan {
     $started = (Get-Date).ToString('o')
 
     $snapshotPath = $null
-    $snapshot = [ordered]@{ environment = $target.Id; taken = $started; runId = $runId; updated = [System.Collections.Generic.List[object]]::new(); created = [System.Collections.Generic.List[object]]::new() }
+    $snapshot = [ordered]@{ environment = $target.Id; taken = $started; runId = $runId; updated = [System.Collections.Generic.List[object]]::new(); created = [System.Collections.Generic.List[object]]::new(); associated = [System.Collections.Generic.List[object]]::new() }
     $updateOps = @($Plan.operations | Where-Object { $_.status -eq 'ready' -and $_.op -eq 'update' })
     if (-not $isDry) {
         foreach ($o in $updateOps) {
@@ -100,6 +100,32 @@ function Invoke-CcPlan {
         if ($OnEvent) { & $OnEvent 'start' @{ phase = 'writing'; op = $o } }
 
         if ($o.op -eq 'skip-existing') { Add-Item $o 'unchanged' 'Already in the target; this table is never changed after it is created.' $o.stage; continue }
+
+        if ($tplan.Table.move -eq 'associate') {
+            # A many-to-many link: both ends must be in the target (or created earlier in this run).
+            $def = $tplan.Association
+            $waits = @($o.dependencies | Where-Object { $_.state -in 'createdEarlier', 'linkedLater' -and $failedRefs.ContainsKey("$($_.table)|$($_.matchKey)") })
+            if ($waits) { Add-Item $o 'skipped' "Not linked because $($waits[0].label) could not be written." $o.stage; continue }
+            $ends = @{}
+            foreach ($d in $o.dependencies) { $ends[$d.table] = $maps.TargetKeyToGuid["$($d.table)|$($d.matchKey)"] }
+            $id1 = $ends[$def.Entity1]; $id2 = $ends[$def.Entity2]
+            $what = "$($o.context) and $($o.displayName)"
+            if (-not $id1 -or -not $id2) { Add-Item $o 'skipped' "Not linked: $what are not both in the target." $o.stage; continue }
+            if ($isDry) { Add-Item $o 'wouldLink' "Will link $what." $o.stage; continue }
+            try {
+                $set1 = $plans[$def.Entity1].EntitySet; $set2 = $plans[$def.Entity2].EntitySet
+                $base = "$($target.Url.TrimEnd('/'))/api/data/$($target.ApiVersion)/"
+                Invoke-CcWebApi -Environment $target -Method Post -Path "$set1($id1)/$($def.Nav1)/`$ref" -Body @{ '@odata.id' = "$base$set2($id2)" } -Prefer $null | Out-Null
+                $linkEntry = [ordered]@{ relationship = $def.SchemaName; entitySet = $set1; id = $id1; nav = $def.Nav1; otherId = $id2; label = $what }
+                $snapshot.associated.Add($linkEntry) | Out-Null
+                if ($OnEvent) { & $OnEvent 'associated' $linkEntry }
+                Add-Item $o 'linked' "Linked $what." $o.stage
+            }
+            catch {
+                Add-Item $o 'failed' "Could not link $($what): $(Get-CcErrorMessage $_.Exception.Message)" $o.stage
+            }
+            continue
+        }
 
         $waitsOn = @($o.dependencies | Where-Object { $_.state -in 'createdEarlier', 'linkedLater' -and $failedRefs.ContainsKey("$($_.table)|$($_.matchKey)") })
         if ($waitsOn) {

@@ -106,7 +106,7 @@ export interface DiffModel {
 
 // ---------------------------------------------------------------- Plan
 
-export type OpKind = 'create' | 'update' | 'skip-existing'
+export type OpKind = 'create' | 'update' | 'skip-existing' | 'link'
 
 /** inTarget: already there. createdEarlier: written earlier in this run. linkedLater: set in the final pass. missing: blocks. */
 export type DependencyState = 'inTarget' | 'createdEarlier' | 'linkedLater' | 'missing'

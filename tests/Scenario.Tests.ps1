@@ -66,6 +66,15 @@ Describe 'Compare' {
         @($diff.detectOnly | ForEach-Object { "$($_.type):$($_.record)" }) | Should -Be @('channelAccount:Mortgage WhatsApp')
     }
 
+    It 'finds the many-to-many links: quick replies on workstreams, tags on quick replies' {
+        $links = @($diff.tables | Where-Object table -eq 'msdyn_msdyn_cannedmessage_liveworkstream')
+        $links.Count | Should -Be 1
+        $links[0].label | Should -Be 'Quick replies on workstreams'
+        @($links[0].records | ForEach-Object { "$($_.context) > $($_.displayName) $($_.status)" } | Sort-Object) | Should -Be @('Billing chat > Greeting MissingInTarget', 'Mortgage chat > Greeting MissingInTarget')
+        $tags = @($diff.tables | Where-Object table -eq 'msdyn_msdyn_cannedmessage_msdyn_octag')
+        @($tags[0].records | ForEach-Object { "$($_.context) > $($_.displayName)" }) | Should -Be @('Greeting > Escalated')
+    }
+
     It 'finds nothing to move between an environment and itself' {
         $self = @((New-CcFakeEnvironment a A $s.Dev), (New-CcFakeEnvironment b B $s.Dev))
         $d = Compare-CcConfig -Environments $self -SourceId a -TargetId b 6>$null
@@ -150,7 +159,7 @@ Describe 'Dry run' {
         $run.summary.failed | Should -Be 0
         $run.summary.skipped | Should -Be 0
         $run.summary.created | Should -Be @($plan.operations | Where-Object { $_.status -eq 'ready' -and $_.op -eq 'create' }).Count
-        $run.summary.linked | Should -Be 3
+        $run.summary.linked | Should -Be 6   # 3 lookups set at the end, 3 quick-reply links
         $run.verification | Should -BeNullOrEmpty
     }
 }
@@ -177,7 +186,7 @@ Describe 'Apply, check afterwards and roll back' {
     It 'checks every record it wrote and finds each the same as the source' {
         $v = $run.verification
         $v.state | Should -Be 'Verified'
-        $v.checked | Should -Be ($run.summary.created + $run.summary.updated)
+        $v.checked | Should -Be @($run.items | Where-Object { $_.outcome -in 'created', 'updated', 'linked' } | ForEach-Object { "$($_.table)|$($_.matchKey)" } | Select-Object -Unique).Count
         $v.matched | Should -Be $v.checked
         @($v.differences).Count | Should -Be 0
         @($v.added).Count | Should -Be 0
@@ -193,6 +202,16 @@ Describe 'Apply, check afterwards and roll back' {
         $queue = $s.Test.Tables['queue'].Rows | Where-Object name -eq 'Mortgage queue'
         $route.msdyn_rulesetdefinition | Should -Match $queue.queueid
         $route.msdyn_rulesetdefinition | Should -Not -Match $s.Ids.dev.mortgageQueue
+    }
+
+    It 'links the quick replies to their workstreams and tags' {
+        $wsLinks = @($s.Test.Tables['msdyn_msdyn_cannedmessage_liveworkstream'].Rows)
+        $wsLinks.Count | Should -Be 2
+        $greeting = $s.Test.Tables['msdyn_cannedmessage'].Rows | Where-Object msdyn_title -eq 'Greeting'
+        $billing = $s.Test.Tables['msdyn_liveworkstream'].Rows | Where-Object msdyn_name -eq 'Billing chat'
+        @($wsLinks | Where-Object { $_.msdyn_cannedmessageid -eq $greeting.msdyn_cannedmessageid -and $_.msdyn_liveworkstreamid -eq $billing.msdyn_liveworkstreamid }).Count | Should -Be 1
+        @($s.Test.Tables['msdyn_msdyn_cannedmessage_msdyn_octag'].Rows).Count | Should -Be 1
+        @($after.tables | Where-Object { $_.table -like 'msdyn_msdyn_*' } | ForEach-Object { $_.records } | Where-Object status -ne 'Equal').Count | Should -Be 0
     }
 
     It 'sets the links to later tables in the final pass' {
@@ -295,7 +314,7 @@ Describe 'What the check afterwards reports' {
         $failed[0].message | Should -Be 'A queue with this name already exists.'
         # The ruleset embeds the queue; the default-queue link points at it. Unrelated records still go.
         (@($run.items | Where-Object { $_.displayName -eq 'Mortgage route' }).outcome) | Should -Be 'skipped'
-        (@($run.items | Where-Object { $_.displayName -eq 'Greeting' }).outcome) | Should -Be 'created'
+        (@($run.items | Where-Object { $_.table -eq 'msdyn_cannedmessage' -and $_.displayName -eq 'Greeting' }).outcome) | Should -Be 'created'
         # Mortgage chat was created, but its default queue could not be linked: the check says so.
         $v = $run.verification
         $v.state | Should -Be 'Differences'
