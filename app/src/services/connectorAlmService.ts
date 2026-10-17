@@ -1,6 +1,7 @@
 import type { AlmService } from './almService'
 import type { DiffModel, EnvironmentRef, Plan, Run, SelectionItem } from '../types/alm'
 import { getGeneratedClient, type RawAlmClient } from './generatedConnector'
+import { normaliseDiff, normalisePlan, normaliseRun } from './normalise'
 
 // Calls the backend through the generated custom-connector client. The Power Apps host routes
 // these calls with Entra auth and DLP applied. This is the path the published app uses.
@@ -37,40 +38,44 @@ export class ConnectorAlmService implements AlmService {
   }
 
   async compare(sourceId: string, targetId: string): Promise<DiffModel> {
-    return unwrap<DiffModel>(await this.client.compare({ sourceEnvId: sourceId, targetEnvId: targetId }))
+    return normaliseDiff(unwrap<DiffModel>(await this.client.compare({ sourceEnvId: sourceId, targetEnvId: targetId })))
   }
 
   async plan(diff: DiffModel, selection?: SelectionItem[], includeDependencies = true): Promise<Plan> {
-    return unwrap<Plan>(
-      await this.client.plan({
-        sourceEnvId: diff.source,
-        targetEnvId: diff.target,
-        diffId: diff.diffId,
-        selection,
-        includeDependencies,
-      }),
+    return normalisePlan(
+      unwrap<Plan>(
+        await this.client.plan({
+          sourceEnvId: diff.source,
+          targetEnvId: diff.target,
+          diffId: diff.diffId,
+          selection,
+          includeDependencies,
+        }),
+      ),
     )
   }
 
   async apply(plan: Plan, mode: 'dryRun' | 'apply', approved: boolean): Promise<Run> {
     const selection = plan.operations.map((o) => ({ table: o.table, matchKey: o.matchKey }))
-    return unwrap<Run>(
-      await this.client.apply({
-        sourceEnvId: plan.source,
-        targetEnvId: plan.target,
-        selection,
-        mode,
-        approved,
-        idempotencyKey: crypto.randomUUID(),
-      }),
+    return normaliseRun(
+      unwrap<Run>(
+        await this.client.apply({
+          sourceEnvId: plan.source,
+          targetEnvId: plan.target,
+          selection,
+          mode,
+          approved,
+          idempotencyKey: crypto.randomUUID(),
+        }),
+      ),
     )
   }
 
   async getRun(runId: string): Promise<Run> {
-    return unwrap<Run>(await this.client.getRun(runId))
+    return normaliseRun(unwrap<Run>(await this.client.getRun(runId)))
   }
 
   async rollback(runId: string): Promise<Run> {
-    return unwrap<Run>(await this.client.rollback(runId))
+    return normaliseRun(unwrap<Run>(await this.client.rollback(runId)))
   }
 }

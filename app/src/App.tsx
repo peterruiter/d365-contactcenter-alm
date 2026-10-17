@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { AppFooter, AppHeader, Link, Tabs, ThemeToggle } from './ui'
 import { UpdateBanner } from './components/UpdateBanner'
+import { ErrorBoundary } from './components/ErrorBoundary'
 import { buildLabel } from './buildInfo'
 import { MigratePage } from './pages/MigratePage'
 import { HistoryPage } from './pages/HistoryPage'
@@ -47,16 +48,18 @@ export default function App() {
       />
       <main className="app-main" id="main">
         {isLocalRunner && <UpdateBanner />}
-        {page === 'migrate' && <MigratePage m={m} />}
-        {page === 'history' && <HistoryPage runs={m.runs} environments={m.environments} onRefresh={m.refreshRuns} />}
-        {page === 'setup' && (
-          <SetupPage
-            onReady={() => {
-              // Environments set up just now: reload the list the migration flow picks from.
-              window.location.reload()
-            }}
-          />
-        )}
+        <ErrorBoundary key={page ?? 'loading'}>
+          {page === 'migrate' && <MigratePage m={m} />}
+          {page === 'history' && <HistoryPage runs={m.runs} environments={m.environments} onRefresh={m.refreshRuns} />}
+          {page === 'setup' && (
+            <SetupPage
+              onReady={() => {
+                // Environments set up just now: reload the list the migration flow picks from.
+                window.location.reload()
+              }}
+            />
+          )}
+        </ErrorBoundary>
       </main>
       <AppFooter
         left={

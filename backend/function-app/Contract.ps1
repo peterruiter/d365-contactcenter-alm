@@ -23,7 +23,10 @@ function ConvertTo-CcDiffContract($diff) {
                                 displayName = $_.displayName
                                 context     = $_.context
                                 note        = $_.note
-                                fields      = if ($equal) { @() } else { @($_.fields | ForEach-Object { [ordered]@{ name = $_.name; label = $_.label; kind = $_.kind; source = $_.source; target = $_.target } }) }
+                                # @() around the if, not inside it: an if hands back its array
+                                # unrolled, so @() became null and a one-field list a bare object,
+                                # and the app's review page failed on both.
+                                fields      = @(if (-not $equal) { $_.fields | Where-Object { $_ } | ForEach-Object { [ordered]@{ name = $_.name; label = $_.label; kind = $_.kind; source = $_.source; target = $_.target } } })
                                 dependsOn   = @($_.dependsOn | Where-Object { $_ } | ForEach-Object { [ordered]@{ table = $_.table; matchKey = $_.matchKey; label = $_.label; via = $_.via; deferred = [bool]$_.deferred; kind = $_.kind } })
                             }
                         })

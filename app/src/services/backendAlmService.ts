@@ -1,4 +1,5 @@
 import type { AlmService } from './almService'
+import { normaliseDiff, normalisePlan, normaliseRun } from './normalise'
 import type { DiffModel, EnvironmentRef, Plan, Run, RunListItem, SelectionItem } from '../types/alm'
 
 // Talks to the ALM backend described in docs/architecture.md: the deployed Function (local dev,
@@ -49,13 +50,13 @@ export class BackendAlmService implements AlmService {
   }
 
   async compare(sourceId: string, targetId: string): Promise<DiffModel> {
-    return json(await this.post('/compare', { sourceEnvId: sourceId, targetEnvId: targetId }))
+    return normaliseDiff(await json<DiffModel>(await this.post('/compare', { sourceEnvId: sourceId, targetEnvId: targetId })))
   }
 
   async plan(diff: DiffModel, selection?: SelectionItem[], includeDependencies = true): Promise<Plan> {
     // diffId lets the local runner plan from the compare it already holds instead of reading
     // both environments again; the Function ignores it and compares afresh.
-    return json(
+    return normalisePlan(await json<Plan>(
       await this.post('/plan', {
         sourceEnvId: diff.source,
         targetEnvId: diff.target,
@@ -63,14 +64,14 @@ export class BackendAlmService implements AlmService {
         selection,
         includeDependencies,
       }),
-    )
+    ))
   }
 
   async apply(plan: Plan, mode: 'dryRun' | 'apply', approved: boolean): Promise<Run> {
     // The backend rebuilds context from source and target, so it needs the selection,
     // not a stored plan id. It runs the plan and returns the run record directly.
     const selection = plan.operations.map((o) => ({ table: o.table, matchKey: o.matchKey }))
-    return json<Run>(
+    return normaliseRun(await json<Run>(
       await this.post('/apply', {
         sourceEnvId: plan.source,
         targetEnvId: plan.target,
@@ -79,7 +80,7 @@ export class BackendAlmService implements AlmService {
         approved,
         idempotencyKey: crypto.randomUUID(),
       }),
-    )
+    ))
   }
 
   async listRuns(): Promise<RunListItem[]> {
@@ -87,10 +88,10 @@ export class BackendAlmService implements AlmService {
   }
 
   async getRun(runId: string): Promise<Run> {
-    return json(await this.get(`/run/${runId}`))
+    return normaliseRun(await json<Run>(await this.get(`/run/${runId}`)))
   }
 
   async rollback(runId: string): Promise<Run> {
-    return json(await this.post(`/run/${runId}/rollback`, {}))
+    return normaliseRun(await json<Run>(await this.post(`/run/${runId}/rollback`, {})))
   }
 }
