@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The XrmToolBox Tool Library package: the tool and its engine under lib\net48\Plugins. XrmToolBox
+     itself provides the SDK, the connection library and Newtonsoft.Json. Built by build.ps1. -->
+<package xmlns="http://schemas.microsoft.com/packaging/2010/07/nuspec.xsd">
+  <metadata>
+    <id>ContactCenterALM.XrmToolBox</id>
+    <version>$version$</version>
+    <title>Contact Center ALM</title>
+    <authors>Peter Ruiter</authors>
+    <owners>Peter Ruiter</owners>
+    <license type="expression">MIT</license>
+    <projectUrl>https://github.com/peterruiter/d365-contactcenter-alm</projectUrl>
+    <requireLicenseAcceptance>false</requireLicenseAcceptance>
+    <description>Compare and move Dynamics 365 Contact Center configuration between environments: workstreams with their routing configurations, work classification and route-to-queue rules, queues, rulesets, templates, capacity profiles and channels. Records are matched by name, never by GUID. Every dependency is checked before anything runs; then dry run, apply with a check afterwards that the target matches the source, and rollback from a snapshot.</description>
+    <summary>Move Dynamics 365 Contact Center configuration between environments, with dependency checks, dry run, verification and rollback.</summary>
+    <releaseNotes>$releaseNotes$</releaseNotes>
+    <copyright>Copyright (c) 2026 Peter Ruiter</copyright>
+    <tags>XrmToolBox Dynamics365 ContactCenter CustomerService Omnichannel UnifiedRouting Workstream ALM Migration</tags>
+    <dependencies>
+      <group targetFramework=".NETFramework4.8">
+        <dependency id="XrmToolBoxPackage" version="1.2025.10.74" />
+      </group>
+    </dependencies>
+  </metadata>
+  <files>
+    <file src="src\CcAlm.XrmToolBox\bin\Release\net48\CcAlm.XrmToolBox.dll" target="lib\net48\Plugins\" />
+    <file src="src\CcAlm.XrmToolBox\bin\Release\net48\CcAlm.Core.dll" target="lib\net48\Plugins\" />
+  </files>
+</package>

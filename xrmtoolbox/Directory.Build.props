@@ -1,0 +1,12 @@
+<Project>
+  <PropertyGroup>
+    <LangVersion>latest</LangVersion>
+    <Nullable>disable</Nullable>
+    <Version>0.1.0</Version>
+    <Authors>Peter Ruiter</Authors>
+    <Company>Capgemini</Company>
+    <Product>Contact Center ALM</Product>
+    <Copyright>Copyright (c) Peter Ruiter</Copyright>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+  </PropertyGroup>
+</Project>

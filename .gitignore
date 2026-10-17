@@ -41,3 +41,8 @@ backend/function-app/environments.json
 
 # Recorded test fixtures hold real configuration from real environments (scripts/record-fixture.ps1).
 tests/fixtures/recorded/
+
+# XrmToolBox tool build output
+xrmtoolbox/**/bin/
+xrmtoolbox/**/obj/
+xrmtoolbox/obj/

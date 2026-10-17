@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Opens the tool's control on the synthetic Dev and Test against a real XrmToolBox install
+       (XTB_PATH, default %TEMP%\xtb-runtime) and saves a screenshot of each tab. Not part of CI. -->
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net48</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <IsPackable>false</IsPackable>
+    <XtbPath Condition="'$(XTB_PATH)' != ''">$(XTB_PATH)</XtbPath>
+    <XtbPath Condition="'$(XTB_PATH)' == ''">$(TEMP)\xtb-runtime</XtbPath>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\CcAlm.XrmToolBox\CcAlm.XrmToolBox.csproj" />
+    <ProjectReference Include="..\..\src\CcAlm.Core\CcAlm.Core.csproj" />
+    <Compile Include="..\CcAlm.Core.Tests\FakeDataverse.cs" Link="FakeDataverse.cs" />
+    <Compile Include="..\CcAlm.Core.Tests\Scenario.cs" Link="Scenario.cs" />
+    <Reference Include="XrmToolBox.Extensibility"><HintPath>$(XtbPath)\XrmToolBox.Extensibility.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="McTools.Xrm.Connection"><HintPath>$(XtbPath)\McTools.Xrm.Connection.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="Microsoft.Xrm.Sdk"><HintPath>$(XtbPath)\Microsoft.Xrm.Sdk.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="System.ComponentModel.Composition" />
+    <Reference Include="Newtonsoft.Json"><HintPath>$(XtbPath)\Newtonsoft.Json.dll</HintPath><Private>false</Private></Reference>
+  </ItemGroup>
+</Project>

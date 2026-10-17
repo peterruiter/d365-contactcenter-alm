@@ -4,6 +4,12 @@ All notable changes to this project are recorded here. Format follows [Keep a Ch
 
 ## [Unreleased]
 
+### XrmToolBox tool
+- **Contact Center ALM for XrmToolBox** (`xrmtoolbox/`). Compare, review, plan check, dry run, apply with the check afterwards, and rollback, on two XrmToolBox connections: the tool's connection is the source, a second one the target. No backend and no app registration. Ticking a record ticks everything under it, as in the app. Runs and snapshots are kept in XrmToolBox's settings folder. See [docs/xrmtoolbox.md](docs/xrmtoolbox.md).
+- **The engine in C#** (`CcAlm.Core`, .NET Standard 2.0), a port of the PowerShell engine on the same manifest, working through an `IDataverse` interface: the Dataverse SDK in XrmToolBox, an in-memory Dataverse in the tests. Its tests replay the synthetic scenario and every recording, and require the same compare and plan the PowerShell engine recorded, table by table. On a real Dev to Test, read through the SDK, both engines gave identical results.
+- A new workstream's routing contract, which Dataverse provisions on its own, is recorded in the snapshot, so rollback deletes it too.
+- Packaged for the XrmToolBox Tool Library (`xrmtoolbox/build.ps1`): `ContactCenterALM.XrmToolBox.<version>.nupkg`, plus a zip to install by hand.
+
 ### Faster plan checks and runs
 - **A compare's reads are reused.** The plan check, the dry run and the apply after a compare used to read both environments in full again, so one compare, plan, dry run and apply read everything five times. Now the compare keeps what it read, for an hour: in a blob for the Function, in the profile folder for the local runner. The plan check and the dry run read nothing from Dataverse. An apply re-reads only the target's records, the one thing that must be current before writing, and so does the check afterwards. Metadata and the source come from the compare. Without a usable compare (older than an hour, or none) everything is read again as before. Stored reads are deleted after a day.
 - New engine cmdlets `New-CcReadCache`, `Export-CcReadCache` and `Import-CcReadCache`. `Compare-CcConfig` takes `-ReadCache` and `-FreshRecords`, `Invoke-CcRunJob` takes `-LoadReads`, and `New-CcRunRecord` takes `-DiffId`. The connector definition declares `diffId` on plan and apply, and `includeDependencies` on plan.

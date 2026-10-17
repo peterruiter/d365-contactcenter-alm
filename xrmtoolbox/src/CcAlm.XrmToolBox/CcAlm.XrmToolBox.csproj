@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- The XrmToolBox tool. XrmToolBox itself provides the SDK, the connection library and
+       Newtonsoft.Json at runtime, so they are referenced to compile against and never copied. -->
+  <PropertyGroup>
+    <TargetFramework>net48</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <RootNamespace>CcAlm.XrmToolBox</RootNamespace>
+    <AssemblyName>CcAlm.XrmToolBox</AssemblyName>
+    <GenerateAssemblyInfo>true</GenerateAssemblyInfo>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="XrmToolBoxPackage" Version="1.2025.10.74" ExcludeAssets="runtime" PrivateAssets="all" />
+    <PackageReference Include="MscrmTools.Xrm.Connection" Version="1.2025.9.64" ExcludeAssets="runtime" PrivateAssets="all" />
+    <PackageReference Include="Microsoft.CrmSdk.CoreAssemblies" Version="9.0.2.59" ExcludeAssets="runtime" PrivateAssets="all" />
+    <PackageReference Include="Microsoft.CrmSdk.XrmTooling.CoreAssembly" Version="9.1.1.65" ExcludeAssets="runtime" PrivateAssets="all" />
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.1" ExcludeAssets="runtime" PrivateAssets="all" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\CcAlm.Core\CcAlm.Core.csproj" />
+    <Reference Include="System.ComponentModel.Composition" />
+    <Reference Include="System.ServiceModel" />
+  </ItemGroup>
+</Project>

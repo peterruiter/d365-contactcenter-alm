@@ -18,3 +18,16 @@ jobs:
         run: |
           Install-Module Pester -MinimumVersion 5.6.0 -Force -Scope CurrentUser -SkipPublisherCheck
           ./scripts/test.ps1 -Output Normal
+
+  xrmtoolbox:
+    name: XrmToolBox tool
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+      - name: Engine tests
+        run: dotnet test xrmtoolbox/tests/CcAlm.Core.Tests -nologo
+      - name: Build the tool
+        run: dotnet build xrmtoolbox/src/CcAlm.XrmToolBox -c Release -nologo

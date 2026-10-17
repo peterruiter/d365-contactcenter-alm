@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Read-only check of the SDK layer against real environments: the C# engine over
+       IOrganizationService must find what the PowerShell engine finds. Signs in with az. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net48</TargetFramework>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.CrmSdk.XrmTooling.CoreAssembly" Version="9.1.1.65" />
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.1" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\CcAlm.Core\CcAlm.Core.csproj" />
+    <Compile Include="..\..\src\CcAlm.XrmToolBox\SdkDataverse.cs" Link="SdkDataverse.cs" />
+    <Reference Include="System.ServiceModel" />
+  </ItemGroup>
+</Project>

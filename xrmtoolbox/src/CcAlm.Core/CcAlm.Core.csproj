@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- The engine: compare, plan, run, check afterwards, roll back. No Dataverse SDK dependency: it
+       talks to an IDataverse, so the same code runs against XrmToolBox connections and against the
+       in-memory Dataverse in the tests. -->
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <RootNamespace>CcAlm.Core</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- XrmToolBox ships Newtonsoft.Json 13; compile against that line so the tool uses the host's copy. -->
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.1" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- The same manifest the PowerShell engine reads. -->
+    <EmbeddedResource Include="..\..\..\config\manifest.json" Link="manifest.json" LogicalName="CcAlm.Core.manifest.json" />
+  </ItemGroup>
+</Project>
