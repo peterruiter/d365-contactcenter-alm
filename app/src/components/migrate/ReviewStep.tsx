@@ -170,6 +170,10 @@ export function ReviewStep({ m }: { m: Migration }) {
                 </li>
               ))}
             </ul>
+            <p className="muted t-body-small">
+              Ticking a record also ticks everything under it and what that uses: a workstream brings its routing
+              configuration, work classification and route-to-queue steps, their rulesets and its queues.
+            </p>
             <Switch
               checked={m.includeDependencies}
               onChange={m.setIncludeDependencies}

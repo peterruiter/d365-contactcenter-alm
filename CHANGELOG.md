@@ -9,6 +9,7 @@ All notable changes to this project are recorded here. Format follows [Keep a Ch
 - New engine cmdlets `New-CcReadCache`, `Export-CcReadCache` and `Import-CcReadCache`. `Compare-CcConfig` takes `-ReadCache` and `-FreshRecords`, `Invoke-CcRunJob` takes `-LoadReads`, and `New-CcRunRecord` takes `-DiffId`. The connector definition declares `diffId` on plan and apply, and `includeDependencies` on plan.
 
 ### Selecting
+- **Ticking a record ticks everything under it and what that uses.** A workstream brings its routing configuration, its work classification and route-to-queue steps, their rulesets, its queues, templates and the rest; unticking takes them away again, except what another ticked record still needs. The table, group and select-all checkboxes work the same way.
 - **One checkbox above the list selects or clears everything shown**, combined with the filters and the search, and every group heading has its own.
 
 ### Version and updates

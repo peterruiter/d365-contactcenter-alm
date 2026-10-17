@@ -103,6 +103,8 @@ export function useMigration(): Migration {
   const [error, setError] = useState<string | null>(null)
   // Records the person added through a fix; kept so a re-plan does not drop them again.
   const extra = useRef<Set<string>>(new Set())
+  // Records the person ticked themselves, as opposed to ones that came along with them.
+  const ticked = useRef<Set<string>>(new Set())
   // Bumped to stop a poll loop that belongs to a run the person has moved away from.
   const watchToken = useRef(0)
 
@@ -198,6 +200,7 @@ export function useMigration(): Migration {
   const resetFrom = useCallback((s: Step) => {
     if (ORDER.indexOf(s) <= ORDER.indexOf('review')) {
       setDiff(null)
+      ticked.current = new Set()
       setSelected(new Set())
       extra.current = new Set()
     }
@@ -291,6 +294,7 @@ export function useMigration(): Migration {
         setDiff(d)
         // Everything new or changed starts selected; the plan step shows exactly what that means.
         const all = d.tables.flatMap((t) => t.records.filter(isMovable).map((r) => refOf(t.table, r.matchKey)))
+        ticked.current = new Set(all)
         setSelected(new Set(all))
         extra.current = new Set()
         setPlan(null)
@@ -429,35 +433,48 @@ export function useMigration(): Migration {
     [maxStep],
   )
 
-  const toggle = useCallback((ref: string) => {
-    setSelected((s) => {
-      const n = new Set(s)
-      if (n.has(ref)) n.delete(ref)
-      else n.add(ref)
-      return n
-    })
-  }, [])
+
+
+  // Ticking a record ticks everything under it and what that uses (bundleOf): a workstream
+  // brings its routing configuration, steps, rulesets and the rest. Unticking takes that away
+  // again, except what another record that is still ticked needs.
+  const setMany = useCallback(
+    (refs: string[], on: boolean) => {
+      setSelected((s) => {
+        const n = new Set(s)
+        if (on) {
+          for (const r of refs) {
+            ticked.current.add(r)
+            for (const x of bundleOf(r)) n.add(x)
+          }
+          return n
+        }
+        const removed = new Set(refs.flatMap((r) => bundleOf(r)))
+        for (const r of refs) removed.add(r)
+        for (const x of removed) {
+          n.delete(x)
+          ticked.current.delete(x)
+        }
+        for (const t of ticked.current) {
+          if (!n.has(t)) continue
+          for (const x of bundleOf(t)) n.add(x)
+        }
+        return n
+      })
+    },
+    [bundleOf],
+  )
+
+  const toggle = useCallback((ref: string) => setMany([ref], !selected.has(ref)), [setMany, selected])
 
   const selectBundle = useCallback(
     (ref: string) => {
-      const refs = bundleOf(ref)
-      const added = refs.filter((r) => !selected.has(r)).length
-      setSelected((s) => new Set([...s, ...refs]))
+      const added = bundleOf(ref).filter((r) => !selected.has(r)).length
+      setMany([ref], true)
       return added
     },
-    [bundleOf, selected],
+    [bundleOf, selected, setMany],
   )
-
-  const setMany = useCallback((refs: string[], on: boolean) => {
-    setSelected((s) => {
-      const n = new Set(s)
-      for (const r of refs) {
-        if (on) n.add(r)
-        else n.delete(r)
-      }
-      return n
-    })
-  }, [])
 
   return {
     step, setStep, maxStep, environments, sourceId, targetId,
