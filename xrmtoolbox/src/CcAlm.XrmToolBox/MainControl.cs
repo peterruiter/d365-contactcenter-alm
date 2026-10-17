@@ -376,7 +376,7 @@ namespace CcAlm.XrmToolBox
                 {
                     var why = o.Status == "blocked" ? string.Join(" ", o.Blockers.Select(b => b.Message))
                         : string.Join("; ", o.Dependencies.Select(d => $"{d.Label}: {StateText(d.State)}").Concat(o.Warnings));
-                    var action = o.Op == "create" ? "Create" : o.Op == "update" ? "Update" : "Keep";
+                    var action = o.Op == "create" ? "Create" : o.Op == "update" ? "Update" : o.Op == "link" ? "Link" : "Keep";
                     _planList.Items.Add(new ListViewItem(new[] { o.Status == "blocked" ? "Blocked" : "Ready", action, o.TableLabel, o.FullName + (o.AutoIncluded ? "  (needed)" : ""), why }, grp)
                     { ForeColor = o.Status == "blocked" ? Red : Ink, Tag = o });
                 }

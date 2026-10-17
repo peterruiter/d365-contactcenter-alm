@@ -79,7 +79,8 @@ function New-CcPlan {
     # Operations in write order.
     $ops = [System.Collections.Generic.List[object]]::new()
     $opByRef = @{}
-    $orderOf = @{}; foreach ($t in $manifest.tables) { $orderOf[$t.logicalName] = [int]$t.order }
+    # From the table plans, which include the link tables of many-to-many relationships.
+    $orderOf = @{}; foreach ($k in $plans.Keys) { $orderOf[$k] = [int]$plans[$k].Table.order }
     $sorted = @($planned.Keys | Sort-Object { $orderOf[$byRef[$_].Table] }, { $byRef[$_].Record.displayName })
     $seq = 0
     foreach ($ref in $sorted) {

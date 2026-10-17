@@ -82,6 +82,17 @@ namespace CcAlm.Core.Engine
                 if (!plan.Usable) continue;
                 diff.Tables.Add(CompareTable(plan, diff.Source, diff.Target, diff.Maps, diff.TablePlans));
             }
+            // Many-to-many links between moved records (quick replies on workstreams), as tables of their own.
+            foreach (var def in Associations.Plans(manifest, diff.TablePlans, l => Schema(source, sReads, l), l => Schema(target, tReads, l)))
+            {
+                diff.TablePlans[def.SchemaName] = Associations.TablePlanFor(def);
+                var m = def.Relationship;
+                if (only != null && !only.Contains(def.SchemaName) && !only.Contains(m.Entity1) && !only.Contains(m.Entity2)) continue;
+                var cols = new[] { m.Entity1Attribute, m.Entity2Attribute };
+                if (!sReads.Records.ContainsKey(def.SchemaName)) sReads.Records[def.SchemaName] = source.GetRecords(def.SourceIntersect, cols).ToList();
+                if (!tReads.Records.ContainsKey(def.SchemaName)) tReads.Records[def.SchemaName] = target.GetRecords(def.TargetIntersect, cols).ToList();
+                diff.Tables.Add(Associations.Compare(def, Associations.Pairs(sReads.Records[def.SchemaName], m), Associations.Pairs(tReads.Records[def.SchemaName], m), diff.Maps, diff.TablePlans));
+            }
             diff.DetectOnly.AddRange(DetectOnly(manifest, diff.Source, diff.Target, diff.TablePlans));
 
             var all = diff.AllRecords.ToList();

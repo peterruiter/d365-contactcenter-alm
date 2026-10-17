@@ -134,7 +134,8 @@ namespace CcAlm.Core.Engine
                 }
             }
 
-            var orderOf = diff.Manifest.Tables.ToDictionary(t => t.LogicalName, t => t.Order);
+            // From the table plans, which include the link tables of many-to-many relationships.
+            var orderOf = plans.ToDictionary(kv => kv.Key, kv => kv.Value.Table.Order);
             var opByRef = new Dictionary<string, PlanOperation>();
             int seq = 0;
             foreach (var reference in plannedOrder.OrderBy(x => orderOf[byRef[x].Table]).ThenBy(x => byRef[x].DisplayName, StringComparer.Ordinal))
@@ -143,6 +144,7 @@ namespace CcAlm.Core.Engine
                 var t = plans[r.Table].Table;
                 var op = r.Status == RecordStatus.MissingInTarget ? "create" : "update";
                 if (t.Move == "create-once" && op == "update") op = "skip-existing";
+                if (t.Move == "associate") op = "link";   // a many-to-many link, written once both ends exist
                 var o = new PlanOperation
                 {
                     Seq = ++seq, Stage = t.Stage, Order = t.Order, Table = r.Table, TableLabel = t.DisplayLabel, Op = op,
@@ -238,7 +240,7 @@ namespace CcAlm.Core.Engine
                 AutoIncluded = ops.Count(o => o.AutoIncluded),
                 Creates = ops.Count(o => o.Op == "create"),
                 Updates = ops.Count(o => o.Op == "update"),
-                Links = ops.SelectMany(o => o.Dependencies).Count(d => d.State == "linkedLater"),
+                Links = ops.SelectMany(o => o.Dependencies).Count(d => d.State == "linkedLater") + ops.Count(o => o.Op == "link"),
             };
             return result;
         }

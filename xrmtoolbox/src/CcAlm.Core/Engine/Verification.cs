@@ -113,6 +113,7 @@ namespace CcAlm.Core.Engine
     {
         public int Restored { get; set; }
         public int Deleted { get; set; }
+        public int Unlinked { get; set; }
         public List<string> Unresolved { get; set; } = new List<string>();
     }
 
@@ -137,6 +138,17 @@ namespace CcAlm.Core.Engine
                     result.Restored++;
                 }
                 catch (Exception ex) { result.Unresolved.Add($"Could not restore '{e.Label}': {ex.Message}"); }
+            }
+            // Links the run made between records that stay; links to records about to be deleted go with them.
+            foreach (var l in snapshot.Linked ?? new List<SnapshotLink>())
+            {
+                progress?.Report($"Unlinking {l.Label}");
+                try { target.Disassociate(l.Relationship, l.Id1, l.Id2); result.Unlinked++; }
+                catch (Exception ex)
+                {
+                    if (ex.Message.IndexOf("does not exist", StringComparison.OrdinalIgnoreCase) >= 0) { result.Unlinked++; continue; }
+                    result.Unresolved.Add($"Could not unlink {l.Label}: {ex.Message}");
+                }
             }
             foreach (var c in snapshot.Created.OrderByDescending(x => x.Order))
             {

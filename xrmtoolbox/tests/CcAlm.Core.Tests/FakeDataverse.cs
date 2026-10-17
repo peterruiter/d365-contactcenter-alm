@@ -128,6 +128,12 @@ namespace CcAlm.Core.Tests
                     Label = (string)a.SelectToken("DisplayName.UserLocalizedLabel.Label") ?? name,
                 };
             }
+            foreach (JObject rel in (JArray)m["ManyToManyRelationships"] ?? new JArray())
+                s.ManyToMany.Add(new ManyToManyInfo
+                {
+                    SchemaName = (string)rel["SchemaName"], Entity1 = (string)rel["Entity1LogicalName"], Entity2 = (string)rel["Entity2LogicalName"],
+                    IntersectEntity = (string)rel["IntersectEntityName"], Entity1Attribute = (string)rel["Entity1IntersectAttribute"], Entity2Attribute = (string)rel["Entity2IntersectAttribute"],
+                });
             foreach (JObject rel in (JArray)m["ManyToOneRelationships"])
             {
                 var col = (string)rel["ReferencingAttribute"];
@@ -206,6 +212,45 @@ namespace CcAlm.Core.Tests
             var r = Find(schema.LogicalName, id) ?? throw new DataverseException($"{schema.LogicalName} With Id = {id} Does Not Exist");
             Rows[schema.LogicalName].Remove(r);
             Writes.Add(("Delete", schema.LogicalName, id, null));
+        }
+
+        public void Associate(ManyToManyInfo m, Guid id1, Guid id2)
+        {
+            Fail("Associate", m.SchemaName, null);
+            if (Find(m.Entity1, id1) == null) throw new DataverseException($"{m.Entity1} With Id = {id1} Does Not Exist");
+            if (Find(m.Entity2, id2) == null) throw new DataverseException($"{m.Entity2} With Id = {id2} Does Not Exist");
+            if (Links(m).Any(r => Same(r, m, id1, id2))) throw new DataverseException("Cannot insert duplicate key.");
+            AddLink(m, id1, id2);
+            Writes.Add(("Associate", m.SchemaName, id1, new Dictionary<string, object> { [m.Entity2Attribute] = id2 }));
+        }
+
+        public void Disassociate(ManyToManyInfo m, Guid id1, Guid id2)
+        {
+            var row = Links(m).FirstOrDefault(r => Same(r, m, id1, id2)) ?? throw new DataverseException("The association does not exist.");
+            Rows[m.IntersectEntity].Remove(row);
+            Writes.Add(("Disassociate", m.SchemaName, id1, new Dictionary<string, object> { [m.Entity2Attribute] = id2 }));
+        }
+
+        IEnumerable<Record> Links(ManyToManyInfo m) => Rows.TryGetValue(m.IntersectEntity, out var rows) ? rows : Enumerable.Empty<Record>();
+        static bool Same(Record r, ManyToManyInfo m, Guid id1, Guid id2) =>
+            string.Equals(r.Get(m.Entity1Attribute)?.ToString(), id1.ToString(), StringComparison.OrdinalIgnoreCase) &&
+            string.Equals(r.Get(m.Entity2Attribute)?.ToString(), id2.ToString(), StringComparison.OrdinalIgnoreCase);
+
+        void AddLink(ManyToManyInfo m, Guid id1, Guid id2)
+        {
+            var schema = GetSchemaInternal(m.IntersectEntity);
+            var r = new Record { Id = Guid.NewGuid() };
+            r.Values[schema.PrimaryId] = r.Id.ToString();
+            r.Values[m.Entity1Attribute] = id1.ToString();
+            r.Values[m.Entity2Attribute] = id2.ToString();
+            Rows[m.IntersectEntity].Add(r);
+        }
+
+        /// <summary>Links two records directly, for building test data.</summary>
+        public void Link(string schemaName, Guid id1, Guid id2)
+        {
+            var m = _metadata.Keys.Select(GetSchemaInternal).Where(s => s.Exists).SelectMany(s => s.ManyToMany).First(x => x.SchemaName == schemaName);
+            AddLink(m, id1, id2);
         }
 
         void Fail(string method, string table, IDictionary<string, object> values)

@@ -72,6 +72,12 @@ namespace CcAlm.XrmToolBox
                     Label = a.DisplayName?.UserLocalizedLabel?.Label ?? a.LogicalName,
                 };
             }
+            foreach (var r in m.ManyToManyRelationships ?? new ManyToManyRelationshipMetadata[0])
+                s.ManyToMany.Add(new ManyToManyInfo
+                {
+                    SchemaName = r.SchemaName, Entity1 = r.Entity1LogicalName, Entity2 = r.Entity2LogicalName, IntersectEntity = r.IntersectEntityName,
+                    Entity1Attribute = r.Entity1IntersectAttribute, Entity2Attribute = r.Entity2IntersectAttribute,
+                });
             foreach (var r in m.ManyToOneRelationships ?? new OneToManyRelationshipMetadata[0])
             {
                 if (!s.Lookups.TryGetValue(r.ReferencingAttribute, out var lk)) s.Lookups[r.ReferencingAttribute] = lk = new LookupInfo { Column = r.ReferencingAttribute };
@@ -117,6 +123,18 @@ namespace CcAlm.XrmToolBox
         public void Update(TableSchema schema, Guid id, IDictionary<string, object> values) => Call(() => { _service.Update(ToEntity(schema, id, values)); return 0; });
 
         public void Delete(TableSchema schema, Guid id) => Call(() => { _service.Delete(schema.LogicalName, id); return 0; });
+
+        public void Associate(ManyToManyInfo relationship, Guid id1, Guid id2) => Call(() =>
+        {
+            _service.Associate(relationship.Entity1, id1, new Relationship(relationship.SchemaName), new EntityReferenceCollection { new EntityReference(relationship.Entity2, id2) });
+            return 0;
+        });
+
+        public void Disassociate(ManyToManyInfo relationship, Guid id1, Guid id2) => Call(() =>
+        {
+            _service.Disassociate(relationship.Entity1, id1, new Relationship(relationship.SchemaName), new EntityReferenceCollection { new EntityReference(relationship.Entity2, id2) });
+            return 0;
+        });
 
         static T Call<T>(Func<T> f)
         {

@@ -97,6 +97,15 @@ namespace CcAlm.Core.Tests
             => Assert.Equal(new[] { "channelAccount:Mortgage WhatsApp" }, _diff.DetectOnly.Select(d => $"{d.Type}:{d.Record}"));
 
         [Fact]
+        public void Finds_the_many_to_many_links()
+        {
+            var links = _diff.Tables.Single(t => t.Table == "msdyn_msdyn_cannedmessage_liveworkstream");
+            Assert.Equal("Quick replies on workstreams", links.Label);
+            Assert.Equal(new[] { "Billing chat › Greeting MissingInTarget", "Mortgage chat › Greeting MissingInTarget" }, links.Records.Select(r => $"{r.FullName} {r.Status}").OrderBy(x => x));
+            Assert.Equal(new[] { "Greeting › Escalated" }, _diff.Tables.Single(t => t.Table == "msdyn_msdyn_cannedmessage_msdyn_octag").Records.Select(r => r.FullName));
+        }
+
+        [Fact]
         public void Finds_nothing_to_move_between_an_environment_and_itself()
         {
             var self = new MigrationSession(_s.Dev, _s.Dev.Copy("https://contoso-dev-copy.crm4.dynamics.com")).Compare();
@@ -184,6 +193,9 @@ namespace CcAlm.Core.Tests
                                       "Mortgage route", "Mortgage queue", "Mortgage chat › CustomerTier" })
                 Assert.Contains(n, names);
             Assert.DoesNotContain("Billing chat", names);
+            // Its quick-reply link and the quick reply come along.
+            Assert.Contains("Mortgage chat › Greeting", names);
+            Assert.Contains("Greeting", names);
         }
 
         [Fact]
@@ -214,7 +226,7 @@ namespace CcAlm.Core.Tests
             Assert.Equal(0, run.Summary.Failed);
             Assert.Equal(0, run.Summary.Skipped);
             Assert.Equal(plan.Operations.Count(o => o.Status == "ready" && o.Op == "create"), run.Summary.Created);
-            Assert.Equal(3, run.Summary.Linked);
+            Assert.Equal(6, run.Summary.Linked);   // 3 lookups set at the end, 3 quick-reply links
         }
 
         [Fact]
@@ -274,6 +286,10 @@ namespace CcAlm.Core.Tests
             Assert.Single(second);
             Assert.False(second[0].Values.ContainsKey("msdyn_uniquename"));
 
+            // The quick reply is on both workstreams and carries its tag.
+            Assert.Equal(2, s.Test.Rows["msdyn_msdyn_cannedmessage_liveworkstream"].Count);
+            Assert.Single(s.Test.Rows["msdyn_msdyn_cannedmessage_msdyn_octag"]);
+
             // Only the blocked records are left to move.
             var again = new MigrationSession(s.Dev, s.Test);
             again.Compare();
@@ -328,7 +344,7 @@ namespace CcAlm.Core.Tests
             Assert.Equal("Mortgage queue", failed.DisplayName);
             Assert.Equal("A queue with this name already exists.", failed.Message);
             Assert.Equal(Outcome.Skipped, run.Items.Single(i => i.DisplayName == "Mortgage route").Outcome);
-            Assert.Equal(Outcome.Created, run.Items.Single(i => i.DisplayName == "Greeting").Outcome);
+            Assert.Equal(Outcome.Created, run.Items.Single(i => i.Table == "msdyn_cannedmessage" && i.DisplayName == "Greeting").Outcome);
             var d = Assert.Single(run.Verification.Differences);
             Assert.Equal("Mortgage chat", d.DisplayName);
         }

@@ -24,6 +24,17 @@ namespace CcAlm.Core.Model
         public Dictionary<string, string> Nav { get; } = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
     }
 
+    /// <summary>A many-to-many relationship (a quick reply on several workstreams) and its intersect table.</summary>
+    public sealed class ManyToManyInfo
+    {
+        public string SchemaName { get; set; }
+        public string Entity1 { get; set; }
+        public string Entity2 { get; set; }
+        public string IntersectEntity { get; set; }
+        public string Entity1Attribute { get; set; }
+        public string Entity2Attribute { get; set; }
+    }
+
     /// <summary>A table as one environment has it. Exists is false when the table is not installed.</summary>
     public sealed class TableSchema
     {
@@ -35,6 +46,7 @@ namespace CcAlm.Core.Model
         public string Label { get; set; }
         public Dictionary<string, AttributeInfo> Attributes { get; } = new Dictionary<string, AttributeInfo>(StringComparer.OrdinalIgnoreCase);
         public Dictionary<string, LookupInfo> Lookups { get; } = new Dictionary<string, LookupInfo>(StringComparer.OrdinalIgnoreCase);
+        public List<ManyToManyInfo> ManyToMany { get; } = new List<ManyToManyInfo>();
 
         public static TableSchema Missing(string logicalName) => new TableSchema { LogicalName = logicalName, Exists = false };
     }
@@ -110,5 +122,10 @@ namespace CcAlm.Core.Model
         void Update(TableSchema schema, Guid id, IDictionary<string, object> values);
 
         void Delete(TableSchema schema, Guid id);
+
+        /// <summary>Links two records through a many-to-many relationship (record 1 is of the relationship's entity 1).</summary>
+        void Associate(ManyToManyInfo relationship, Guid id1, Guid id2);
+
+        void Disassociate(ManyToManyInfo relationship, Guid id1, Guid id2);
     }
 }

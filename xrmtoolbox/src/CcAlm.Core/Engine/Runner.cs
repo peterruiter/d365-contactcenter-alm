@@ -51,6 +51,15 @@ namespace CcAlm.Core.Engine
         public Guid Id { get; set; }
     }
 
+    /// <summary>A many-to-many link a run made, for rollback to remove.</summary>
+    public sealed class SnapshotLink
+    {
+        public ManyToManyInfo Relationship { get; set; }
+        public Guid Id1 { get; set; }
+        public Guid Id2 { get; set; }
+        public string Label { get; set; }
+    }
+
     public sealed class Snapshot
     {
         public string RunId { get; set; }
@@ -58,6 +67,7 @@ namespace CcAlm.Core.Engine
         public DateTime Taken { get; set; }
         public List<SnapshotEntry> Updated { get; set; } = new List<SnapshotEntry>();
         public List<SnapshotEntry> Created { get; set; } = new List<SnapshotEntry>();
+        public List<SnapshotLink> Linked { get; set; } = new List<SnapshotLink>();
     }
 
     public sealed class RunSummary
@@ -194,6 +204,28 @@ namespace CcAlm.Core.Engine
                 done++;
 
                 if (o.Op == "skip-existing") { Add(o, Outcome.Unchanged, "Already in the target; this table is never changed after it is created.", o.Stage); continue; }
+
+                if (tplan.Association != null)
+                {
+                    // A many-to-many link: both ends must be in the target or created earlier in this run.
+                    var rel = tplan.Association.Relationship;
+                    var waits = o.Dependencies.FirstOrDefault(d => (d.State == "createdEarlier" || d.State == "linkedLater") && failed.Contains(d.Ref));
+                    if (waits != null) { Add(o, Outcome.Skipped, $"Not linked because {waits.Label} could not be written.", o.Stage); continue; }
+                    var what = $"{o.Context} and {o.DisplayName}";
+                    Guid end(string table) { var d = o.Dependencies.FirstOrDefault(x => x.Table == table); return d != null && maps.TargetKeyToGuid.TryGetValue(d.Ref, out var g) ? g : Guid.Empty; }
+                    var id1 = end(rel.Entity1); var id2 = end(rel.Entity2);
+                    if (id1 == Guid.Empty || id2 == Guid.Empty) { Add(o, Outcome.Skipped, $"Not linked: {what} are not both in the target.", o.Stage); continue; }
+                    if (dry) { Add(o, Outcome.WouldLink, $"Will link {what}.", o.Stage); continue; }
+                    try
+                    {
+                        target.Associate(rel, id1, id2);
+                        snapshot.Linked.Add(new SnapshotLink { Relationship = rel, Id1 = id1, Id2 = id2, Label = what });
+                        options.SaveSnapshot?.Invoke(snapshot);
+                        Add(o, Outcome.Linked, $"Linked {what}.", o.Stage);
+                    }
+                    catch (Exception ex) { Add(o, Outcome.Failed, $"Could not link {what}: {ex.Message}", o.Stage); }
+                    continue;
+                }
 
                 var waitsOn = o.Dependencies.FirstOrDefault(d => (d.State == "createdEarlier" || d.State == "linkedLater") && failed.Contains(d.Ref));
                 if (waitsOn != null) { Add(o, Outcome.Skipped, $"Not written because {waitsOn.Label} could not be written.", o.Stage); failed.Add(o.Ref); continue; }

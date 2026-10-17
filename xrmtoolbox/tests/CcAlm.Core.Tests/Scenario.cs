@@ -98,6 +98,11 @@ namespace CcAlm.Core.Tests
             d["vip2"] = Dev.Add("msdyn_octag", V("msdyn_name", "VIP"));
             d["escalated"] = Dev.Add("msdyn_octag", V("msdyn_name", "Escalated"));
 
+            // Many-to-many links, only in Dev.
+            Dev.Link("msdyn_msdyn_cannedmessage_liveworkstream", d["greeting"], d["mortgageChat"]);
+            Dev.Link("msdyn_msdyn_cannedmessage_liveworkstream", d["greeting"], d["billingChat"]);
+            Dev.Link("msdyn_msdyn_cannedmessage_msdyn_octag", d["greeting"], d["escalated"]);
+
             TestIds["oldTag"] = Test.Add("msdyn_octag", V("msdyn_name", "Old tag"));
         }
 
