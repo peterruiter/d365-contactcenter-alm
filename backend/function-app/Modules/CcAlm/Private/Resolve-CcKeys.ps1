@@ -47,6 +47,8 @@ function New-CcEnvData {
         KeyById     = @{}
         ByKey       = @{}
         Ambiguous   = @{}
+        # table -> key -> how many identical copies were taken as one record.
+        Collapsed   = @{}
     }
 }
 
@@ -109,12 +111,38 @@ function Set-CcKeys {
                 if (-not $byKey.ContainsKey($k)) { $byKey[$k] = [System.Collections.Generic.List[string]]::new() }
                 $byKey[$k].Add($id) | Out-Null
             }
+            # Copies that are the same in every setting (a quick reply created three times) cannot be
+            # told apart and need not be: they are one record. The first stands for all of them, and
+            # links from any copy resolve to it through the shared key.
+            $env.Collapsed[$t.logicalName] = @{}
+            foreach ($k in @($byKey.Keys)) {
+                if ($byKey[$k].Count -lt 2) { continue }
+                $ids = @($byKey[$k] | Sort-Object)
+                if (Test-CcIdenticalRecords -Records @($ids | ForEach-Object { $env.ById[$t.logicalName][$_] }) -TablePlan $plan) {
+                    $env.Collapsed[$t.logicalName][$k] = $ids.Count
+                    $byKey[$k] = [System.Collections.Generic.List[string]]::new()
+                    $byKey[$k].Add($ids[0]) | Out-Null
+                }
+            }
             $env.KeyById[$t.logicalName] = $keyById
             $env.ByKey[$t.logicalName] = $byKey
             $env.Ambiguous[$t.logicalName] = @{}
             foreach ($k in $byKey.Keys) { if ($byKey[$k].Count -gt 1) { $env.Ambiguous[$t.logicalName][$k] = $true } }
         }
     }
+}
+
+function Test-CcIdenticalRecords {
+    # True when every record has the same value in every compared setting and lookup.
+    param([object[]] $Records, [pscustomobject] $TablePlan)
+    $first = $Records[0]
+    foreach ($r in $Records | Select-Object -Skip 1) {
+        foreach ($col in $TablePlan.DataColumns) { if (-not (Test-CcSameValue $first.$col $r.$col)) { return $false } }
+        foreach ($lk in $TablePlan.Lookups) {
+            if (([string]$first.($lk.ValueCol)).ToLowerInvariant() -ne ([string]$r.($lk.ValueCol)).ToLowerInvariant()) { return $false }
+        }
+    }
+    return $true
 }
 
 function Get-CcRecordByKey {

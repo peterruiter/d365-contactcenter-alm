@@ -30,8 +30,9 @@
 #   routing config + step under Mortgage chat      -                               new
 #   WhatsApp number on Mortgage chat               -                               needs account
 #   quick reply Greeting                           -                               new, no deps
-#   tags VIP x2, Escalated                         tag Old tag                     VIP Ambiguous,
+#   tags VIP x2 (identical), Escalated             tag Old tag                     VIP one record,
 #                                                                                  Old tag extra
+#   operating hours Weekend x2 (different)         -                               Ambiguous
 #   Omnichannel configuration (3 declines)         same (1 decline)                Changed
 #   Greeting on Mortgage chat and Billing chat,    -                               3 links new
 #     tagged Escalated (many-to-many links)
@@ -109,6 +110,8 @@ function New-CcSyntheticScenario {
     $d.vip1 = Add-CcFakeRecord $dev msdyn_octag @{ msdyn_name = 'VIP' }
     $d.vip2 = Add-CcFakeRecord $dev msdyn_octag @{ msdyn_name = 'VIP' }
     $d.escalated = Add-CcFakeRecord $dev msdyn_octag @{ msdyn_name = 'Escalated' }
+    $d.weekend1 = Add-CcFakeRecord $dev msdyn_operatinghour @{ msdyn_name = 'Weekend'; msdyn_description = 'Saturday' }
+    $d.weekend2 = Add-CcFakeRecord $dev msdyn_operatinghour @{ msdyn_name = 'Weekend'; msdyn_description = 'Sunday' }
 
     # Many-to-many links, only in Dev.
     Add-CcFakeAssociation $dev msdyn_msdyn_cannedmessage_liveworkstream $d.greeting $d.mortgageChat

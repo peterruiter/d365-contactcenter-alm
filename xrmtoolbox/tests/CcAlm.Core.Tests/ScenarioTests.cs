@@ -62,9 +62,17 @@ namespace CcAlm.Core.Tests
         [Fact]
         public void Never_pairs_records_it_cannot_tell_apart()
         {
-            var vip = T.Row(_diff, "msdyn_octag", "VIP");
-            Assert.Equal(RecordStatus.Ambiguous, vip.Status);
-            Assert.Contains("2 records in the source", vip.Note);
+            var weekend = T.Row(_diff, "msdyn_operatinghour", "Weekend");
+            Assert.Equal(RecordStatus.Ambiguous, weekend.Status);
+            Assert.Contains("2 records in the source", weekend.Note);
+        }
+
+        [Fact]
+        public void Takes_identical_copies_as_one_record()
+        {
+            var vip = Assert.Single(T.Rows(_diff, "msdyn_octag", "VIP"));
+            Assert.Equal(RecordStatus.MissingInTarget, vip.Status);
+            Assert.Contains("2 identical copies", vip.Note);
         }
 
         [Fact]

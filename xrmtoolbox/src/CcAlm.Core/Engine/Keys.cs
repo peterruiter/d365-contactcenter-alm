@@ -23,6 +23,8 @@ namespace CcAlm.Core.Engine
         public Dictionary<Guid, string> GuidToTable { get; } = new Dictionary<Guid, string>();
         public Dictionary<string, Dictionary<Guid, string>> KeyById { get; } = new Dictionary<string, Dictionary<Guid, string>>();
         public Dictionary<string, Dictionary<string, List<Guid>>> ByKey { get; } = new Dictionary<string, Dictionary<string, List<Guid>>>();
+        /// <summary>table → key → how many identical copies were taken as one record.</summary>
+        public Dictionary<string, Dictionary<string, int>> Collapsed { get; } = new Dictionary<string, Dictionary<string, int>>();
 
         public static EnvData Build(string side, IDictionary<string, List<Record>> recordsByTable)
         {
@@ -131,10 +133,34 @@ namespace CcAlm.Core.Engine
                         if (!byKey.TryGetValue(k, out var list)) byKey[k] = list = new List<Guid>();
                         list.Add(kv.Key);
                     }
+                    // Copies that are the same in every setting (a quick reply created three times) cannot be
+                    // told apart and need not be: they are one record. The first stands for all of them,
+                    // and links from any copy resolve to it through the shared key.
+                    var collapsed = new Dictionary<string, int>();
+                    foreach (var k in byKey.Keys.ToList())
+                    {
+                        if (byKey[k].Count < 2) continue;
+                        var ids = byKey[k].OrderBy(g => g.ToString(), StringComparer.Ordinal).ToList();
+                        if (!Identical(ids.Select(g => env.Table(t.LogicalName)[g]).ToList(), plan)) continue;
+                        collapsed[k] = ids.Count;
+                        byKey[k] = new List<Guid> { ids[0] };
+                    }
+                    env.Collapsed[t.LogicalName] = collapsed;
                     env.KeyById[t.LogicalName] = keyById;
                     env.ByKey[t.LogicalName] = byKey;
                 }
             }
+        }
+
+        static bool Identical(List<Record> records, TablePlan plan)
+        {
+            var first = records[0];
+            foreach (var r in records.Skip(1))
+            {
+                if (plan.DataColumns.Any(c => !Values.Same(first.Get(c), r.Get(c)))) return false;
+                if (plan.Lookups.Any(l => first.GetLookup(l.Column)?.Id != r.GetLookup(l.Column)?.Id)) return false;
+            }
+            return true;
         }
 
         public static Maps BuildMaps(EnvData source, EnvData target, IDictionary<string, TablePlan> plans)

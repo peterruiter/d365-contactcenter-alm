@@ -132,8 +132,8 @@
     },
     {
       "order": 15, "stage": 7, "logicalName": "msdyn_routingconfigurationstep", "item": "routing step", "move": "upsert",
-      "label": "Routing steps", "group": "Routing", "matchKeys": ["_msdyn_routingconfigurationid_value", "msdyn_name"],
-      "notes": "Steps such as classification and route-to-queue, under their routing configuration."
+      "label": "Routing steps", "group": "Routing", "matchKeys": ["_msdyn_routingconfigurationid_value", "msdyn_type", "msdyn_name"], "tieBreaker": "msdyn_steporder",
+      "notes": "Steps such as classification and route-to-queue, under their routing configuration. The admin center often gives a configuration's classification and route-to-queue steps the same name, so the step type is part of the key; classification steps with one name are told apart by step order."
     },
     {
       "order": 16, "stage": 7, "logicalName": "msdyn_assignmentconfiguration", "item": "assignment method", "move": "upsert",
@@ -164,23 +164,28 @@
       "notes": "Needs its phone number in the target before it can be created; settings of an existing one are updated."
     },
     {
-      "order": 21, "stage": 8, "logicalName": "msdyn_ocwhatsappchannelnumber", "item": "WhatsApp channel", "move": "upsert",
+      "order": 21, "stage": 8, "logicalName": "msdyn_occustommessagingchannel", "item": "custom channel", "move": "update-only",
+      "label": "Custom channels", "group": "Channels", "matchKeys": ["_msdyn_liveworkstreamid_value", "msdyn_name"],
+      "notes": "A custom messaging (Messaging API) channel on its workstream. Creating one needs a managed identity and bot registration set up per environment in the admin center; the settings of an existing one are updated."
+    },
+    {
+      "order": 22, "stage": 8, "logicalName": "msdyn_ocwhatsappchannelnumber", "item": "WhatsApp channel", "move": "upsert",
       "label": "WhatsApp channels", "group": "Channels", "matchKeys": ["msdyn_name"],
       "exclude": ["msdyn_providerchannelid", "msdyn_organizationphonenumber"],
       "notes": "Needs its WhatsApp account in the target before it can be created; settings of an existing one are updated."
     },
     {
-      "order": 22, "stage": 9, "logicalName": "msdyn_cannedmessage", "item": "quick reply", "move": "upsert",
-      "label": "Quick replies", "group": "Agent content", "matchKeys": ["msdyn_title", "msdyn_locale_field"],
+      "order": 23, "stage": 9, "logicalName": "msdyn_cannedmessage", "item": "quick reply", "move": "upsert",
+      "label": "Quick replies", "group": "Agent content", "matchKeys": ["msdyn_title", "msdyn_locale_field"], "tieBreaker": "msdyn_message",
       "notes": "A quick reply is unique per title and language."
     },
     {
-      "order": 23, "stage": 9, "logicalName": "msdyn_octag", "item": "tag", "move": "upsert",
+      "order": 24, "stage": 9, "logicalName": "msdyn_octag", "item": "tag", "move": "upsert",
       "label": "Tags", "group": "Agent content", "matchKeys": ["msdyn_name"],
       "notes": "Free-standing."
     },
     {
-      "order": 24, "stage": 10, "logicalName": "msdyn_omnichannelconfiguration", "item": "contact center settings record", "move": "update-only",
+      "order": 25, "stage": 10, "logicalName": "msdyn_omnichannelconfiguration", "item": "contact center settings record", "move": "update-only",
       "label": "Contact center settings", "group": "Settings", "matchKeys": ["msdyn_name"],
       "exclude": ["msdyn_publickeyurl"],
       "notes": "One per environment and always present, so it is only ever updated."

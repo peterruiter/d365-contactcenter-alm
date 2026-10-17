@@ -131,9 +131,12 @@ function Compare-CcTable {
             continue
         }
 
+        $copies = if ($Source.Collapsed -and $Source.Collapsed[$logical]) { $Source.Collapsed[$logical][$key] } else { $null }
+        $copyNote = if ($copies) { "The source has $copies identical copies of this record; they are moved as one." } else { $null }
+
         if (-not $tgtByKey.ContainsKey($key)) {
             $deps = Get-CcDependencies -Record $srcRec -TablePlan $TablePlan -Env $Source -Maps $Maps -TablePlans $TablePlans
-            $records.Add((New-Row 'MissingInTarget' $key $srcRec $null @() $deps $null)) | Out-Null
+            $records.Add((New-Row 'MissingInTarget' $key $srcRec $null @() $deps $copyNote)) | Out-Null
             continue
         }
 
@@ -185,7 +188,7 @@ function Compare-CcTable {
         # Same records report their links too: "select a workstream with everything under it" walks
         # from the workstream through an unchanged routing configuration to a changed step.
         $deps = Get-CcDependencies -Record $srcRec -TablePlan $TablePlan -Env $Source -Maps $Maps -TablePlans $TablePlans
-        $records.Add((New-Row $status $key $srcRec $tgtRec $fields $deps $null)) | Out-Null
+        $records.Add((New-Row $status $key $srcRec $tgtRec $fields $deps $copyNote)) | Out-Null
     }
 
     foreach ($key in $tgtByKey.Keys) {

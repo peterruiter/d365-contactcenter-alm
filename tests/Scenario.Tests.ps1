@@ -38,9 +38,16 @@ Describe 'Compare' {
     }
 
     It 'never pairs records it cannot tell apart' {
-        $vip = Get-CcDiffRow $diff msdyn_octag 'VIP'
-        $vip.status | Should -Be 'Ambiguous'
-        $vip.note | Should -Match '2 records in the source'
+        $weekend = Get-CcDiffRow $diff msdyn_operatinghour 'Weekend'
+        $weekend.status | Should -Be 'Ambiguous'
+        $weekend.note | Should -Match '2 records in the source'
+    }
+
+    It 'takes identical copies as one record' {
+        $vip = @(Get-CcDiffRow $diff msdyn_octag 'VIP')
+        $vip.Count | Should -Be 1
+        $vip[0].status | Should -Be 'MissingInTarget'
+        $vip[0].note | Should -Match '2 identical copies'
     }
 
     It 'reports what only the target has, and leaves personal queues out' {
@@ -265,7 +272,7 @@ Describe 'Runs split over time-budgeted slices' {
         $run.summary.blocked | Should -Be 2
         $run.verification.state | Should -Be 'Verified'
         $d = Compare-CcConfig -Environments $s.Envs -SourceId dev -TargetId test 6>$null
-        $d.summary.ambiguous | Should -Be 1   # only VIP, which was ambiguous in Dev to begin with
+        $d.summary.ambiguous | Should -Be 1   # only Weekend, which was ambiguous in Dev to begin with
         @($s.Test.Tables['msdyn_liveworkstream'].Rows | Where-Object msdyn_name -eq 'Mortgage chat').Count | Should -Be 1
         @($s.Test.Tables['queue'].Rows | Where-Object name -eq 'Mortgage queue').Count | Should -Be 1
     }

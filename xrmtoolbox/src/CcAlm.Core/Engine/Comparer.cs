@@ -213,7 +213,9 @@ namespace CcAlm.Core.Engine
                 if (tgtByKey.TryGetValue(key, out var tIds) && tIds.Count > 1) { result.Records.Add(Row(RecordStatus.Ambiguous, key, srcRec, null, null, null, DupNote(tIds.Count, "target"))); continue; }
 
                 var deps = Dependencies(srcRec, plan, maps, plans);
-                if (!tgtByKey.ContainsKey(key)) { result.Records.Add(Row(RecordStatus.MissingInTarget, key, srcRec, null, null, deps, null)); continue; }
+                var copyNote = source.Collapsed.TryGetValue(logical, out var collapsedHere) && collapsedHere.TryGetValue(key, out var copies)
+                    ? $"The source has {copies} identical copies of this record; they are moved as one." : null;
+                if (!tgtByKey.ContainsKey(key)) { result.Records.Add(Row(RecordStatus.MissingInTarget, key, srcRec, null, null, deps, copyNote)); continue; }
 
                 var tgtRec = target.Table(logical)[tgtByKey[key][0]];
                 var fields = new List<FieldDiff>();
@@ -255,7 +257,7 @@ namespace CcAlm.Core.Engine
 
                 // Same records report their links too: selecting a workstream with everything under it
                 // walks through an unchanged routing configuration to a changed step.
-                result.Records.Add(Row(fields.Count > 0 ? RecordStatus.Changed : RecordStatus.Equal, key, srcRec, tgtRec, fields, deps, null));
+                result.Records.Add(Row(fields.Count > 0 ? RecordStatus.Changed : RecordStatus.Equal, key, srcRec, tgtRec, fields, deps, copyNote));
             }
 
             foreach (var kv in tgtByKey)

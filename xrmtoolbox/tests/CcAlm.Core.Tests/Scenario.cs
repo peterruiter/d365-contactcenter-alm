@@ -97,6 +97,8 @@ namespace CcAlm.Core.Tests
             d["vip1"] = Dev.Add("msdyn_octag", V("msdyn_name", "VIP"));
             d["vip2"] = Dev.Add("msdyn_octag", V("msdyn_name", "VIP"));
             d["escalated"] = Dev.Add("msdyn_octag", V("msdyn_name", "Escalated"));
+            d["weekend1"] = Dev.Add("msdyn_operatinghour", V("msdyn_name", "Weekend", "msdyn_description", "Saturday"));
+            d["weekend2"] = Dev.Add("msdyn_operatinghour", V("msdyn_name", "Weekend", "msdyn_description", "Sunday"));
 
             // Many-to-many links, only in Dev.
             Dev.Link("msdyn_msdyn_cannedmessage_liveworkstream", d["greeting"], d["mortgageChat"]);
