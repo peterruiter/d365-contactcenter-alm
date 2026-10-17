@@ -34,7 +34,7 @@ Run opens a dialog with two choices:
 - **Dry run**: reports what would happen, writes nothing. Do this first.
 - **Apply**: writes to the target. A target that needs approval makes you tick the approval box first.
 
-The run view shows each stage, how many records it wrote, and any warnings. Provisioning warnings show up here; they are the usual source of "it looked fine but wasn't". A record whose dependency was not part of this run (not selected, or genuinely not in target yet) shows as skipped with a reason instead of being written broken - the rest of the run still completes. When that happens the overall status reads "Partially failed" even though nothing actually errored; it is telling you some records are waiting on something else to move first. The dependency auto-select in step 3 is what usually prevents this in the first place.
+The run view lists every record per stage with its outcome (created, updated, linked, skipped, blocked, failed) and the reason in plain words. Provisioning warnings show up here; they are the usual source of "it looked fine but wasn't". A record that failed only holds back the records that depend on it; the rest of the run continues. Dependencies are checked in the plan step before anything runs, so a dry run of a plan without blockers reports exactly what applying will do.
 
 ## 6. Roll back
 

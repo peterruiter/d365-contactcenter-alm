@@ -1,9 +1,11 @@
 function Restore-CcRun {
     <#
     .SYNOPSIS
-        Restores the target from a run snapshot. Patches changed records back and deletes records the run
-        created. Async provisioning side-effects do not reverse cleanly, so this also runs a best-effort
-        orphan pass and reports what it could not resolve.
+        Undoes an applied run from its snapshot: writes the recorded state back onto every record the
+        run changed (settings and lookups), then deletes the records the run created, children before
+        parents. Side-effects Dataverse provisions on its own (a created workstream's routing
+        configuration) go with their parent where Dataverse cascades the delete; anything it refuses
+        is reported, not hidden.
     .EXAMPLE
         Restore-CcRun -SnapshotPath ./out/snapshot-run_abc.json -Environments $envs
     #>
@@ -11,50 +13,49 @@ function Restore-CcRun {
     param(
         [Parameter(Mandatory)] [string] $SnapshotPath,
         [Parameter(Mandatory)] [object[]] $Environments,
-        [string] $ManifestPath = (Get-CcDefaultManifestPath)
+        [bool] $DeleteCreated = $true
     )
 
     if (-not (Test-Path $SnapshotPath)) { throw "Snapshot not found at $SnapshotPath" }
-    $snapshot = Get-Content -Path $SnapshotPath -Raw | ConvertFrom-Json
-
+    $snapshot = Get-Content -Path $SnapshotPath -Raw -Encoding UTF8 | ConvertFrom-Json
     $target = $Environments | Where-Object Id -eq $snapshot.environment | Select-Object -First 1
-    if (-not $target) { throw "Snapshot targets '$($snapshot.environment)', which is not connected." }
-
-    $manifest = Get-CcManifest -Path $ManifestPath
-    $tableByLogical = @{}
-    foreach ($t in $manifest.tables) { $tableByLogical[$t.logicalName] = $t }
+    if (-not $target) { throw "The snapshot is for '$($snapshot.environment)', which is not connected." }
 
     $restored = 0
+    $deleted = 0
     $unresolved = [System.Collections.Generic.List[string]]::new()
 
-    # Restore in reverse manifest order so children go before parents.
-    $logicalNames = $snapshot.records.PSObject.Properties.Name
-    $ordered = $manifest.tables | Sort-Object order -Descending | Where-Object { $logicalNames -contains $_.logicalName }
-
-    foreach ($t in $ordered) {
-        $rows = $snapshot.records.$($t.logicalName)
-        foreach ($row in $rows) {
-            $pk = "$($t.logicalName)id"
-            $guid = [string]$row.$pk
-            if (-not $guid) { continue }
-
-            # Rewrite the pre-run state back onto the record.
-            $body = [ordered]@{}
-            foreach ($col in $t.select) {
-                if ($col -eq $pk) { continue }
-                if ($manifest.systemColumns -contains $col) { continue }
-                if ($col -match '^_.*_value$') { continue }
-                if ($null -ne $row.$col) { $body[$col] = $row.$col }
+    foreach ($e in @($snapshot.updated)) {
+        if (-not $e) { continue }
+        $body = [ordered]@{}
+        foreach ($p in $e.data.PSObject.Properties) { $body[$p.Name] = $p.Value }
+        foreach ($p in $e.binds.PSObject.Properties) { if ($p.Value) { $body["$($p.Name)@odata.bind"] = $p.Value } }
+        if (-not $PSCmdlet.ShouldProcess("$($e.table) $($e.id) in $($target.Name)", 'restore')) { continue }
+        try {
+            Invoke-CcWebApi -Environment $target -Method Patch -Path "$($e.entitySet)($($e.id))" -Body $body -Prefer $null | Out-Null
+            # A lookup that was empty before the run is cleared again.
+            foreach ($p in $e.binds.PSObject.Properties) {
+                if ($p.Value) { continue }
+                try { Invoke-CcWebApi -Environment $target -Method Delete -Path "$($e.entitySet)($($e.id))/$($p.Name)/`$ref" -Prefer $null | Out-Null } catch { }
             }
+            $restored++
+        }
+        catch {
+            $unresolved.Add("Could not restore $($e.table) $($e.id): $(Get-CcErrorMessage $_.Exception.Message)") | Out-Null
+        }
+    }
 
-            if ($PSCmdlet.ShouldProcess("$($t.logicalName) $guid in $($target.Name)", 'restore')) {
-                try {
-                    Invoke-CcWebApi -Environment $target -Method Patch -Path "$($t.entitySet)($guid)" -Body $body | Out-Null
-                    $restored++
-                }
-                catch {
-                    $unresolved.Add("$($t.logicalName) $guid : $($_.Exception.Message)") | Out-Null
-                }
+    if ($DeleteCreated) {
+        foreach ($c in @($snapshot.created | Where-Object { $_ } | Sort-Object { [int]$_.order } -Descending)) {
+            if (-not $PSCmdlet.ShouldProcess("$($c.table) '$($c.label)' in $($target.Name)", 'delete')) { continue }
+            try {
+                Invoke-CcWebApi -Environment $target -Method Delete -Path "$($c.entitySet)($($c.id))" -Prefer $null | Out-Null
+                $deleted++
+            }
+            catch {
+                $msg = Get-CcErrorMessage $_.Exception.Message
+                if ($msg -match 'does not exist|404') { $deleted++; continue }   # already gone with its parent
+                $unresolved.Add("Could not delete '$($c.label)' ($($c.table)): $msg") | Out-Null
             }
         }
     }
@@ -62,10 +63,10 @@ function Restore-CcRun {
     $result = [pscustomobject]@{
         state      = 'RolledBack'
         restored   = $restored
-        unresolved = $unresolved
-        note       = 'Records created by the run are not deleted automatically. Review workstream provisioning orphans by hand.'
+        deleted    = $deleted
+        unresolved = @($unresolved)
     }
-    Write-Host "Rollback: $restored records restored, $($unresolved.Count) unresolved." -ForegroundColor Cyan
-    if ($unresolved.Count -gt 0) { $unresolved | ForEach-Object { Write-Host "  - $_" -ForegroundColor Yellow } }
+    Write-Host "Rollback: $restored records restored, $deleted created records deleted, $($unresolved.Count) not resolved." -ForegroundColor Cyan
+    foreach ($u in $unresolved) { Write-Host "  - $u" -ForegroundColor Yellow }
     return $result
 }

@@ -1,0 +1,120 @@
+/* Global base for the Capgemini UI layer. Loaded once through src/ui/styles.ts, after
+   capgemini/fonts.css and capgemini/tokens.css. Colours come from semantic tokens only. */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--page-background);
+  color: var(--text-primary);
+  /* .t-body defaults: 16px Ubuntu Light, 1.625 */
+  font-family: var(--font-sans);
+  font-size: 16px;
+  font-weight: 300;
+  line-height: 1.625;
+  letter-spacing: 0.24px;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  margin: 0;
+  font-weight: 400;
+}
+
+p {
+  margin: 0;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  letter-spacing: inherit;
+}
+
+code,
+kbd,
+samp,
+pre {
+  font-family: var(--font-mono);
+}
+
+img,
+svg {
+  max-width: 100%;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+/* text-always-black, not text-primary: on the dark theme's peacock-700 it keeps 6.3:1. */
+::selection {
+  background: var(--action-highlight-on-lite);
+  color: var(--text-always-black);
+}
+
+/* Focus: a 2px solid outline at 2px offset. The outline carries the meaning. */
+:focus-visible {
+  outline: 2px solid var(--action-focus-on-lite);
+  outline-offset: 2px;
+}
+
+:focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* Anything sitting on surface-ink-heavy, -marine-heavy, -azur-heavy or -always-black. */
+.ui-on-heavy :focus-visible,
+.ui-on-heavy:focus-visible {
+  outline-color: var(--action-focus-on-heavy);
+}
+
+.ui-visually-hidden {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+}
+
+/* Reduced motion: transitions and decorative animation stop. Progress indicators that would
+   otherwise look frozen (spinners, indeterminate bars, the running status) keep a slow,
+   steady rotation or slide; they opt in with .ui-motion-essential. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+  }
+
+  .ui-motion-essential,
+  .ui-motion-essential::before,
+  .ui-motion-essential::after {
+    animation-duration: 2.4s !important;
+    animation-iteration-count: infinite !important;
+  }
+}

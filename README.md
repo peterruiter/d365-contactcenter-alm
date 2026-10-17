@@ -16,13 +16,13 @@ You open the app in Dynamics, pick a source and a target, and see what differs. 
 
 | Part | What it is |
 | --- | --- |
-| Code app (`app/`) | React + TypeScript, Fluent UI, the `@microsoft/power-apps` SDK. The UI: environment picker, diff, plan, dry-run, apply, rollback. |
+| Code app (`app/`) | React + TypeScript on the Capgemini (Zodiak) design system, the `@microsoft/power-apps` SDK. A guided flow: environments, review what differs, plan check with dependency preflight, dry run, apply, rollback, run history. |
 | Backend (`backend/function-app/`) | A PowerShell Azure Function that wraps the engine, exposing compare/plan/apply/rollback over HTTP under a service principal. |
 | Engine (`backend/function-app/Modules/CcAlm/`) | The compare/plan/write/rollback logic, in PowerShell. The Function App and the CLI both call it, so there is one implementation, not two to keep in sync. |
 | Local runner (`scripts/run-local.ps1`, `backend/local-runner/`) | The app plus the engine on your own machine, with a setup wizard that checks each client app registration step by step. No Azure. |
 | CLI (`backend/cli/`) | Thin wrapper scripts (`compare.ps1`, `migrate.ps1`, `rollback.ps1`) over the same engine, for standalone or pipeline use without the Azure Function. |
 | Build and deploy (`build.ps1`, `scripts/`) | Build the app, `pac code init`, `pac code push`. |
-| Manifest (`config/manifest.json`) | Table order, match keys, lookups, move modes, detect-only rules. The app and the engine read from it. |
+| Manifest (`config/manifest.json`) | Which tables move, in what order, and how records match. Columns and lookups come from each environment's metadata. |
 
 ## How it fits together
 
@@ -118,7 +118,7 @@ Steps and auth in [docs/backend.md](docs/backend.md).
 
 - Async provisioning has no done signal. The engine polls with a timeout and warns, it does not pretend success.
 - Rollback restores records but cannot reverse provisioning side-effects. A half-provisioned workstream needs a manual look. It also does not delete records the run created; that is a manual cleanup.
-- A record with a dependency that has not moved yet (a ruleset pointing at a queue not in the plan, a step whose parent config is not in target) is skipped with a warning, not written half-broken. The run then reports `PartiallyFailed` even though nothing actually errored — read the warnings, they name exactly what to select and re-run.
+- Dependencies are checked before anything runs. A record whose parent, template or embedded reference is not in the target is added to the plan automatically, or shown as blocked with an "Add …" fix. Records pointing at a table written later (a workstream's default queue) are linked in a final pass. A dry run simulates the IDs it would create, so it reports exactly what an apply would do.
 - Operating-hours calendar association is a second pass, not yet wired to a live org.
 - Some entity set names (quick replies, tags) need confirming per org. The manifest notes them.
 
@@ -126,8 +126,8 @@ Steps and auth in [docs/backend.md](docs/backend.md).
 
 | Path | Contents |
 | --- | --- |
-| `app/` | The code app. `src/components`, `src/pages`, `src/services` (the mock and backend adapters), `src/hooks`, `src/types`, `src/brands` (visual identity, Power Pete by default; `VITE_BRAND=capgemini` for the Capgemini identity). |
-| `config/manifest.json` | Table order, match keys, lookups, move modes, detect-only rules. |
+| `app/` | The code app. `src/ui` (the Capgemini design-system components, tokens and fonts), `src/pages`, `src/components`, `src/hooks/useMigration.ts` (the flow), `src/services` (mock, backend, connector, local runner), `src/types`. |
+| `config/manifest.json` | Tables, order, stages, match keys, exclusions, detect-only rules. See [docs/manifest.md](docs/manifest.md). |
 | `backend/function-app/` | The backend: PowerShell Azure Function wrapping the engine (`Modules/CcAlm`). |
 | `backend/cli/` | The same engine as a command-line tool, for pipelines. |
 | `backend/local-runner/` | Local web server, profile store and setup checks behind `scripts/run-local.ps1`. |

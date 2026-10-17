@@ -1,205 +1,202 @@
-function Get-CcComparableKey {
-    param([pscustomobject] $Record, [pscustomobject] $Table, [hashtable] $EnvIndexes)
-    $resolved = Resolve-CcLookupsToKeys -Record $Record -Table $Table -EnvIndexes $EnvIndexes
-    return Get-CcNaturalKey -Record $Record -Table $Table -ResolvedLookups $resolved
+function Get-CcFormatted {
+    # The value as Dataverse shows it (choice labels, Yes/No, dates), falling back to the raw value.
+    param([pscustomobject] $Record, [string] $Column)
+    if ($null -eq $Record) { return $null }
+    $fv = $Record."$Column@OData.Community.Display.V1.FormattedValue"
+    if ($null -ne $fv) { return [string]$fv }
+    $v = $Record.$Column
+    if ($null -eq $v) { return $null }
+    if ($v -is [bool]) { if ($v) { return 'Yes' } else { return 'No' } }
+    return [string]$v
 }
 
-function Get-CcDependsOn {
+function Test-CcSameValue {
+    # Null and empty string are the same setting; everything else compares as invariant text.
+    param($A, $B)
+    $a = if ($null -eq $A) { '' } else { [string]$A }
+    $b = if ($null -eq $B) { '' } else { [string]$B }
+    return $a -ceq $b
+}
+
+function Get-CcDependencies {
     <#
     .SYNOPSIS
-        For one record, lists the other records it points at via manifest lookups: table plus the
-        natural key of the referenced parent. Drives "select this, also select its dependencies" in
-        the UI, and surfaces cross-table dependencies (e.g. a routing step's ruleset, a workstream's
-        operating hour) that would otherwise only show up as a write-time failure. Also scans any
-        guidBearingColumns text (e.g. a ruleset definition's embedded queue GUIDs) so those show up
-        as dependencies too, not just explicit lookup columns.
+        The records one source record needs in the target before it can be written: every lookup to
+        another moved table, every template it names by unique name, every record its definition
+        embeds by GUID. Each carries the column it comes through and whether it is linked later.
     #>
-    param([pscustomobject] $Record, [pscustomobject] $Table, [hashtable] $EnvIndexes, [hashtable] $SourceGuidToRef, [hashtable] $TableByLogical)
+    param([pscustomobject] $Record, [pscustomobject] $TablePlan, [pscustomobject] $Env, [hashtable] $Maps, [hashtable] $TablePlans)
 
     $deps = [System.Collections.Generic.List[object]]::new()
     $seen = @{}
+    function Add-Dep($table, $key, $via, $deferred, $kind) {
+        $id = "$table|$key"
+        if ($seen.ContainsKey($id)) { return }
+        $seen[$id] = $true
+        $label = if ($key -like 'unresolved:*') { "a $(Get-CcItemLabel $TablePlans[$table].Table) that no longer exists" } else { Get-CcRefLabel $Maps $table $key $TablePlans }
+        $deps.Add([pscustomobject]@{ table = $table; matchKey = $key; label = $label; via = $via; deferred = [bool]$deferred; kind = $kind }) | Out-Null
+    }
 
-    foreach ($lk in $Table.lookups) {
-        $valueCol = "_$($lk.column)_value"
-        if ($Record.PSObject.Properties.Name -notcontains $valueCol) { continue }
-        $guid = [string]$Record.$valueCol
+    foreach ($lk in $TablePlan.Lookups) {
+        $guid = ([string]$Record.($lk.ValueCol)).ToLowerInvariant()
         if (-not $guid) { continue }
+        $ref = $Maps.SourceGuidToRef[$guid]
+        if ($ref) { Add-Dep $ref.Entity $ref.Key $lk.Label $lk.Deferred 'lookup' }
+        else { Add-Dep $lk.Target "unresolved:$guid" $lk.Label $lk.Deferred 'lookup' }
+    }
 
-        $refIdx = $EnvIndexes[$lk.target]
-        $refTable = $TableByLogical[$lk.target]
-        # The referenced record's RESOLVED key (Get-CcComparableKey), not the raw IdToKey - for a
-        # table whose own matchKeys include a lookup column (msdyn_routingconfiguration, matched on
-        # name plus its parent workstream), the raw key embeds that lookup's GUID as-is, which never
-        # matches the same record's key elsewhere in the diff (built the same resolved way). An
-        # unresolved dependency here means a "Requires" hint nobody could ever satisfy.
-        if ($refIdx -and $refTable -and $refIdx.ById.ContainsKey($guid)) {
-            $refKey = Get-CcComparableKey -Record $refIdx.ById[$guid] -Table $refTable -EnvIndexes $EnvIndexes
-            $key = "$($lk.target)|$refKey"
-            if (-not $seen.ContainsKey($key)) {
-                $seen[$key] = $true
-                $deps.Add([pscustomobject]@{ table = $lk.target; matchKey = $refKey }) | Out-Null
-            }
+    foreach ($tr in @($TablePlan.Table.textReferences)) {
+        if (-not $tr) { continue }
+        $targetPlan = $TablePlans[$tr.target]
+        if (-not $targetPlan -or -not $targetPlan.Usable) { continue }
+        foreach ($col in (Get-CcTextReferenceColumns -Reference $tr -Schema $TablePlan.SourceSchema)) {
+            $v = [string]$Record.$col
+            if (-not $v) { continue }
+            $key = "$($tr.targetKey)=$($v.Trim().ToLowerInvariant())"
+            $via = Get-CcColumnLabel $TablePlan $col
+            if ($tr.label) { $via = if (([string]$tr.columns).EndsWith('*')) { "$($tr.label) ($($via.ToLowerInvariant()))" } else { $tr.label } }
+            Add-Dep $tr.target $key $via $false 'name'
         }
     }
 
-    if ($Table.guidBearingColumns -and $SourceGuidToRef) {
-        foreach ($col in $Table.guidBearingColumns) {
-            if ($Record.PSObject.Properties.Name -notcontains $col) { continue }
-            $text = [string]$Record.$col
-            if (-not $text) { continue }
-            foreach ($guid in (Get-CcGuids -Text $text)) {
-                if (-not $SourceGuidToRef.ContainsKey($guid)) { continue }
-                $ref = $SourceGuidToRef[$guid]
-                $key = "$($ref.Entity)|$($ref.Key)"
-                if (-not $seen.ContainsKey($key)) {
-                    $seen[$key] = $true
-                    $deps.Add([pscustomobject]@{ table = $ref.Entity; matchKey = $ref.Key }) | Out-Null
-                }
-            }
+    foreach ($col in @($TablePlan.Table.guidBearingColumns)) {
+        if (-not $col) { continue }
+        $text = [string]$Record.$col
+        foreach ($g in (Get-CcGuids -Text $text)) {
+            $ref = $Maps.SourceGuidToRef[$g]
+            if ($ref) { Add-Dep $ref.Entity $ref.Key (Get-CcColumnLabel $TablePlan $col) $false 'embedded' }
         }
     }
-
-    return $deps
-}
-
-function Get-CcDisplayName {
-    <#
-    .SYNOPSIS
-        The friendly label for one record, when the table names a displayColumn (e.g. msdyn_name)
-        distinct from what its matchKey is built from (e.g. msdyn_uniquename), or a displayTemplate
-        for tables with no readable field of their own (e.g. an ordered step, labelled "Step {N}").
-        Falls back to no label - the UI then just shows the matchKey - for tables where the match key
-        is already readable, or where the record's own fields don't have anything better to say.
-    #>
-    param([pscustomobject] $Record, [pscustomobject] $Table)
-
-    if ($Table.displayTemplate) {
-        $evaluator = [System.Text.RegularExpressions.MatchEvaluator]{
-            param($m)
-            $col = $m.Groups[1].Value
-            if ($Record.PSObject.Properties.Name -contains $col) { return [string]$Record.$col }
-            return $m.Value
-        }
-        return [regex]::Replace($Table.displayTemplate, '\{(\w+)\}', $evaluator)
-    }
-
-    if (-not $Table.displayColumn) { return $null }
-    if ($Record.PSObject.Properties.Name -notcontains $Table.displayColumn) { return $null }
-    $val = [string]$Record.($Table.displayColumn)
-    if (-not $val) { return $null }
-    return $val
+    return @($deps)
 }
 
 function Compare-CcTable {
     <#
     .SYNOPSIS
-        Diffs one table between source and target. Classifies each record as MissingInTarget,
-        ExtraInTarget, Changed, or Equal, with a field-level delta for Changed rows.
+        Pairs one table's records across the two environments by key and classifies each:
+        MissingInTarget, ExtraInTarget, Changed, Equal or Ambiguous. A Changed record lists each
+        differing setting with its label and both values as a person reads them.
     #>
     [CmdletBinding()]
     param(
-        [Parameter(Mandatory)] [pscustomobject] $Table,
-        [Parameter(Mandatory)] [AllowEmptyCollection()] [object[]] $SourceRecords,
-        [Parameter(Mandatory)] [AllowEmptyCollection()] [object[]] $TargetRecords,
-        [Parameter(Mandatory)] [hashtable] $SourceIndexes,
-        [Parameter(Mandatory)] [hashtable] $TargetIndexes,
-        [Parameter(Mandatory)] [string[]] $SystemColumns,
-        [hashtable] $SourceGuidToRef,
-        [hashtable] $TableByLogical
+        [Parameter(Mandatory)] [pscustomobject] $TablePlan,
+        [Parameter(Mandatory)] [pscustomobject] $Source,
+        [Parameter(Mandatory)] [pscustomobject] $Target,
+        [Parameter(Mandatory)] [hashtable] $Maps,
+        [Parameter(Mandatory)] [hashtable] $TablePlans
     )
 
-    $skip = @($SystemColumns)
-    if ($Table.skipColumns) { $skip += $Table.skipColumns }
-
-    # Build target lookup by comparable key.
-    $targetByKey = @{}
-    foreach ($t in $TargetRecords) {
-        $k = Get-CcComparableKey -Record $t -Table $Table -EnvIndexes $TargetIndexes
-        $targetByKey[$k] = $t
-    }
-    $sourceKeys = @{}
-
+    $t = $TablePlan.Table
+    $logical = $t.logicalName
     $records = [System.Collections.Generic.List[object]]::new()
+    $srcByKey = $Source.ByKey[$logical]
+    $tgtByKey = $Target.ByKey[$logical]
 
-    foreach ($s in $SourceRecords) {
-        $key = Get-CcComparableKey -Record $s -Table $Table -EnvIndexes $SourceIndexes
-        $sourceKeys[$key] = $true
+    function New-Row($status, $key, $srcRec, $tgtRec, $fields, $deps, $note) {
+        $rec = if ($srcRec) { $srcRec } else { $tgtRec }
+        $env = if ($srcRec) { $Source } else { $Target }
+        [pscustomobject]@{
+            matchKey    = $key
+            status      = $status
+            displayName = Get-CcRecordLabel -Record $rec -TablePlan $TablePlan
+            context     = Get-CcRecordContext -Record $rec -TablePlan $TablePlan -Env $env -TablePlans $TablePlans
+            fields      = @($fields)
+            dependsOn   = @($deps)
+            note        = $note
+        }
+    }
 
-        if (-not $targetByKey.ContainsKey($key)) {
-            $deps = Get-CcDependsOn -Record $s -Table $Table -EnvIndexes $SourceIndexes -SourceGuidToRef $SourceGuidToRef -TableByLogical $TableByLogical
-            $displayName = Get-CcDisplayName -Record $s -Table $Table
-            $records.Add([pscustomobject]@{ matchKey = $key; status = 'MissingInTarget'; fields = @(); dependsOn = @($deps); displayName = $displayName })
+    # What the duplicates have in common, for the Ambiguous message: "the same name and workstream".
+    $keyLabels = @($t.matchKeys | ForEach-Object { (Get-CcColumnLabel $TablePlan $_).ToLowerInvariant() })
+    $sameWhat = if ($keyLabels.Count -gt 1) { (($keyLabels[0..($keyLabels.Count - 2)]) -join ', ') + ' and ' + $keyLabels[-1] } else { $keyLabels[0] }
+    $allLinks = @($t.matchKeys | Where-Object { $_ -notmatch '^_.*_value$' }).Count -eq 0
+    function Get-DupNote($count, $where) {
+        if ($allLinks) { return "The $where has $count identical links between the same records. Delete the extra one there." }
+        return "$count records in the $where share the same $sameWhat, so they cannot be told apart. Rename or delete the extra one there."
+    }
+
+    foreach ($key in $srcByKey.Keys) {
+        $srcIds = $srcByKey[$key]
+        $srcRec = $Source.ById[$logical][$srcIds[0]]
+        if ($srcRec.ismanaged -eq $true) { continue }   # ships with a managed solution in both orgs
+
+        if ($srcIds.Count -gt 1) {
+            $records.Add((New-Row 'Ambiguous' $key $srcRec $null @() @() (Get-DupNote $srcIds.Count 'source'))) | Out-Null
+            continue
+        }
+        if ($tgtByKey.ContainsKey($key) -and $tgtByKey[$key].Count -gt 1) {
+            $records.Add((New-Row 'Ambiguous' $key $srcRec $null @() @() (Get-DupNote $tgtByKey[$key].Count 'target'))) | Out-Null
             continue
         }
 
-        $t = $targetByKey[$key]
+        if (-not $tgtByKey.ContainsKey($key)) {
+            $deps = Get-CcDependencies -Record $srcRec -TablePlan $TablePlan -Env $Source -Maps $Maps -TablePlans $TablePlans
+            $records.Add((New-Row 'MissingInTarget' $key $srcRec $null @() $deps $null)) | Out-Null
+            continue
+        }
+
+        $tgtRec = $Target.ById[$logical][$tgtByKey[$key][0]]
         $fields = [System.Collections.Generic.List[object]]::new()
 
-        foreach ($col in $Table.select) {
-            $bare = $col -replace '^_' -replace '_value$'
-            if ($skip -contains $col -or $skip -contains $bare) { continue }
-            if ($col -like '*id' -and $col -eq "$($Table.logicalName)id") { continue }  # primary key
-
-            $isLookup = $col -match '^_.*_value$'
-            $isGuidBearing = $Table.guidBearingColumns -and ($Table.guidBearingColumns -contains $col)
-
-            $sv = $s.$col
-            $tv = $t.$col
-
-            if ($isLookup) {
-                # Compare the referenced record's resolved natural key, not the raw GUID. Using the
-                # referenced table's own raw IdToKey here (rather than its resolved comparable key)
-                # would be wrong whenever that table's own matchKeys include a lookup column - e.g. a
-                # routing config matched on name plus its parent workstream - because IdToKey embeds
-                # that lookup's GUID as-is, and source/target use different GUIDs for "the same"
-                # parent, making every such reference look changed even when nothing really is.
-                $lk = $Table.lookups | Where-Object { "_$($_.column)_value" -eq $col } | Select-Object -First 1
-                if ($lk) {
-                    $refTable = $TableByLogical[$lk.target]
-                    $svKey = if ($sv -and $refTable -and $SourceIndexes[$lk.target] -and $SourceIndexes[$lk.target].ById.ContainsKey([string]$sv)) {
-                        Get-CcComparableKey -Record $SourceIndexes[$lk.target].ById[[string]$sv] -Table $refTable -EnvIndexes $SourceIndexes
-                    } else { $null }
-                    $tvKey = if ($tv -and $refTable -and $TargetIndexes[$lk.target] -and $TargetIndexes[$lk.target].ById.ContainsKey([string]$tv)) {
-                        Get-CcComparableKey -Record $TargetIndexes[$lk.target].ById[[string]$tv] -Table $refTable -EnvIndexes $TargetIndexes
-                    } else { $null }
-                    if ($svKey -ne $tvKey) {
-                        $fields.Add([pscustomobject]@{ name = $col; source = $svKey; target = $tvKey }) | Out-Null
-                    }
-                    continue
-                }
-            }
-
+        foreach ($col in $TablePlan.DataColumns) {
+            $isGuidBearing = @($t.guidBearingColumns) -contains $col
             if ($isGuidBearing) {
-                $sNorm = (ConvertTo-CcNormalisedDefinition -Definition ([string]$sv) -GuidToRef $SourceGuidToRef).Text
-                $tNorm = (ConvertTo-CcNormalisedDefinition -Definition ([string]$tv) -GuidToRef @{}).Text
-                # Target normalisation uses its own map in the caller; here a plain compare on source-normalised
-                # text catches content drift. Exact target GUID identity is handled at write time.
-                if ($sNorm -ne ([string]$tv) -and $sNorm -ne $tNorm) {
-                    $fields.Add([pscustomobject]@{ name = $col; source = '<ruleset definition>'; target = '<differs>' }) | Out-Null
+                $sN = ConvertTo-CcNormalisedDefinition -Definition ([string]$srcRec.$col) -GuidToRef $Maps.SourceGuidToRef
+                $tN = ConvertTo-CcNormalisedDefinition -Definition ([string]$tgtRec.$col) -GuidToRef $Maps.TargetGuidToRef
+                if (-not (Test-CcSameValue $sN.Text $tN.Text)) {
+                    $added = @($sN.Refs | Where-Object { $tN.Refs -notcontains $_ })
+                    $removed = @($tN.Refs | Where-Object { $sN.Refs -notcontains $_ })
+                    $summary = @()
+                    if ($added) { $summary += 'now also uses ' + (($added | ForEach-Object { $p = $_ -split '\|', 2; Get-CcRefLabel $Maps $p[0] $p[1] $TablePlans }) -join ', ') }
+                    if ($removed) { $summary += 'no longer uses ' + (($removed | ForEach-Object { $p = $_ -split '\|', 2; Get-CcRefLabel $Maps $p[0] $p[1] $TablePlans }) -join ', ') }
+                    if (-not $summary) { $summary = @('rule conditions or order differ') }
+                    $fields.Add([pscustomobject]@{
+                            name = $col; label = (Get-CcColumnLabel $TablePlan $col); kind = 'definition'
+                            source = ($summary -join '; '); target = $null
+                        }) | Out-Null
                 }
                 continue
             }
+            if (-not (Test-CcSameValue $srcRec.$col $tgtRec.$col)) {
+                $fields.Add([pscustomobject]@{
+                        name = $col; label = (Get-CcColumnLabel $TablePlan $col); kind = 'value'
+                        source = (Get-CcFormatted $srcRec $col); target = (Get-CcFormatted $tgtRec $col)
+                    }) | Out-Null
+            }
+        }
 
-            if ("$sv" -ne "$tv") {
-                $fields.Add([pscustomobject]@{ name = $col; source = $sv; target = $tv }) | Out-Null
+        foreach ($lk in $TablePlan.Lookups) {
+            $sg = ([string]$srcRec.($lk.ValueCol)).ToLowerInvariant()
+            $tg = ([string]$tgtRec.($lk.ValueCol)).ToLowerInvariant()
+            $sRef = if ($sg) { $Maps.SourceGuidToRef[$sg] } else { $null }
+            $tRef = if ($tg) { $Maps.TargetGuidToRef[$tg] } else { $null }
+            $sKey = if ($sRef) { "$($sRef.Entity)|$($sRef.Key)" } elseif ($sg) { "?$sg" } else { '' }
+            $tKey = if ($tRef) { "$($tRef.Entity)|$($tRef.Key)" } elseif ($tg) { "?$tg" } else { '' }
+            if ($sKey -ne $tKey) {
+                $sText = if ($sRef) { (Get-CcRefLabel $Maps $sRef.Entity $sRef.Key $TablePlans) } elseif ($sg) { 'a record this tool does not move' } else { '(none)' }
+                $tText = if ($tRef) { (Get-CcRefLabel $Maps $tRef.Entity $tRef.Key $TablePlans) } elseif ($tg) { 'a record this tool does not move' } else { '(none)' }
+                $fields.Add([pscustomobject]@{ name = $lk.ValueCol; label = $lk.Label; kind = 'lookup'; source = $sText; target = $tText }) | Out-Null
             }
         }
 
         $status = if ($fields.Count -gt 0) { 'Changed' } else { 'Equal' }
-        $deps = if ($status -eq 'Changed') { Get-CcDependsOn -Record $s -Table $Table -EnvIndexes $SourceIndexes -SourceGuidToRef $SourceGuidToRef -TableByLogical $TableByLogical } else { @() }
-        $displayName = Get-CcDisplayName -Record $s -Table $Table
-        $records.Add([pscustomobject]@{ matchKey = $key; status = $status; fields = $fields; dependsOn = @($deps); displayName = $displayName }) | Out-Null
+        $deps = if ($status -eq 'Changed') { Get-CcDependencies -Record $srcRec -TablePlan $TablePlan -Env $Source -Maps $Maps -TablePlans $TablePlans } else { @() }
+        $records.Add((New-Row $status $key $srcRec $tgtRec $fields $deps $null)) | Out-Null
     }
 
-    foreach ($tk in $targetByKey.Keys) {
-        if (-not $sourceKeys.ContainsKey($tk)) {
-            $displayName = Get-CcDisplayName -Record $targetByKey[$tk] -Table $Table
-            $records.Add([pscustomobject]@{ matchKey = $tk; status = 'ExtraInTarget'; fields = @(); dependsOn = @(); displayName = $displayName }) | Out-Null
-        }
+    foreach ($key in $tgtByKey.Keys) {
+        if ($srcByKey.ContainsKey($key)) { continue }
+        $tgtRec = $Target.ById[$logical][$tgtByKey[$key][0]]
+        if ($tgtRec.ismanaged -eq $true) { continue }
+        $records.Add((New-Row 'ExtraInTarget' $key $null $tgtRec @() @() $null)) | Out-Null
     }
 
     return [pscustomobject]@{
-        table   = $Table.logicalName
+        table   = $logical
+        label   = Get-CcTableLabel $t
+        group   = $t.group
+        stage   = [int]$t.stage
         records = $records
+        notes   = @()
     }
 }

@@ -1,378 +1,194 @@
 {
-  "version": "1.0.0",
-  "description": "Contact Center config tables in write order. The engine and docs read from this file. move: upsert | create-once | selective | detect. Detect tables are read and reported, never written.",
+  "version": "2.0.0",
+  "description": "Contact Center configuration tables, in write order. The manifest says which tables move, in which stage, and how a record is recognised in another environment (matchKeys). Columns and lookups are NOT listed here: the engine reads them from each environment's metadata, compares and writes every writable setting except the exclusions below, and links lookups that point at a later table in a final pass. move: upsert | create-once (never update) | update-only (never create) | reference (read to resolve lookups, never compared or written) | detect (report only).",
   "systemColumns": [
-    "createdon", "createdby", "modifiedon", "modifiedby", "modifiedonbehalfby",
-    "createdonbehalfby", "ownerid", "owningbusinessunit", "owningteam", "owninguser",
-    "versionnumber", "overriddencreatedon", "importsequencenumber", "timezoneruleversionnumber",
-    "utcconversiontimezonecode", "statuscode", "statecode", "ismanaged"
+    "createdon", "createdby", "modifiedon", "modifiedby", "modifiedonbehalfby", "createdonbehalfby",
+    "ownerid", "owningbusinessunit", "owningteam", "owninguser", "versionnumber", "overriddencreatedon",
+    "importsequencenumber", "timezoneruleversionnumber", "utcconversiontimezonecode", "statuscode",
+    "statecode", "ismanaged", "iscustomizable", "overwritetime", "solutionid", "supportingsolutionid",
+    "componentstate", "componentidunique", "organizationid", "businessunitid", "transactioncurrencyid",
+    "exchangerate", "processid", "stageid", "traversedpath"
+  ],
+  "excludeColumns": [],
+  "stages": [
+    { "stage": 1, "label": "Foundations", "description": "Operating hours, skills, rating models, capacity profiles and templates" },
+    { "stage": 2, "label": "Workstreams", "description": "The workstreams themselves" },
+    { "stage": 3, "label": "Workstream details", "description": "Capacity profiles per workstream and context variables" },
+    { "stage": 4, "label": "Queues", "description": "Unified routing queues" },
+    { "stage": 5, "label": "Decision contracts", "description": "Inputs and outputs that rulesets work on" },
+    { "stage": 6, "label": "Rulesets", "description": "Classification, route-to-queue and overflow rules" },
+    { "stage": 7, "label": "Routing and assignment", "description": "Routing configurations, assignment methods and their steps" },
+    { "stage": 8, "label": "Channels", "description": "Live chat, voice, SMS and WhatsApp settings" },
+    { "stage": 9, "label": "Agent content", "description": "Quick replies and tags" },
+    { "stage": 10, "label": "Contact center settings", "description": "The environment-wide Omnichannel configuration" }
   ],
   "tables": [
     {
-      "order": 1,
-      "stage": 1,
-      "logicalName": "msdyn_operatinghour",
-      "entitySet": "msdyn_operatinghours",
-      "move": "upsert",
-      "matchKeys": ["msdyn_name"],
-      "alternateKey": "msdyn_name",
-      "select": ["msdyn_operatinghourid", "msdyn_name", "msdyn_timezone", "ismanaged"],
-      "lookups": [],
-      "notes": "Re-set the calendar association after write. Calendar rows are separate records handled in a second pass."
+      "order": 0, "stage": 0, "logicalName": "msdyn_oclanguage", "item": "language", "move": "reference",
+      "label": "Languages", "group": "Reference", "matchKeys": ["msdyn_localeid"],
+      "notes": "System reference data. Channels point at a language; the lookup is mapped by locale ID."
     },
     {
-      "order": 2,
-      "stage": 1,
-      "logicalName": "characteristic",
-      "entitySet": "characteristics",
-      "move": "upsert",
-      "matchKeys": ["name"],
-      "alternateKey": "name",
-      "select": ["characteristicid", "name", "description", "characteristictype"],
-      "lookups": [],
-      "notes": "Skills. Referenced by rulesets and workstream capacity."
+      "order": 0, "stage": 0, "logicalName": "msdyn_chatwidgetlanguage", "item": "chat widget language", "move": "reference",
+      "label": "Chat widget languages", "group": "Reference", "matchKeys": ["msdyn_localeid"],
+      "notes": "System reference data for the live chat widget locale."
     },
     {
-      "order": 3,
-      "stage": 1,
-      "logicalName": "ratingmodel",
-      "entitySet": "ratingmodels",
-      "move": "upsert",
-      "matchKeys": ["name"],
-      "alternateKey": "name",
-      "select": ["ratingmodelid", "name", "minratingvalue", "maxratingvalue"],
-      "lookups": [],
-      "notes": "Skill proficiency scale. Write before ratingvalue. minratingvalue/maxratingvalue are system-required on create."
+      "order": 1, "stage": 1, "logicalName": "msdyn_operatinghour", "item": "operating hours record", "move": "upsert",
+      "label": "Operating hours", "group": "Foundations", "matchKeys": ["msdyn_name"],
+      "exclude": ["msdyn_calendarid"],
+      "notes": "The calendar behind the hours is a separate record per environment; set the working hours again in the target after a create."
     },
     {
-      "order": 4,
-      "stage": 1,
-      "logicalName": "ratingvalue",
-      "entitySet": "ratingvalues",
-      "move": "upsert",
-      "matchKeys": ["name", "_ratingmodelid_value"],
-      "alternateKey": null,
-      "select": ["ratingvalueid", "name", "value", "_ratingmodelid_value"],
-      "lookups": [
-        { "column": "ratingmodelid", "target": "ratingmodel", "targetKey": "name" }
+      "order": 2, "stage": 1, "logicalName": "characteristic", "item": "skill", "move": "upsert",
+      "label": "Skills", "group": "Foundations", "matchKeys": ["name"],
+      "notes": "Referenced by rulesets and agents."
+    },
+    {
+      "order": 3, "stage": 1, "logicalName": "ratingmodel", "item": "rating model", "move": "upsert",
+      "label": "Rating models", "group": "Foundations", "matchKeys": ["name"],
+      "notes": "Skill proficiency scale. Written before its rating values."
+    },
+    {
+      "order": 4, "stage": 1, "logicalName": "ratingvalue", "item": "rating value", "move": "upsert",
+      "label": "Rating values", "group": "Foundations", "matchKeys": ["name", "_ratingmodel_value"],
+      "notes": "A rating value is only unique within its rating model."
+    },
+    {
+      "order": 5, "stage": 1, "logicalName": "msdyn_capacityprofile", "item": "capacity profile", "move": "upsert",
+      "label": "Capacity profiles", "group": "Foundations", "matchKeys": ["msdyn_name"], "tieBreaker": "msdyn_uniquename",
+      "notes": "Shared across workstreams."
+    },
+    {
+      "order": 6, "stage": 1, "logicalName": "msdyn_notificationtemplate", "item": "notification template", "move": "upsert",
+      "label": "Notification templates", "group": "Foundations", "matchKeys": ["msdyn_uniquename"],
+      "notes": "Matched on unique name: workstreams refer to their templates by unique name."
+    },
+    {
+      "order": 7, "stage": 1, "logicalName": "msdyn_sessiontemplate", "item": "session template", "move": "upsert",
+      "label": "Session templates", "group": "Foundations", "matchKeys": ["msdyn_uniquename"],
+      "notes": "Matched on unique name: workstreams refer to their templates by unique name, and display names are not unique."
+    },
+    {
+      "order": 8, "stage": 2, "logicalName": "msdyn_liveworkstream", "item": "workstream", "move": "upsert", "async": true,
+      "label": "Workstreams", "group": "Workstreams", "matchKeys": ["msdyn_name", "msdyn_mode", "msdyn_streamsource"],
+      "exclude": [
+        "msdyn_apikey", "msdyn_secureapikey", "msdyn_apikeyversionnumber", "msdyn_connectorsurl",
+        "msdyn_twilioinboundurl", "msdyn_telesigninboundurl", "msdyn_lastvalidationon",
+        "msdyn_lastvalidationstatus", "msdyn_customerid"
       ],
-      "displayColumn": "name",
-      "notes": "Match on name plus parent rating model. No single natural key. The lookup match key must be the real column name (_ratingmodelid_value); the old 'ratingmodelid' spelling never matched anything, so every rating value was silently keyed on name alone (harmless while there is one rating model, latent collision risk with more than one)."
-    },
-    {
-      "order": 5,
-      "stage": 1,
-      "logicalName": "msdyn_capacityprofile",
-      "entitySet": "msdyn_capacityprofiles",
-      "move": "upsert",
-      "matchKeys": ["msdyn_name"],
-      "alternateKey": "msdyn_name",
-      "select": ["msdyn_capacityprofileid", "msdyn_name", "msdyn_unitspercapacity", "msdyn_blockmixingofchannels", "msdyn_uniquename", "ismanaged"],
-      "lookups": [],
-      "notes": "Shared across workstreams. Deduplicate before write."
-    },
-    {
-      "order": 6,
-      "stage": 1,
-      "logicalName": "msdyn_notificationtemplate",
-      "entitySet": "msdyn_notificationtemplates",
-      "move": "upsert",
-      "matchKeys": ["msdyn_name"],
-      "alternateKey": "msdyn_name",
-      "select": ["msdyn_notificationtemplateid", "msdyn_name", "msdyn_title", "msdyn_notificationtype", "msdyn_uniquename", "ismanaged"],
-      "lookups": [],
-      "notes": "Referenced by workstreams."
-    },
-    {
-      "order": 7,
-      "stage": 1,
-      "logicalName": "msdyn_sessiontemplate",
-      "entitySet": "msdyn_sessiontemplates",
-      "move": "upsert",
-      "matchKeys": ["msdyn_name"],
-      "alternateKey": "msdyn_name",
-      "select": ["msdyn_sessiontemplateid", "msdyn_name", "msdyn_title", "msdyn_type", "msdyn_uniquename", "ismanaged"],
-      "lookups": [],
-      "notes": "Referenced by workstreams."
-    },
-    {
-      "order": 8,
-      "stage": 2,
-      "logicalName": "msdyn_liveworkstream",
-      "entitySet": "msdyn_liveworkstreams",
-      "move": "upsert",
-      "matchKeys": ["msdyn_name", "msdyn_mode", "msdyn_streamsource"],
-      "alternateKey": null,
-      "select": [
-        "msdyn_liveworkstreamid", "msdyn_name", "msdyn_mode", "msdyn_streamsource",
-        "msdyn_channeltypeid", "msdyn_capacity", "msdyn_allowagentstoacceptmultiple",
-        "_msdyn_sessiontemplateid_value", "_msdyn_notificationtemplateid_value",
-        "_msdyn_operatinghourid_value", "ismanaged"
+      "textReferences": [
+        { "columns": "msdyn_sessiontemplate_default", "target": "msdyn_sessiontemplate", "targetKey": "msdyn_uniquename", "label": "default session template" },
+        { "columns": "msdyn_notificationtemplate_*", "target": "msdyn_notificationtemplate", "targetKey": "msdyn_uniquename", "label": "notification template" }
       ],
-      "lookups": [
-        { "column": "msdyn_sessiontemplateid", "target": "msdyn_sessiontemplate", "targetKey": "msdyn_name" },
-        { "column": "msdyn_notificationtemplateid", "target": "msdyn_notificationtemplate", "targetKey": "msdyn_name" },
-        { "column": "msdyn_operatinghourid", "target": "msdyn_operatinghour", "targetKey": "msdyn_name" }
-      ],
-      "async": true,
-      "displayColumn": "msdyn_name",
-      "notes": "Async provisioning fires on create. Wait for side-effect records. Flag legacy vs modern via msdyn_streamsource / msdyn_mode."
+      "notes": "Creating a workstream starts provisioning in Dataverse; the run waits for it. Its default queue and routing contract are linked after queues and contracts are written."
     },
     {
-      "order": 9,
-      "stage": 3,
-      "logicalName": "msdyn_liveworkstreamcapacityprofile",
-      "entitySet": "msdyn_liveworkstreamcapacityprofiles",
-      "move": "upsert",
-      "matchKeys": ["_msdyn_liveworkstreamid_value", "_msdyn_capacityprofileid_value"],
-      "alternateKey": null,
-      "select": ["msdyn_liveworkstreamcapacityprofileid", "_msdyn_liveworkstreamid_value", "_msdyn_capacityprofileid_value", "ismanaged"],
-      "lookups": [
-        { "column": "msdyn_liveworkstreamid", "target": "msdyn_liveworkstream", "targetKey": "msdyn_name" },
-        { "column": "msdyn_capacityprofileid", "target": "msdyn_capacityprofile", "targetKey": "msdyn_name" }
-      ],
-      "notes": "Join record. Both sides must exist first."
+      "order": 9, "stage": 3, "logicalName": "msdyn_liveworkstreamcapacityprofile", "item": "workstream capacity link", "move": "upsert",
+      "label": "Workstream capacity", "group": "Workstreams", "matchKeys": ["_msdyn_workstream_id_value", "_msdyn_capacityprofile_id_value"],
+      "displayTemplate": "{_msdyn_capacityprofile_id_value}",
+      "notes": "Which capacity profiles a workstream uses. Both sides must exist first."
     },
     {
-      "order": 10,
-      "stage": 3,
-      "logicalName": "msdyn_ocliveworkstreamcontextvariable",
-      "entitySet": "msdyn_ocliveworkstreamcontextvariables",
-      "move": "upsert",
-      "matchKeys": ["msdyn_name", "_msdyn_liveworkstreamid_value"],
-      "alternateKey": null,
-      "select": ["msdyn_ocliveworkstreamcontextvariableid", "msdyn_name", "msdyn_datatype", "_msdyn_liveworkstreamid_value", "ismanaged"],
-      "lookups": [
-        { "column": "msdyn_liveworkstreamid", "target": "msdyn_liveworkstream", "targetKey": "msdyn_name" }
-      ],
-      "displayColumn": "msdyn_name",
-      "notes": "Feeds ruleset dependency mappings. Must exist before rulesets."
+      "order": 10, "stage": 3, "logicalName": "msdyn_ocliveworkstreamcontextvariable", "item": "context variable", "move": "upsert",
+      "label": "Context variables", "group": "Workstreams", "matchKeys": ["msdyn_name", "_msdyn_liveworkstreamid_value"],
+      "notes": "Rulesets read these, so they exist before rulesets are written."
     },
     {
-      "order": 11,
-      "stage": 4,
-      "logicalName": "queue",
-      "entitySet": "queues",
-      "move": "upsert",
-      "matchKeys": ["name", "msdyn_queuetype"],
-      "alternateKey": null,
-      "select": ["queueid", "name", "msdyn_queuetype", "queueviewtype", "msdyn_isomnichannelqueue"],
-      "lookups": [],
-      "skipColumns": ["_primaryuserid_value"],
+      "order": 11, "stage": 4, "logicalName": "queue", "item": "queue", "move": "upsert",
+      "label": "Queues", "group": "Queues", "matchKeys": ["name", "msdyn_queuetype"],
       "personalFilterColumn": "msdyn_isomnichannelqueue",
-      "displayColumn": "name",
-      "notes": "Write after channel config so pre-chat survey questions resolve as context variables. Never copy queue members (queuemembership). Always excludes personal/system queues (msdyn_isomnichannelqueue = false), no override: every system user and service account gets an auto-provisioned queue named '<Full Name>', which is never something to migrate. msdyn_isomnichannelqueue must actually be WRITTEN (not skipped): Dataverse defaults a newly created queue to false when it is omitted, which then makes that very queue invisible to the next compare's personalFilterColumn filter - so every apply created a fresh duplicate instead of matching the one it had just created."
+      "exclude": ["emailaddress", "primaryuserid", "defaultmailbox", "emailsignature"],
+      "notes": "Only unified routing queues; personal and system queues are left out. Queue members are not copied. Overflow rulesets and the assignment contract are linked after they are written."
     },
     {
-      "order": 12,
-      "stage": 5,
-      "logicalName": "msdyn_decisioncontract",
-      "entitySet": "msdyn_decisioncontracts",
-      "move": "create-once",
-      "matchKeys": ["msdyn_uniquename"],
-      "alternateKey": "msdyn_uniquename",
-      "select": ["msdyn_decisioncontractid", "msdyn_uniquename", "msdyn_name", "ismanaged"],
-      "lookups": [],
-      "displayColumn": "msdyn_name",
-      "notes": "Insert only if missing. If-None-Match: * blocks update. Matched on msdyn_uniquename (stable across environments); msdyn_name is only for display."
+      "order": 12, "stage": 5, "logicalName": "msdyn_decisioncontract", "item": "decision contract", "move": "create-once",
+      "label": "Decision contracts", "group": "Routing", "matchKeys": ["msdyn_uniquename"],
+      "notes": "Created when missing, never changed: rulesets depend on their exact shape."
     },
     {
-      "order": 13,
-      "stage": 6,
-      "logicalName": "msdyn_decisionruleset",
-      "entitySet": "msdyn_decisionrulesets",
-      "move": "upsert",
-      "matchKeys": ["msdyn_uniquename"],
-      "alternateKey": "msdyn_uniquename",
-      "select": ["msdyn_decisionrulesetid", "msdyn_uniquename", "msdyn_name", "msdyn_rulesetdefinition", "_msdyn_decisioncontractid_value", "ismanaged"],
-      "lookups": [
-        { "column": "msdyn_decisioncontractid", "target": "msdyn_decisioncontract", "targetKey": "msdyn_uniquename" }
-      ],
+      "order": 13, "stage": 6, "logicalName": "msdyn_decisionruleset", "item": "ruleset", "move": "upsert", "doubleWrite": true,
+      "label": "Rulesets", "group": "Routing", "matchKeys": ["msdyn_uniquename"],
       "guidBearingColumns": ["msdyn_rulesetdefinition"],
-      "doubleWrite": true,
-      "displayColumn": "msdyn_name",
-      "notes": "msdyn_rulesetdefinition holds source GUIDs. Remap, write, then write again to land dependency mappings. Matched on msdyn_uniquename (stable across environments); msdyn_name is only for display."
+      "notes": "The definition embeds the GUIDs of queues, skills and workstreams; they are rewritten to the target's. Written twice so Dataverse records its dependencies."
     },
     {
-      "order": 14,
-      "stage": 7,
-      "logicalName": "msdyn_routingconfiguration",
-      "entitySet": "msdyn_routingconfigurations",
-      "move": "upsert",
-      "matchKeys": ["msdyn_name", "_msdyn_liveworkstreamid_value"],
-      "alternateKey": null,
-      "select": ["msdyn_routingconfigurationid", "msdyn_name", "msdyn_isactiveconfiguration", "msdyn_uniquename", "_msdyn_liveworkstreamid_value", "ismanaged"],
-      "lookups": [
-        { "column": "msdyn_liveworkstreamid", "target": "msdyn_liveworkstream", "targetKey": "msdyn_name" }
-      ],
-      "notes": "Parent for routing steps. Every workstream auto-gets its own 'Contact center routing configuration' record, so msdyn_name alone collides across workstreams - the workstream must stay part of the match key. msdyn_uniquename is system-required on create. The decision ruleset link lives on the steps, not here - this entity has no such attribute (confirmed against EntityDefinitions; the old manifest entry named one that doesn't exist, which silently no-opped via the missing-column read fallback)."
+      "order": 14, "stage": 7, "logicalName": "msdyn_routingconfiguration", "item": "routing configuration", "move": "upsert",
+      "label": "Routing configurations", "group": "Routing", "matchKeys": ["msdyn_name", "_msdyn_liveworkstreamid_value"],
+      "notes": "Every workstream gets its own 'Contact center routing configuration', so the workstream is part of the key."
     },
     {
-      "order": 15,
-      "stage": 7,
-      "logicalName": "msdyn_routingconfigurationstep",
-      "entitySet": "msdyn_routingconfigurationsteps",
-      "move": "upsert",
-      "matchKeys": ["_msdyn_routingconfigurationid_value", "msdyn_sequence"],
-      "alternateKey": null,
-      "select": ["msdyn_routingconfigurationstepid", "msdyn_sequence", "_msdyn_routingconfigurationid_value", "_msdyn_decisionrulesetid_value", "msdyn_uniquename", "ismanaged"],
-      "displayTemplate": "Step {msdyn_sequence}",
-      "lookups": [
-        { "column": "msdyn_routingconfigurationid", "target": "msdyn_routingconfiguration", "targetKey": "msdyn_name" },
-        { "column": "msdyn_decisionrulesetid", "target": "msdyn_decisionruleset", "targetKey": "msdyn_uniquename" }
-      ],
-      "notes": "Ordered steps. Write parent then steps in sequence. msdyn_uniquename is system-required on create (same gap as msdyn_routingconfiguration)."
+      "order": 15, "stage": 7, "logicalName": "msdyn_routingconfigurationstep", "item": "routing step", "move": "upsert",
+      "label": "Routing steps", "group": "Routing", "matchKeys": ["_msdyn_routingconfigurationid_value", "msdyn_name"],
+      "notes": "Steps such as classification and route-to-queue, under their routing configuration."
     },
     {
-      "order": 16,
-      "stage": 7,
-      "logicalName": "msdyn_assignmentconfiguration",
-      "entitySet": "msdyn_assignmentconfigurations",
-      "move": "upsert",
-      "matchKeys": ["msdyn_name", "_msdyn_liveworkstreamid_value"],
-      "alternateKey": null,
-      "select": ["msdyn_assignmentconfigurationid", "msdyn_name", "_msdyn_liveworkstreamid_value", "msdyn_uniquename", "ismanaged"],
-      "lookups": [
-        { "column": "msdyn_liveworkstreamid", "target": "msdyn_liveworkstream", "targetKey": "msdyn_name" }
-      ],
-      "displayColumn": "msdyn_name",
-      "skipIf": "Out-of-box highest-capacity or round-robin assignment.",
-      "notes": "Skip if the queue uses an out-of-box assignment method."
+      "order": 16, "stage": 7, "logicalName": "msdyn_assignmentconfiguration", "item": "assignment method", "move": "upsert",
+      "label": "Assignment methods", "group": "Routing", "matchKeys": ["msdyn_name", "_msdyn_queueid_value"],
+      "notes": "Custom assignment methods belong to a queue."
     },
     {
-      "order": 17,
-      "stage": 7,
-      "logicalName": "msdyn_assignmentconfigurationstep",
-      "entitySet": "msdyn_assignmentconfigurationsteps",
-      "move": "upsert",
-      "matchKeys": ["_msdyn_assignmentconfigurationid_value", "msdyn_sequence"],
-      "alternateKey": null,
-      "select": ["msdyn_assignmentconfigurationstepid", "msdyn_sequence", "_msdyn_assignmentconfigurationid_value", "_msdyn_decisionrulesetid_value", "msdyn_uniquename", "ismanaged"],
-      "displayTemplate": "Step {msdyn_sequence}",
-      "lookups": [
-        { "column": "msdyn_assignmentconfigurationid", "target": "msdyn_assignmentconfiguration", "targetKey": "msdyn_name" },
-        { "column": "msdyn_decisionrulesetid", "target": "msdyn_decisionruleset", "targetKey": "msdyn_uniquename" }
-      ],
-      "notes": "Ordered steps under assignment configuration. msdyn_uniquename is system-required on create."
+      "order": 17, "stage": 7, "logicalName": "msdyn_assignmentconfigurationstep", "item": "assignment step", "move": "upsert",
+      "label": "Assignment steps", "group": "Routing", "matchKeys": ["_msdyn_assignmentconfigurationid_value", "msdyn_name"],
+      "notes": "Prioritization and assignment rules under an assignment method."
     },
     {
-      "order": 18,
-      "stage": 8,
-      "logicalName": "msdyn_livechatconfig",
-      "entitySet": "msdyn_livechatconfigs",
-      "move": "upsert",
-      "matchKeys": ["msdyn_name"],
-      "alternateKey": "msdyn_name",
-      "select": ["msdyn_livechatconfigid", "msdyn_name", "_msdyn_liveworkstreamid_value", "ismanaged"],
-      "lookups": [
-        { "column": "msdyn_liveworkstreamid", "target": "msdyn_liveworkstream", "targetKey": "msdyn_name" }
-      ],
-      "channel": "Live chat",
-      "stripColumns": ["_msdyn_botid_value"],
-      "notes": "Strip bot reference. Bot moves by solution."
+      "order": 18, "stage": 8, "logicalName": "msdyn_livechatconfig", "item": "live chat widget", "move": "upsert",
+      "label": "Live chat widgets", "group": "Channels", "matchKeys": ["msdyn_name"],
+      "exclude": ["msdyn_widgetsnippet", "msdyn_widgetsnippetclassic", "msdyn_widgetsnippetmodern", "msdyn_widgetappid", "msdyn_azurenotificationhubid"],
+      "notes": "The widget snippet and app ID are generated per environment and stay as they are."
     },
     {
-      "order": 19,
-      "stage": 8,
-      "logicalName": "msdyn_ocvoicechannelsetting",
-      "entitySet": "msdyn_ocvoicechannelsettings",
-      "move": "upsert",
-      "matchKeys": ["msdyn_name"],
-      "alternateKey": "msdyn_name",
-      "select": ["msdyn_ocvoicechannelsettingid", "msdyn_name", "_msdyn_liveworkstreamid_value", "ismanaged"],
-      "lookups": [
-        { "column": "msdyn_liveworkstreamid", "target": "msdyn_liveworkstream", "targetKey": "msdyn_name" }
-      ],
-      "channel": "Voice",
-      "stripColumns": ["msdyn_phonenumber", "_msdyn_botid_value"],
-      "notes": "Strip ACS phone number and bot references. Both are per-environment provisioning."
+      "order": 19, "stage": 8, "logicalName": "msdyn_ocvoicechannelsetting", "item": "voice channel", "move": "upsert",
+      "label": "Voice channels", "group": "Channels", "matchKeys": ["msdyn_name"],
+      "exclude": ["msdyn_inboundurl"],
+      "notes": "Phone numbers are acquired per environment and are not copied."
     },
     {
-      "order": 20,
-      "stage": 8,
-      "logicalName": "msdyn_ocsmschannelsetting",
-      "entitySet": "msdyn_ocsmschannelsettings",
-      "move": "upsert",
-      "matchKeys": ["msdyn_name"],
-      "alternateKey": "msdyn_name",
-      "select": ["msdyn_ocsmschannelsettingid", "msdyn_name", "_msdyn_liveworkstreamid_value", "ismanaged"],
-      "lookups": [
-        { "column": "msdyn_liveworkstreamid", "target": "msdyn_liveworkstream", "targetKey": "msdyn_name" }
-      ],
-      "channel": "SMS",
-      "stripColumns": ["msdyn_phonenumber"],
-      "notes": "Strip number acquisition. Re-provision in target."
+      "order": 20, "stage": 8, "logicalName": "msdyn_ocsmschannelsetting", "item": "SMS channel", "move": "upsert",
+      "label": "SMS channels", "group": "Channels", "matchKeys": ["msdyn_name"],
+      "exclude": ["msdyn_inboundurl"],
+      "notes": "Needs its phone number in the target before it can be created; settings of an existing one are updated."
     },
     {
-      "order": 21,
-      "stage": 8,
-      "logicalName": "msdyn_ocwhatsappchannelnumber",
-      "entitySet": "msdyn_ocwhatsappchannelnumbers",
-      "move": "upsert",
-      "matchKeys": ["msdyn_name"],
-      "alternateKey": "msdyn_name",
-      "select": ["msdyn_ocwhatsappchannelnumberid", "msdyn_name", "_msdyn_liveworkstreamid_value", "ismanaged"],
-      "lookups": [
-        { "column": "msdyn_liveworkstreamid", "target": "msdyn_liveworkstream", "targetKey": "msdyn_name" }
-      ],
-      "channel": "WhatsApp",
-      "notes": "Account credentials are per-environment. Flag for re-auth."
+      "order": 21, "stage": 8, "logicalName": "msdyn_ocwhatsappchannelnumber", "item": "WhatsApp channel", "move": "upsert",
+      "label": "WhatsApp channels", "group": "Channels", "matchKeys": ["msdyn_name"],
+      "exclude": ["msdyn_providerchannelid", "msdyn_organizationphonenumber"],
+      "notes": "Needs its WhatsApp account in the target before it can be created; settings of an existing one are updated."
     },
     {
-      "order": 22,
-      "stage": 9,
-      "logicalName": "msdyn_cannedmessage",
-      "entitySet": "msdyn_cannedmessages",
-      "move": "upsert",
-      "matchKeys": ["msdyn_name"],
-      "alternateKey": "msdyn_name",
-      "select": ["msdyn_cannedmessageid", "msdyn_name"],
-      "lookups": [],
-      "notes": "Quick replies. Free-standing. Table is msdyn_cannedmessage (singular)."
+      "order": 22, "stage": 9, "logicalName": "msdyn_cannedmessage", "item": "quick reply", "move": "upsert",
+      "label": "Quick replies", "group": "Agent content", "matchKeys": ["msdyn_title", "msdyn_locale_field"],
+      "notes": "A quick reply is unique per title and language."
     },
     {
-      "order": 23,
-      "stage": 9,
-      "logicalName": "msdyn_octag",
-      "entitySet": "msdyn_octags",
-      "move": "upsert",
-      "matchKeys": ["msdyn_name"],
-      "alternateKey": "msdyn_name",
-      "select": ["msdyn_octagid", "msdyn_name", "ismanaged"],
-      "lookups": [],
-      "notes": "Tags. Free-standing. Table is msdyn_octag (singular)."
+      "order": 23, "stage": 9, "logicalName": "msdyn_octag", "item": "tag", "move": "upsert",
+      "label": "Tags", "group": "Agent content", "matchKeys": ["msdyn_name"],
+      "notes": "Free-standing."
     },
     {
-      "order": 24,
-      "stage": 10,
-      "logicalName": "msdyn_omnichannelconfiguration",
-      "entitySet": "msdyn_omnichannelconfigurations",
-      "move": "selective",
-      "matchKeys": ["msdyn_name"],
-      "alternateKey": null,
-      "select": ["msdyn_omnichannelconfigurationid", "msdyn_name", "ismanaged"],
-      "lookups": [],
-      "notes": "Environment-level singleton. Diff and report. Move only fields the operator selects."
+      "order": 24, "stage": 10, "logicalName": "msdyn_omnichannelconfiguration", "item": "contact center settings record", "move": "update-only",
+      "label": "Contact center settings", "group": "Settings", "matchKeys": ["msdyn_name"],
+      "exclude": ["msdyn_publickeyurl"],
+      "notes": "One per environment and always present, so it is only ever updated."
     }
   ],
   "detectOnly": [
     {
-      "logicalName": "msdyn_ocvoicechannelsetting",
-      "signal": "msdyn_phonenumber",
-      "type": "phoneNumber",
-      "message": "Voice channel in source has an ACS phone number the target lacks. Re-acquire in the target environment."
+      "logicalName": "msdyn_ocvoicechannelsetting", "signal": "msdyn_phonenumberid", "type": "phoneNumber",
+      "message": "Uses a phone number. Acquire a number in the target environment and assign it to this channel."
     },
     {
-      "logicalName": "msdyn_liveworkstream",
-      "signal": "_msdyn_botid_value",
-      "type": "voiceBot",
-      "message": "Workstream points at a Copilot Studio agent. Move the agent by solution, then rebind and rewire connection references in the target."
+      "logicalName": "msdyn_ocsmschannelsetting", "signal": "msdyn_phonenumberid", "type": "phoneNumber",
+      "message": "Uses an SMS number. Add the number in the target environment before this channel can be created."
     },
     {
-      "logicalName": "msdyn_ocwhatsappchannelnumber",
-      "signal": "account",
-      "type": "channelAccount",
-      "message": "Channel account needs re-authentication in the target environment."
+      "logicalName": "msdyn_liveworkstream", "signal": "msdyn_bot_user", "type": "voiceBot",
+      "message": "Uses a Copilot Studio agent. Move the agent by solution, then pick it on the workstream in the target."
+    },
+    {
+      "logicalName": "msdyn_ocwhatsappchannelnumber", "signal": "msdyn_ocwhatsappaccountid", "type": "channelAccount",
+      "message": "Uses a WhatsApp account. Connect the account in the target environment before this channel can be created."
     }
   ]
 }

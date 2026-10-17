@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
-import { Button, Dropdown, Field, Input, Option, Spinner, Switch } from '@fluentui/react-components'
-import { ArrowRightRegular, DeleteRegular } from '@fluentui/react-icons'
+import { DeleteRegular } from '@fluentui/react-icons'
+import { Button, Input, Select, Switch } from '../../ui'
 import type { EnvRole } from '../../types/alm'
 import type { EnvironmentInput, SetupEnvironment } from '../../services/localSetup'
 
@@ -21,11 +21,11 @@ interface Props {
   onDelete?: () => void
 }
 
-const roleLabels: Record<EnvRole, string> = {
-  any: 'Source or target',
-  source: 'Source only',
-  target: 'Target only',
-}
+const ROLE_OPTIONS: Array<{ value: EnvRole; label: string }> = [
+  { value: 'any', label: 'Source or target' },
+  { value: 'source', label: 'Source only' },
+  { value: 'target', label: 'Target only' },
+]
 
 export function EnvironmentForm({ existing, others, takenIds, busy, onSave, onDelete }: Props) {
   const [name, setName] = useState(existing?.name ?? '')
@@ -44,28 +44,24 @@ export function EnvironmentForm({ existing, others, takenIds, busy, onSave, onDe
   const problems = useMemo(() => {
     const p: Record<string, string> = {}
     const u = url.trim().replace(/\/$/, '')
-    if (!name.trim()) p.name = 'Give it a name, e.g. "Contoso Dev".'
+    if (!name.trim()) p.name = 'Give it a name, for example "Contoso Dev".'
     else if (!existing && !id) p.name = 'Use at least one letter or digit.'
-    else if (!existing && takenIds.includes(id)) p.name = `There is already an environment with id "${id}".`
+    else if (!existing && takenIds.includes(id)) p.name = `There is already an environment called "${id}".`
     if (!u) p.url = 'Required.'
-    else if (!/^https:\/\/[a-z0-9.-]+$/i.test(u)) p.url = 'Just the host, e.g. https://contoso-dev.crm4.dynamics.com - no path.'
+    else if (!/^https:\/\/[a-z0-9.-]+$/i.test(u)) p.url = 'Only the address, for example https://contoso-dev.crm4.dynamics.com, without a path.'
     if (!tenantId.trim()) p.tenantId = 'Required.'
-    if (!GUID.test(clientId.trim())) p.clientId = 'A GUID: Application (client) ID on the app registration Overview page.'
+    if (!GUID.test(clientId.trim())) p.clientId = 'A GUID: the Application (client) ID on the app registration overview.'
     if (!sameAs && !secret && !existing?.hasSecret) p.secret = 'Required.'
     return p
   }, [name, url, tenantId, clientId, secret, sameAs, existing, id, takenIds])
 
-  const urlHint =
-    url && !problems.url && !/\.dynamics\.com\/?$/i.test(url.trim())
-      ? 'Unusual host - Dataverse URLs normally end in .dynamics.com.'
-      : undefined
-  const tenantHint =
-    tenantId && !GUID.test(tenantId.trim())
-      ? 'Not a GUID. A verified domain (contoso.onmicrosoft.com) works too; the Tenant check will tell.'
-      : undefined
+  const show = (key: string, value: string) => (value ? problems[key] : undefined)
+  const urlHint = url && !problems.url && !/\.dynamics\.com\/?$/i.test(url.trim()) ? 'Unusual address: Dataverse addresses normally end in .dynamics.com.' : undefined
   const secretHint = GUID.test(secret.trim())
-    ? 'This looks like a Secret ID (a GUID). You need the secret Value - the client sees it only once, when they create the secret.'
-    : undefined
+    ? 'This looks like a Secret ID (a GUID). You need the secret Value, which the client sees only once, when they create the secret.'
+    : existing?.hasSecret
+      ? 'A secret is saved. Leave this empty to keep it.'
+      : 'Stored encrypted for your Windows user only, and never shown again.'
 
   const pickSameAs = (value: string) => {
     setSameAs(value)
@@ -91,104 +87,57 @@ export function EnvironmentForm({ existing, others, takenIds, busy, onSave, onDe
     })
   }
 
-  // Only nag about a field once something is in it; the Save button stays disabled either way.
-  const show = (key: string, value: string) => (value ? problems[key] : undefined)
-
   return (
-    <div className="setup-form">
-      <Field label="Name" required validationMessage={show('name', name)} hint={!existing && id ? `Id: ${id}` : undefined}>
-        <Input value={name} onChange={(_, d) => setName(d.value)} placeholder="Contoso Dev" />
-      </Field>
-      <Field
-        label="Environment URL"
-        required
-        validationMessage={show('url', url) ?? urlHint}
-        validationState={show('url', url) ? 'error' : urlHint ? 'warning' : 'none'}
-      >
-        <Input value={url} onChange={(_, d) => setUrl(d.value)} placeholder="https://contoso-dev.crm4.dynamics.com" />
-      </Field>
-
+    <form
+      className="setup-form"
+      onSubmit={(e) => {
+        e.preventDefault()
+        submit()
+      }}
+    >
+      <Input label="Name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Contoso Dev" error={show('name', name)} hint={!existing && id ? `Saved as ${id}` : undefined} />
+      <Input label="Environment address" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://contoso-dev.crm4.dynamics.com" error={show('url', url)} hint={urlHint} />
       {reusable.length > 0 && (
-        <Field label="Same app registration as" hint="When the client uses one app registration for several environments.">
-          <Dropdown
-            value={sameAsEnv?.name ?? 'No - enter its details below'}
-            selectedOptions={[sameAs]}
-            onOptionSelect={(_, d) => pickSameAs(d.optionValue ?? '')}
-          >
-            <Option value="">No - enter its details below</Option>
-            {reusable.map((o) => (
-              <Option key={o.id} value={o.id}>
-                {o.name}
-              </Option>
-            ))}
-          </Dropdown>
-        </Field>
+        <Select
+          label="Same app registration as"
+          hint="When the client uses one app registration for several environments."
+          value={sameAs}
+          onChange={(e) => pickSameAs(e.target.value)}
+          options={[{ value: '', label: 'No, enter its details below' }, ...reusable.map((o) => ({ value: o.id, label: o.name }))]}
+        />
       )}
-
-      <Field
-        label="Directory (tenant) ID"
-        required
-        validationMessage={show('tenantId', tenantId) ?? tenantHint}
-        validationState={show('tenantId', tenantId) ? 'error' : tenantHint ? 'warning' : 'none'}
-      >
-        <Input value={tenantId} disabled={!!sameAs} onChange={(_, d) => setTenantId(d.value)} placeholder="00000000-0000-0000-0000-000000000000" />
-      </Field>
-      <Field label="Application (client) ID" required validationMessage={show('clientId', clientId)}>
-        <Input value={clientId} disabled={!!sameAs} onChange={(_, d) => setClientId(d.value)} placeholder="00000000-0000-0000-0000-000000000000" />
-      </Field>
+      <Input label="Directory (tenant) ID" value={tenantId} disabled={!!sameAs} onChange={(e) => setTenantId(e.target.value)} placeholder="00000000-0000-0000-0000-000000000000" error={show('tenantId', tenantId)} />
+      <Input label="Application (client) ID" value={clientId} disabled={!!sameAs} onChange={(e) => setClientId(e.target.value)} placeholder="00000000-0000-0000-0000-000000000000" error={show('clientId', clientId)} />
       {sameAs ? (
-        <Field label="Client secret" hint={`Uses the saved secret of ${sameAsEnv?.name}.`}>
-          <Input type="password" disabled value="" placeholder="Shared" />
-        </Field>
+        <Input label="Client secret" value="" disabled placeholder="Shared" hint={`Uses the saved secret of ${sameAsEnv?.name}.`} />
       ) : (
-        <Field
+        <Input
           label="Client secret value"
-          required={!existing?.hasSecret}
-          validationMessage={secretHint}
-          validationState={secretHint ? 'warning' : 'none'}
-          hint={existing?.hasSecret ? 'A secret is saved. Leave empty to keep it.' : 'Stored encrypted for your Windows user only. Never shown again.'}
-        >
-          <Input
-            type="password"
-            value={secret}
-            onChange={(_, d) => setSecret(d.value)}
-            placeholder={existing?.hasSecret ? '•••••••• saved' : ''}
-            autoComplete="new-password"
-          />
-        </Field>
+          type="password"
+          autoComplete="new-password"
+          value={secret}
+          onChange={(e) => setSecret(e.target.value)}
+          placeholder={existing?.hasSecret ? '•••••••• saved' : ''}
+          hint={secretHint}
+        />
       )}
-
-      <div className="setup-form-row">
-        <Field label="Use as">
-          <Dropdown value={roleLabels[role]} selectedOptions={[role]} onOptionSelect={(_, d) => d.optionValue && setRole(d.optionValue as EnvRole)}>
-            {(Object.keys(roleLabels) as EnvRole[]).map((r) => (
-              <Option key={r} value={r}>
-                {roleLabels[r]}
-              </Option>
-            ))}
-          </Dropdown>
-        </Field>
-        <Field label="Approval" hint="Apply needs an explicit tick, e.g. for Prod.">
-          <Switch checked={requireApproval} onChange={(_, d) => setRequireApproval(d.checked)} label={requireApproval ? 'Required' : 'Not required'} />
-        </Field>
+      <div className="setup-form__row">
+        <Select label="Use as" value={role} onChange={(e) => setRole(e.target.value as EnvRole)} options={ROLE_OPTIONS} />
+        <div>
+          <Switch checked={requireApproval} onChange={setRequireApproval} label="Require approval to apply" />
+          <p className="muted t-body-small" style={{ marginTop: 'var(--space-2)' }}>For production: applying needs an explicit tick.</p>
+        </div>
       </div>
-
-      <div className="actions">
-        <Button
-          appearance="primary"
-          icon={busy ? <Spinner size="tiny" /> : <ArrowRightRegular />}
-          iconPosition="after"
-          disabled={busy || Object.keys(problems).length > 0}
-          onClick={submit}
-        >
-          Save and run checks
+      <div className="row">
+        <Button type="submit" busy={busy} disabled={busy || Object.keys(problems).length > 0}>
+          Save and check
         </Button>
         {onDelete && (
-          <Button appearance="subtle" icon={<DeleteRegular />} disabled={busy} onClick={onDelete}>
+          <Button variant="secondary" leadingIcon={<DeleteRegular />} disabled={busy} onClick={onDelete}>
             Remove environment
           </Button>
         )}
       </div>
-    </div>
+    </form>
   )
 }

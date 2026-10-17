@@ -1,103 +1,55 @@
-# The manifest
+# Manifest
 
-`config/manifest.json` is the spine. The engine and the docs read from it. Change what moves, in what order, by editing this file, not the code.
+`config/manifest.json` says **which** Contact Center tables move, in which order and stage, and how a record is recognised in another environment. It does **not** list columns or lookups: the engine reads those from each environment's own metadata (`EntityDefinitions`), so it compares and writes every writable setting the two orgs share, and follows the real lookups.
 
-## Shape
+That is the main change from version 1, which listed columns by hand. Those lists drifted from Dataverse: lookups were renamed (`msdyn_rulesetid`, not `msdyn_decisionrulesetid`), settings were added every release, and most of a workstream's or queue's configuration was never compared or moved. Version 2 manifests are required; the engine refuses a version 1 file.
 
-```json
-{
-  "version": "1.0.0",
-  "systemColumns": [ "createdon", "modifiedon", "ownerid", "..." ],
-  "tables": [ { "..." } ],
-  "detectOnly": [ { "..." } ]
-}
-```
+`backend/function-app/manifest.json` is a copy for the Azure Function. `scripts/deploy-backend.ps1` refreshes it; keep the two identical.
 
 ## A table entry
 
 ```json
 {
-  "order": 8,
-  "stage": 2,
-  "logicalName": "msdyn_liveworkstream",
-  "entitySet": "msdyn_liveworkstreams",
+  "order": 15, "stage": 7, "logicalName": "msdyn_routingconfigurationstep", "item": "routing step",
   "move": "upsert",
-  "matchKeys": ["msdyn_name", "msdyn_mode", "msdyn_streamsource"],
-  "alternateKey": null,
-  "select": ["msdyn_liveworkstreamid", "msdyn_name", "..."],
-  "lookups": [
-    { "column": "msdyn_operatinghourid", "target": "msdyn_operatinghour", "targetKey": "msdyn_name" }
-  ],
-  "async": true,
-  "guidBearingColumns": [],
-  "doubleWrite": false,
-  "stripColumns": [],
-  "displayColumn": "msdyn_name",
-  "notes": "..."
+  "label": "Routing steps", "group": "Routing",
+  "matchKeys": ["_msdyn_routingconfigurationid_value", "msdyn_name"],
+  "notes": "Steps such as classification and route-to-queue, under their routing configuration."
 }
 ```
 
-| Field | Purpose |
+| Field | Meaning |
 | --- | --- |
-| `order` | Global write order. Parents before children. The engine sorts on this. |
-| `stage` | Groups tables into pipeline stages. Stages run in order; a stage reports as a unit, and every canonical stage shows in the plan even when it has nothing to move. |
-| `logicalName` / `entitySet` | Table logical name and its Web API entity set. |
-| `move` | `upsert`, `create-once`, `selective`, or `detect`. See below. |
-| `matchKeys` | Columns that form the natural key. The diff, and the write engine's create-vs-update decision, both match on this - never on a raw GUID or a Dataverse alternate key. If a matchKey column is itself a lookup (`_x_value`), the engine resolves it to *its own* natural key first, so the composite key stays comparable across environments even though the raw GUID never is. |
-| `alternateKey` | Metadata only, not read by the engine. Kept as documentation of the table's natural identity for humans; earlier versions used it to build upsert URLs, but a registered Dataverse alternate key is org-specific metadata that is not guaranteed to exist even when the manifest names one, so the write engine now decides create vs. update purely from the `matchKeys` match found during compare. |
-| `select` | Columns to read and diff. The first is the primary key. |
-| `lookups` | Lookup columns to resolve to natural keys. `column` is the logical lookup, `target` the referenced table, `targetKey` its match column (informational only - the target table's own configured `matchKeys` is what the engine actually resolves against). |
-| `async` | Set on tables whose create fires async provisioning. The write engine waits after each create. |
-| `guidBearingColumns` | Columns holding embedded GUIDs, like `msdyn_rulesetdefinition`. The engine remaps them on write and normalises them on diff. Every GUID found in these columns is also tracked as a dependency, the same as a `lookups` entry - it shows as a "Requires" hint in the app and gets auto-selected alongside the record. A GUID that still cannot be resolved at write time (its referenced record has not landed in target) makes the engine skip that write with a warning instead of sending Dataverse a definition it will reject outright. |
-| `doubleWrite` | Write the record twice. Rulesets need this to land dependency mappings. |
-| `stripColumns` | Columns to drop on write entirely - values that are per-environment and should never be copied (phone numbers, bot references). |
-| `skipColumns` | Columns to leave out of the diff *and* the write payload. Only use this for columns that genuinely should never be written - a column you still need Dataverse to receive (even a boolean that "shouldn't differ") does not belong here, or the write silently omits it and Dataverse defaults it, which can be worse than a diff false-positive. `msdyn_isomnichannelqueue` on `queue` was briefly here for exactly this reason: skipping it let every created queue default to `false`, which then made it invisible to the next compare's `personalFilterColumn` filter and caused runaway duplicate creates. |
-| `personalFilterColumn` | A boolean column that separates "real" records from ones Dataverse auto-provisions (personal/system queues, one per user). Records where this column is `false` are always excluded from both source and target reads - no override. Must be in `select`, must *not* be in `skipColumns` (see above). |
-| `displayColumn` | A column on the record to show as a friendly heading in the app, with the technical match key underneath in small text, instead of the raw match key as the only label. |
-| `displayTemplate` | Like `displayColumn`, but a template string with `{fieldName}` tokens substituted from the record's own columns - for tables with no name field of their own, e.g. `"Step {msdyn_sequence}"` for routing/assignment steps. |
-| `notes` | Human note. Read these; they hold the gotchas. |
+| `order` | Write order. Parents before children. A lookup to a table with the same or a later `order` is **linked in a final pass** (stage "Link records written earlier") instead of set on the first write: a workstream's default queue, a queue's overflow ruleset. |
+| `stage` | The group the plan and the run show the record under. Stage labels and descriptions are in the top-level `stages` list. |
+| `logicalName` | The Dataverse table. The entity set name comes from metadata. |
+| `label`, `item`, `group` | What people read: the plural label ("Routing steps"), the singular noun used in sentences ("routing step"), and the functional area the review screen groups by. |
+| `move` | `upsert` (create or update), `create-once` (create when missing, never change), `update-only` (never create: one per environment, such as the Omnichannel configuration), `reference` (read so lookups to it can be mapped, never compared or written, such as languages), `detect` (report only). |
+| `matchKeys` | How a record is recognised in the other environment, never by GUID. A matchKey that is a lookup (`_x_value`) is replaced by the parent's own key, **recursively**, so a routing step's key contains its configuration's key, which contains its workstream's key, and no environment-specific GUID survives at any depth. |
+| `tieBreaker` | Optional column used only when two records in one environment share a key (two capacity profiles with the same name). Applied on both sides consistently. If that still collides, the records are reported as **Ambiguous** and never paired at random. |
+| `exclude` | Columns never compared or written for this table: secrets, environment-generated values, per-environment links (`msdyn_apikey`, `msdyn_widgetsnippet`, `msdyn_inboundurl`, `msdyn_calendarid`). The top-level `systemColumns` and `excludeColumns` apply to every table. |
+| `textReferences` | Text columns that name another record by unique name. A workstream's `msdyn_sessiontemplate_default` holds a session template's `msdyn_uniquename`. `columns` may end in `*`. These become dependencies: the template has to exist in the target. `label` is what the dependency is called in messages. |
+| `guidBearingColumns` | Columns with GUIDs embedded in text, such as `msdyn_rulesetdefinition`. Compared by what the GUIDs point at (each side normalised with its own map), rewritten to the target's GUIDs on write, and every GUID becomes a dependency. |
+| `displayTemplate` | How to name a record that has no good name of its own, e.g. `"{_msdyn_capacityprofile_id_value}"` uses the formatted value of a lookup. |
+| `personalFilterColumn` | Boolean column separating real records from ones Dataverse provisions per user (personal queues). Only rows where it is `true` are read. |
+| `async` | Creating it starts provisioning; the run waits for the side-effect records. |
+| `doubleWrite` | Write twice so Dataverse records the dependencies (rulesets). |
 
-## Move modes
+## What the engine works out per table
 
-| Mode | Behaviour |
-| --- | --- |
-| `upsert` | Create if missing, update if changed. The default. |
-| `create-once` | Insert only if missing. Never overwrite. Decision contracts use this, so an existing contract is left alone. |
-| `selective` | Diff and report, move only fields the operator selects. The omnichannel configuration singleton uses this. |
-| `detect` | Read and report, never write. |
+For each pair of environments (`Resolve-CcTablePlan` in `Private/Get-CcSchema.ps1`):
 
-## Detect-only rules
+- **Settings**: every attribute that is readable and creatable or updatable, not a lookup, not system, not excluded, and present in **both** orgs. One missing in the target (an older version) is listed as a notice on the compare and not copied.
+- **Lookups**: every many-to-one relationship whose target is another manifest table. Lookups to tables this tool does not move (a bot user, a survey, a phone number record) are left alone.
+- **Required per-environment records**: a required lookup to a table this tool does not move (an SMS channel's phone number) blocks **creating** that record in the plan, with the reason. Updating an existing one is fine.
 
-```json
-{
-  "logicalName": "msdyn_ocvoicechannelsetting",
-  "signal": "msdyn_phonenumber",
-  "type": "phoneNumber",
-  "message": "Voice channel in source has an ACS phone number the target lacks. Re-acquire in the target."
-}
-```
+## Preflight
 
-If `signal` (a column, or a `_signal_value` lookup) has a value on a source record, the engine reports the gap with `message`. This is how the tool flags phone numbers, bots, and channel accounts without trying to move them.
+Before anything runs, every planned record's dependencies (lookups, named templates, embedded GUIDs) are checked: already in the target, created earlier in this run, linked at the end, or missing. Missing ones are added automatically when "Add the records they need" is on, or shown as blockers with an "Add …" fix when it is off. A record that waits on a blocked record is blocked too. See `New-CcPlan`.
 
-## Extending it
+## Adding a table
 
-Adding a table:
-
-1. Find its logical name and entity set. Check the entity set name against your org; some plural forms are not what you would guess.
-2. Pick match keys that are stable and unique. A name usually. Add parent columns if a name alone is not unique - Dataverse auto-provisions one "default" record per parent for several of these tables (a routing config per workstream, for instance), and they all share the same name, so the name alone silently collides.
-3. List the columns to read in `select`, primary key first, and check for `SystemRequired` columns you might be missing (see below).
-4. Declare every lookup you want resolved.
-5. Set `order` so parents write first.
-6. `alternateKey` is metadata only now (see the field table above) - set it if the table has one, for documentation, but it changes no engine behaviour.
-
-Adding a lookup to an existing table:
-
-1. Add the lookup value column to `select` as `_column_value`.
-2. Add the lookup entry with `column`, `target`, `targetKey`.
-3. Confirm the target table is in the manifest with a lower `order`.
-
-## Things to confirm against your org
-
-- **Entity set names.** Quick replies (`msdyn_cannedmessageses`) and tags (`msdyn_octagses`) have plural forms that vary. Verify with a `GET /api/data/v9.2/<entityset>?$top=1`.
-- **System-required columns.** A column Dataverse marks `SystemRequired` and `IsValidForCreate` must be in `select` or every create fails with a "cannot be NULL" error, even if nothing in the app or the CMT export ever shows it. `msdyn_uniquename` on the routing/assignment config and step tables is the recurring example - check new tables against `GET /api/data/v9.2/EntityDefinitions(LogicalName='<table>')/Attributes?$select=LogicalName,RequiredLevel,IsValidForCreate&$filter=RequiredLevel/Value eq 'SystemRequired' and IsValidForCreate eq true` before assuming `select` is complete.
-- **Ruleset JSON shape.** `guidBearingColumns` assumes the current `msdyn_rulesetdefinition` structure. If Microsoft changes it, the remap needs a look.
+1. Add the entry with an `order` after everything it points at, a `stage`, `label`, `item`, `group`, `move` and `matchKeys`.
+2. Pick match keys that are stable across environments: a unique name the product generates the same everywhere, or a name plus the parent lookup. Avoid unique names Dataverse generates randomly per environment (`new_<guid>`).
+3. List anything environment-specific under `exclude`.
+4. Compare an environment with itself (`./backend/cli/compare.ps1 -Source dev -Target dev` with the same URL twice). Every record must come out **Same**. Anything else is a matching problem.

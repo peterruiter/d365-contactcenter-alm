@@ -29,7 +29,9 @@ try {
     Push-CcJson 200 @{
         runId   = $id
         state   = 'RolledBack'
-        cleanup = @{ restored = $result.restored; unresolved = @($result.unresolved) }
+        cleanup = @{ restored = $result.restored; deleted = $result.deleted; unresolved = @($result.unresolved) }
+        summary = $run.summary
+        source  = $run.source
         stages  = @($run.stages)
         mode    = $run.mode
         target  = $run.target

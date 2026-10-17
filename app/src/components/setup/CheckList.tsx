@@ -1,5 +1,4 @@
-import { MessageBar, MessageBarBody, Spinner } from '@fluentui/react-components'
-import { CheckmarkCircleFilled, CircleRegular, ErrorCircleFilled, WarningFilled } from '@fluentui/react-icons'
+import { Notice, Spinner, StatusDot } from '../../ui'
 import type { CheckDefinition, CheckResult } from '../../services/localSetup'
 
 interface Props {
@@ -8,18 +7,7 @@ interface Props {
   runningId: string | null
 }
 
-function Marker({ result, running, index }: { result?: CheckResult; running: boolean; index: number }) {
-  if (running) return <Spinner size="tiny" />
-  if (result?.status === 'pass') return <CheckmarkCircleFilled className="wiz-icon wiz-icon-done" />
-  if (result?.status === 'warn') return <WarningFilled className="wiz-icon wiz-icon-warning" />
-  if (result?.status === 'fail') return <ErrorCircleFilled className="wiz-icon wiz-icon-error" />
-  return (
-    <span className="wiz-step-num">
-      <CircleRegular className="wiz-icon wiz-icon-pending" />
-      <span>{index + 1}</span>
-    </span>
-  )
-}
+const KIND = { pass: 'done', warn: 'blocked', fail: 'failed' } as const
 
 export function CheckList({ definitions, results, runningId }: Props) {
   return (
@@ -28,24 +16,30 @@ export function CheckList({ definitions, results, runningId }: Props) {
         const r = results[d.id]
         const running = runningId === d.id
         return (
-          <li key={d.id} className={`check-row check-${running ? 'running' : (r?.status ?? 'pending')}`}>
-            <span className="check-marker">
-              <Marker result={r} running={running} index={i} />
+          <li key={d.id} className={`check-row${r?.status === 'fail' && !running ? ' check-row--fail' : ''}`}>
+            <span className="check-row__marker">
+              {running ? (
+                <Spinner size="sm" label={`Checking ${d.title}`} />
+              ) : r ? (
+                <StatusDot kind={KIND[r.status]} label={r.status === 'pass' ? 'Passed' : r.status === 'warn' ? 'Warning' : 'Failed'} />
+              ) : (
+                <span className="muted t-body-small">{i + 1}</span>
+              )}
             </span>
-            <div className="check-body">
-              <div className="check-title">{d.title}</div>
-              <div className="check-desc">{running ? 'Checking…' : r ? r.summary : d.description}</div>
+            <div>
+              <div className="check-row__title">{d.title}</div>
+              <div className="check-row__summary">{running ? 'Checking…' : r ? r.summary : d.description}</div>
               {r && !running && r.detail.length > 0 && (
-                <ul className="check-detail">
+                <ul className="check-row__detail">
                   {r.detail.map((line, j) => (
                     <li key={j}>{line}</li>
                   ))}
                 </ul>
               )}
               {r && !running && r.fix && r.status !== 'pass' && (
-                <MessageBar intent={r.status === 'fail' ? 'error' : 'warning'} className="check-fix">
-                  <MessageBarBody>{r.fix}</MessageBarBody>
-                </MessageBar>
+                <Notice tone={r.status === 'fail' ? 'error' : 'warning'} live="none" style={{ marginTop: 'var(--space-3)' }}>
+                  {r.fix}
+                </Notice>
               )}
             </div>
           </li>

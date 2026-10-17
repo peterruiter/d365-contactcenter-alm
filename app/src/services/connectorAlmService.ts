@@ -36,15 +36,19 @@ export class ConnectorAlmService implements AlmService {
     return unwrap<EnvironmentRef[]>(await this.client.getEnvironments())
   }
 
-  async compare(sourceId: string, targetId: string, tables?: string[]): Promise<DiffModel> {
-    return unwrap<DiffModel>(
-      await this.client.compare({ sourceEnvId: sourceId, targetEnvId: targetId, tables }),
-    )
+  async compare(sourceId: string, targetId: string): Promise<DiffModel> {
+    return unwrap<DiffModel>(await this.client.compare({ sourceEnvId: sourceId, targetEnvId: targetId }))
   }
 
-  async plan(diff: DiffModel, selection?: SelectionItem[]): Promise<Plan> {
+  async plan(diff: DiffModel, selection?: SelectionItem[], includeDependencies = true): Promise<Plan> {
     return unwrap<Plan>(
-      await this.client.plan({ sourceEnvId: diff.source, targetEnvId: diff.target, selection }),
+      await this.client.plan({
+        sourceEnvId: diff.source,
+        targetEnvId: diff.target,
+        diffId: diff.diffId,
+        selection,
+        includeDependencies,
+      }),
     )
   }
 

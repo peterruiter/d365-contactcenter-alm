@@ -17,9 +17,10 @@ try {
         @($body.selection | ForEach-Object { @{ table = $_.table; matchKey = $_.matchKey } })
     } else { $null }
 
-    $plan = New-CcPlan -Diff $diff -Selection $selection
+    # The selection is the reviewed plan's own operation list: run exactly that, add nothing.
+    $plan = New-CcPlan -Diff $diff -Selection $selection -IncludeDependencies $false
     if ($plan.operations.Count -eq 0) {
-        Push-CcJson 200 @{ runId = 'run_noop'; mode = $body.mode; target = $body.targetEnvId; state = 'Succeeded'; snapshotId = $null; stages = @(); problems = @() }
+        Push-CcJson 200 @{ runId = 'run_noop'; mode = $body.mode; source = $body.sourceEnvId; target = $body.targetEnvId; state = 'Succeeded'; snapshotId = $null; summary = @{ created = 0; updated = 0; linked = 0; skipped = 0; blocked = 0; failed = 0 }; stages = @(); problems = @() }
         return
     }
 

@@ -1,59 +1,43 @@
 function Get-CcDetectOnly {
     <#
     .SYNOPSIS
-        Flags config that cannot move as data: ACS phone numbers, bots, channel accounts.
-        Reads the source records for each detect rule and reports where the target lacks the equivalent.
+        Flags configuration that cannot move as data: ACS phone numbers, Copilot Studio agents,
+        channel accounts. Reports each source record carrying the signal whose matching target record
+        does not carry it yet.
     #>
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)] [pscustomobject] $Manifest,
-        [Parameter(Mandatory)] [hashtable] $SourceRecordsByTable,
-        [Parameter(Mandatory)] [hashtable] $TargetRecordsByTable
+        [Parameter(Mandatory)] [pscustomobject] $Source,
+        [Parameter(Mandatory)] [pscustomobject] $Target,
+        [Parameter(Mandatory)] [hashtable] $TablePlans
     )
 
     $findings = [System.Collections.Generic.List[object]]::new()
-    if (-not $Manifest.detectOnly) { return $findings }
+    foreach ($rule in @($Manifest.detectOnly)) {
+        if (-not $rule) { continue }
+        $plan = $TablePlans[$rule.logicalName]
+        if (-not $plan -or -not $plan.Usable) { continue }
+        $signalCols = @($rule.signal, "_$($rule.signal)_value")
 
-    function Test-CcSignal {
-        param($Row, $SignalCol)
-        $valueCol = "_$($SignalCol)_value"
-        if ($Row.PSObject.Properties.Name -contains $SignalCol -and $Row.$SignalCol) { return $true }
-        if ($Row.PSObject.Properties.Name -contains $valueCol -and $Row.$valueCol) { return $true }
-        return $false
-    }
+        foreach ($id in $Source.ById[$rule.logicalName].Keys) {
+            $row = $Source.ById[$rule.logicalName][$id]
+            if ($row.ismanaged -eq $true) { continue }
+            $hasSignal = @($signalCols | Where-Object { $row.PSObject.Properties.Name -contains $_ -and $row.$_ }).Count -gt 0
+            if (-not $hasSignal) { continue }
 
-    foreach ($rule in $Manifest.detectOnly) {
-        $sourceRows = $SourceRecordsByTable[$rule.logicalName]
-        if (-not $sourceRows) { continue }
-        $targetRows = $TargetRecordsByTable[$rule.logicalName]
-
-        # Index target rows by name so we can tell whether the target already carries the signal.
-        $targetByName = @{}
-        foreach ($tr in $targetRows) {
-            if ($tr.PSObject.Properties.Name -contains 'msdyn_name' -and $tr.msdyn_name) {
-                $targetByName["$($tr.msdyn_name)".ToLowerInvariant()] = $tr
-            }
-        }
-
-        foreach ($row in $sourceRows) {
-            if (-not (Test-CcSignal -Row $row -SignalCol $rule.signal)) { continue }
-
-            $label = if ($row.PSObject.Properties.Name -contains 'msdyn_name') { $row.msdyn_name } else { $rule.logicalName }
-
-            # If the matching target record already carries the signal, it is provisioned. Skip it.
-            $key = if ($label) { "$label".ToLowerInvariant() } else { $null }
-            if ($key -and $targetByName.ContainsKey($key) -and (Test-CcSignal -Row $targetByName[$key] -SignalCol $rule.signal)) {
-                continue
-            }
+            $key = $Source.KeyById[$rule.logicalName][$id]
+            $tgt = Get-CcRecordByKey -Env $Target -Table $rule.logicalName -Key $key
+            if ($tgt -and @($signalCols | Where-Object { $tgt.PSObject.Properties.Name -contains $_ -and $tgt.$_ }).Count -gt 0) { continue }
 
             $findings.Add([pscustomobject]@{
-                type    = $rule.type
-                table   = $rule.logicalName
-                record  = $label
-                message = $rule.message
-            }) | Out-Null
+                    type    = $rule.type
+                    table   = $rule.logicalName
+                    label   = Get-CcTableLabel $plan.Table
+                    record  = Get-CcRecordLabel -Record $row -TablePlan $plan
+                    message = $rule.message
+                }) | Out-Null
         }
     }
-
     return $findings
 }

@@ -1,5 +1,5 @@
 import type { AlmService } from './almService'
-import type { DiffModel, EnvironmentRef, Plan, Run, SelectionItem } from '../types/alm'
+import type { DiffModel, EnvironmentRef, Plan, Run, RunListItem, SelectionItem } from '../types/alm'
 
 // Talks to the ALM backend described in docs/architecture.md: the deployed Function (local dev,
 // VITE_ALM_SOURCE=backend) or the local runner (VITE_ALM_SOURCE=local, base URL /api).
@@ -48,12 +48,22 @@ export class BackendAlmService implements AlmService {
     return json(await this.get('/environments'))
   }
 
-  async compare(sourceId: string, targetId: string, tables?: string[]): Promise<DiffModel> {
-    return json(await this.post('/compare', { sourceEnvId: sourceId, targetEnvId: targetId, tables }))
+  async compare(sourceId: string, targetId: string): Promise<DiffModel> {
+    return json(await this.post('/compare', { sourceEnvId: sourceId, targetEnvId: targetId }))
   }
 
-  async plan(diff: DiffModel, selection?: SelectionItem[]): Promise<Plan> {
-    return json(await this.post('/plan', { sourceEnvId: diff.source, targetEnvId: diff.target, selection }))
+  async plan(diff: DiffModel, selection?: SelectionItem[], includeDependencies = true): Promise<Plan> {
+    // diffId lets the local runner plan from the compare it already holds instead of reading
+    // both environments again; the Function ignores it and compares afresh.
+    return json(
+      await this.post('/plan', {
+        sourceEnvId: diff.source,
+        targetEnvId: diff.target,
+        diffId: diff.diffId,
+        selection,
+        includeDependencies,
+      }),
+    )
   }
 
   async apply(plan: Plan, mode: 'dryRun' | 'apply', approved: boolean): Promise<Run> {
@@ -70,6 +80,10 @@ export class BackendAlmService implements AlmService {
         idempotencyKey: crypto.randomUUID(),
       }),
     )
+  }
+
+  async listRuns(): Promise<RunListItem[]> {
+    return json(await this.get('/runs'))
   }
 
   async getRun(runId: string): Promise<Run> {

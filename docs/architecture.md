@@ -13,7 +13,7 @@ Power Apps code app (React/TS, in Dynamics)        Backend (service principal)
 │ Watch stage progress, roll back       │  via     │ Write -> upsert by resolved key   │   Prod
 │                                        │ connector│ Rollback -> snapshot restore │
 └──────────────────────────────────────┘          └──────────────────────────────┘
-        Fluent UI v9                                one app registration,
+        Capgemini design system (src/ui)            one app registration,
         @microsoft/power-apps SDK                   app user in all four environments
 ```
 
@@ -31,10 +31,11 @@ There is a lighter variant. See the two options below.
 
 | Layer | Files | Job |
 | --- | --- | --- |
-| Shell | `App.tsx`, `PowerProvider.tsx` | Theme, header, and the host handshake (`setConfig` + `getContext`). |
-| Page | `pages/ComparePage.tsx` | Drives the flow: compare, select, plan, run, roll back. |
-| Components | `components/*` | Environment bar, summary cards, diff table, detect-only panel, plan panel, run progress, apply dialog. |
-| Flow | `hooks/useAlmFlow.ts` | State machine over the service. Holds diff, plan, run, and errors. |
+| Design system | `ui/*` | Capgemini (Zodiak) tokens, fonts, logos and components. Every colour is a semantic token, in light and dark. |
+| Shell | `App.tsx`, `PowerProvider.tsx` | Header, navigation (Migrate, History, Setup), theme, and the host handshake (`setConfig` + `getContext`). |
+| Pages | `pages/MigratePage.tsx`, `HistoryPage.tsx`, `SetupPage.tsx` | The guided flow, past runs, and (local runner only) app registrations with their checks. |
+| Steps | `components/migrate/*` | Environments, review, plan check, run, apply dialog. |
+| Flow | `hooks/useMigration.ts` | The journey over the service: selection, plan fixes, dry-run gate before apply, rollback. |
 | Service | `services/*` | The seam. One interface, two adapters. |
 | Types | `types/alm.ts` | The API contract, shared by UI and backend. |
 

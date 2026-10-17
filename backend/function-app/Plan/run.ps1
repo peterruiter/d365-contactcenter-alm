@@ -14,7 +14,8 @@ try {
         @($body.selection | ForEach-Object { @{ table = $_.table; matchKey = $_.matchKey } })
     } else { $null }
 
-    $plan = New-CcPlan -Diff $diff -Selection $selection
+    $includeDeps = if ($null -ne $body.includeDependencies) { [bool]$body.includeDependencies } else { $true }
+    $plan = New-CcPlan -Diff $diff -Selection $selection -IncludeDependencies $includeDeps
     Push-CcJson 200 (ConvertTo-CcPlanContract $plan)
 }
 catch {

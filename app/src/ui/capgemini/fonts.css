@@ -1,0 +1,43 @@
+/* Ubuntu, the Capgemini typeface. Light 300 and Regular 400 carry the system; Medium 500 is for
+   dense UI, Bold 700 for data emphasis only. Faces match type.fonts in tokens.json. */
+
+@font-face {
+  font-family: "Ubuntu";
+  src: url("./fonts/Ubuntu-Light.woff2") format("woff2");
+  font-weight: 300;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Ubuntu";
+  src: url("./fonts/Ubuntu-Regular.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* The only italic shipped. It also serves the 300 italic `caption` style. */
+@font-face {
+  font-family: "Ubuntu";
+  src: url("./fonts/Ubuntu-Italic.woff2") format("woff2");
+  font-weight: 300 400;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Ubuntu";
+  src: url("./fonts/Ubuntu-Medium.woff2") format("woff2");
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Ubuntu";
+  src: url("./fonts/Ubuntu-Bold.woff2") format("woff2");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}

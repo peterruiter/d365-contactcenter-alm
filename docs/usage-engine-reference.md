@@ -38,7 +38,7 @@ Dry-run is the default. It builds the plan, reports every operation, and writes 
 ./backend/cli/migrate.ps1 -Config ./environments.json -Source acc -Target prod
 ```
 
-Read the plan. It lists operations by stage and manifest order, so you can see parents landing before children. Check the "Problems flagged" section at the end. Unmapped ruleset GUIDs or missing parents show up here - each one means that specific record will be skipped on apply rather than written broken, so select the record(s) it depends on and re-run to get a clean plan.
+Read the plan. It lists operations by stage and manifest order, so you can see parents landing before children. `New-CcPlan` adds the new records a selection needs (`-IncludeDependencies $false` to turn that off) and prints every blocked record with the reason, such as a dependency that is not selected or a channel that needs a per-environment phone number.
 
 ## Migrate: apply
 
@@ -59,7 +59,7 @@ What happens:
 6. A record whose dependency genuinely is not in target (not selected this run) is skipped with a warning instead of attempted - the run continues to the rest of the plan rather than stopping there.
 7. A run record lands in `./out/run-run_<id>.json`.
 
-The run state reflects both outcomes: `PartiallyFailed` means either a real write failed (rare - the run also stops immediately in that case, and the message tells you the snapshot path to roll back) or one or more records were skipped for an unresolved dependency (the run still completed everything else). Read the warnings and problems either way; a skip names exactly what to select next.
+`PartiallyFailed` means some records did not move: blocked in the plan, skipped because a record they need failed, or failed themselves. Everything else in the run completed. Each problem names the record and the reason.
 
 ## Roll back
 

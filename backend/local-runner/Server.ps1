@@ -167,6 +167,19 @@ function Get-CcRunnerEnvironments([string[]] $ids) {
     Connect-CcEnvironment -Registry (Get-CcEngineRegistry $ids) -EnvironmentId $ids -SkipCheck
 }
 
+$script:CcDiffCache = @{}
+
+function Set-CcCachedDiff($diff) {
+    # One recent compare per source/target pair, for planning without reading both orgs again.
+    $script:CcDiffCache["$($diff.source)|$($diff.target)"] = @{ Diff = $diff; At = Get-Date }
+}
+
+function Get-CcCachedDiff([string] $diffId, [string] $source, [string] $target) {
+    $c = $script:CcDiffCache["$source|$target"]
+    if ($c -and $c.Diff.diffId -eq $diffId -and $c.At -gt (Get-Date).AddMinutes(-30)) { return $c.Diff }
+    return $null
+}
+
 function Get-CcSelection($body) {
     if ($body.selection) { return @($body.selection | ForEach-Object { @{ table = $_.table; matchKey = $_.matchKey } }) }
     return $null
@@ -185,15 +198,29 @@ function Invoke-CcApiRoute($ctx, [string] $method, [string] $path) {
             $body = Read-CcRequestBody $ctx
             if (-not $body.sourceEnvId -or -not $body.targetEnvId) { return Send-CcError $ctx 400 'bad_request' 'sourceEnvId and targetEnvId are required.' }
             $envs = Get-CcRunnerEnvironments @($body.sourceEnvId, $body.targetEnvId)
-            $tables = if ($op -eq 'compare' -and $body.tables) { @($body.tables) } else { $null }
-            $diff = Compare-CcConfig -Environments $envs -SourceId $body.sourceEnvId -TargetId $body.targetEnvId -Tables $tables
+
+            # Planning reuses the compare it was built from (instant, and exactly what the person
+            # reviewed). Applying always reads both environments again, so it never writes from
+            # a stale picture of the target.
+            $diff = $null
+            if ($op -eq 'plan' -and $body.diffId) { $diff = Get-CcCachedDiff $body.diffId $body.sourceEnvId $body.targetEnvId }
+            if (-not $diff) {
+                $tables = if ($op -eq 'compare' -and $body.tables) { @($body.tables) } else { $null }
+                $diff = Compare-CcConfig -Environments $envs -SourceId $body.sourceEnvId -TargetId $body.targetEnvId -Tables $tables
+                Set-CcCachedDiff $diff
+            }
             if ($op -eq 'compare') { return Send-CcJson $ctx 200 (ConvertTo-CcDiffContract $diff) }
 
-            $plan = New-CcPlan -Diff $diff -Selection (Get-CcSelection $body)
-            if ($op -eq 'plan') { return Send-CcJson $ctx 200 (ConvertTo-CcPlanContract $plan) }
+            if ($op -eq 'plan') {
+                $includeDeps = if ($null -ne $body.includeDependencies) { [bool]$body.includeDependencies } else { $true }
+                $plan = New-CcPlan -Diff $diff -Selection (Get-CcSelection $body) -IncludeDependencies $includeDeps
+                return Send-CcJson $ctx 200 (ConvertTo-CcPlanContract $plan)
+            }
 
+            # Apply and dry run: exactly the reviewed operation list, nothing added.
+            $plan = New-CcPlan -Diff $diff -Selection (Get-CcSelection $body) -IncludeDependencies $false
             if ($plan.operations.Count -eq 0) {
-                return Send-CcJson $ctx 200 @{ runId = 'run_noop'; mode = $body.mode; target = $body.targetEnvId; state = 'Succeeded'; snapshotId = $null; stages = @(); problems = @() }
+                return Send-CcJson $ctx 200 @{ runId = 'run_noop'; mode = $body.mode; source = $body.sourceEnvId; target = $body.targetEnvId; state = 'Succeeded'; snapshotId = $null; summary = @{ created = 0; updated = 0; linked = 0; skipped = 0; blocked = 0; failed = 0 }; stages = @(); problems = @() }
             }
             $mode = if ($body.mode -eq 'apply') { 'Apply' } else { 'DryRun' }
             $outDir = Join-Path $script:CcRunsDir "work-$([guid]::NewGuid().ToString('N').Substring(0, 8))"
@@ -211,6 +238,15 @@ function Invoke-CcApiRoute($ctx, [string] $method, [string] $path) {
             }
             finally { Remove-Item $outDir -Recurse -Force -ErrorAction SilentlyContinue }
         }
+        '^GET /api/runs$' {
+            # Recent runs, newest first, without their item lists.
+            $runs = @(Get-ChildItem $script:CcRunsDir -Filter 'run-*.json' -ErrorAction SilentlyContinue |
+                    Sort-Object LastWriteTime -Descending | Select-Object -First 25 | ForEach-Object {
+                        $r = Get-Content $_.FullName -Raw -Encoding UTF8 | ConvertFrom-Json
+                        [ordered]@{ runId = $r.runId; mode = $r.mode; source = $r.source; target = $r.target; state = $r.state; startedAt = $r.startedAt; finishedAt = $r.finishedAt; summary = $r.summary; snapshotId = $r.snapshotId }
+                    })
+            return Send-CcJson $ctx 200 $runs
+        }
         '^GET /api/run/([A-Za-z0-9_-]+)$' {
             $run = Get-CcRunRecord $Matches[1]
             if (-not $run) { return Send-CcError $ctx 404 'not_found' "Run $($Matches[1]) not found." }
@@ -225,12 +261,9 @@ function Invoke-CcApiRoute($ctx, [string] $method, [string] $path) {
             $envs = Get-CcRunnerEnvironments @($run.target)
             $result = Restore-CcRun -SnapshotPath $snapshot -Environments $envs -Confirm:$false
             $run.state = 'RolledBack'
+            $run | Add-Member -NotePropertyName cleanup -NotePropertyValue ([ordered]@{ restored = $result.restored; deleted = $result.deleted; unresolved = @($result.unresolved) }) -Force
             Save-CcRunRecord $id $run
-            return Send-CcJson $ctx 200 ([ordered]@{
-                    runId = $id; state = 'RolledBack'; mode = $run.mode; target = $run.target; snapshotId = $run.snapshotId
-                    stages = @($run.stages); problems = @($run.problems)
-                    cleanup = @{ restored = $result.restored; unresolved = @($result.unresolved) }
-                })
+            return Send-CcJson $ctx 200 $run
         }
         '^GET /api/setup$' {
             return Send-CcJson $ctx 200 (Get-CcSetupState)

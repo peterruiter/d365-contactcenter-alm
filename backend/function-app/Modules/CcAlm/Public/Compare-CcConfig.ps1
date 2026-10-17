@@ -1,8 +1,8 @@
 function Compare-CcConfig {
     <#
     .SYNOPSIS
-        Reads every manifest table from source and target, diffs them, and returns a diff model.
-        Writes a markdown report and a JSON diff when -OutputDir is given.
+        Reads every manifest table from source and target, pairs the records and diffs them.
+        Returns a diff model; writes a markdown report and a JSON diff when -OutputDir is given.
     .EXAMPLE
         $diff = Compare-CcConfig -Environments $envs -SourceId acc -TargetId prod -OutputDir ./out
     #>
@@ -22,88 +22,92 @@ function Compare-CcConfig {
     if (-not $target) { throw "Target environment '$TargetId' not found." }
 
     $manifest = Get-CcManifest -Path $ManifestPath
-    $tablesToRead = $manifest.tables
-    if ($Tables) { $tablesToRead = $manifest.tables | Where-Object { $Tables -contains $_.logicalName } }
-
-    $entitySetByLogical = @{}
     $tableByLogical = @{}
+    foreach ($t in $manifest.tables) { $tableByLogical[$t.logicalName] = $t }
+
+    # Every table is read, even when -Tables narrows the diff: children are keyed by their parents
+    # and lookups resolve through them, so a partial read would mis-key the tables you asked for.
+    $tablePlans = @{}
+    $notices = [System.Collections.Generic.List[object]]::new()
     foreach ($t in $manifest.tables) {
-        $entitySetByLogical[$t.logicalName] = $t.entitySet
-        $tableByLogical[$t.logicalName] = $t
+        $ss = Get-CcTableSchema -Environment $source -LogicalName $t.logicalName
+        $ts = Get-CcTableSchema -Environment $target -LogicalName $t.logicalName
+        $plan = Resolve-CcTablePlan -Table $t -SourceSchema $ss -TargetSchema $ts -Manifest $manifest -TableByLogical $tableByLogical
+        $tablePlans[$t.logicalName] = $plan
+        if (-not $plan.Usable) {
+            if ($t.move -eq 'reference') { continue }
+            $notices.Add([pscustomobject]@{ severity = 'info'; table = $t.logicalName; message = $plan.Reason }) | Out-Null
+        }
+        elseif ($plan.MissingInTarget.Count -gt 0) {
+            $labels = @($plan.MissingInTarget | ForEach-Object { Get-CcColumnLabel $plan $_ } | Select-Object -First 6)
+            $more = if ($plan.MissingInTarget.Count -gt 6) { " and $($plan.MissingInTarget.Count - 6) more" } else { '' }
+            $notices.Add([pscustomobject]@{
+                    severity = 'warning'; table = $t.logicalName
+                    message  = "The target has an older version of $(Get-CcTableLabel $t): $($labels -join ', ')$more do not exist there and will not be copied."
+                }) | Out-Null
+        }
     }
 
     Write-Verbose "Reading source ($($source.Name)) and target ($($target.Name))."
-    $sourceRecordsByTable = @{}
-    $targetRecordsByTable = @{}
-    $sourceIndexes = @{}
-    $targetIndexes = @{}
-
-    foreach ($t in $tablesToRead) {
-        $sr = @(Get-CcRecords -Environment $source -Table $t)
-        $tr = @(Get-CcRecords -Environment $target -Table $t)
-
+    $sourceRecords = @{}
+    $targetRecords = @{}
+    foreach ($t in $manifest.tables) {
+        $plan = $tablePlans[$t.logicalName]
+        if (-not $plan.Usable) { $sourceRecords[$t.logicalName] = @(); $targetRecords[$t.logicalName] = @(); continue }
+        $sr = @(Get-CcRecords -Environment $source -EntitySet $plan.SourceEntitySet -Select $plan.Select)
+        $tr = @(Get-CcRecords -Environment $target -EntitySet $plan.EntitySet -Select $plan.Select)
         if ($t.personalFilterColumn) {
+            # Personal and system queues: one per user, auto-provisioned, never configuration.
             $col = $t.personalFilterColumn
             $sr = @($sr | Where-Object { $_.$col -eq $true })
             $tr = @($tr | Where-Object { $_.$col -eq $true })
         }
-
-        # Solution-managed rows (ismanaged = true) ship with the underlying managed solution
-        # (Omnichannel, Copilot Studio, Voice, ...) and already exist wherever that solution is
-        # installed. Writing one back is not just pointless, Dataverse rejects it outright (its
-        # own solution-component validation chokes on a raw create/update of a managed row). Not
-        # every table carries this column, so absence never filters a record out - only an
-        # explicit true does. No opt-out: there is no scenario where moving one is correct.
-        $sr = @($sr | Where-Object { $_.ismanaged -ne $true })
-        $tr = @($tr | Where-Object { $_.ismanaged -ne $true })
-
-        $sourceRecordsByTable[$t.logicalName] = $sr
-        $targetRecordsByTable[$t.logicalName] = $tr
-        $sourceIndexes[$t.logicalName] = Build-CcIndex -Records $sr -Table $t
-        $targetIndexes[$t.logicalName] = Build-CcIndex -Records $tr -Table $t
+        $sourceRecords[$t.logicalName] = $sr
+        $targetRecords[$t.logicalName] = $tr
     }
 
-    $maps = Build-CcGlobalMaps -SourceIndexes $sourceIndexes -TargetIndexes $targetIndexes `
-        -SourceRecordsByTable $sourceRecordsByTable -TargetRecordsByTable $targetRecordsByTable `
-        -TableByLogical $tableByLogical
+    $srcData = New-CcEnvData -Side 'source' -RecordsByTable $sourceRecords -TablePlans $tablePlans
+    $tgtData = New-CcEnvData -Side 'target' -RecordsByTable $targetRecords -TablePlans $tablePlans
+    Set-CcKeys -Source $srcData -Target $tgtData -Tables $manifest.tables -TablePlans $tablePlans
+    $maps = Build-CcMaps -Source $srcData -Target $tgtData -TablePlans $tablePlans
 
     $tableDiffs = [System.Collections.Generic.List[object]]::new()
-    foreach ($t in $tablesToRead) {
-        if ($t.move -eq 'detect') { continue }
-        $td = Compare-CcTable -Table $t `
-            -SourceRecords $sourceRecordsByTable[$t.logicalName] `
-            -TargetRecords $targetRecordsByTable[$t.logicalName] `
-            -SourceIndexes $sourceIndexes -TargetIndexes $targetIndexes `
-            -SystemColumns $manifest.systemColumns -SourceGuidToRef $maps.SourceGuidToRef `
-            -TableByLogical $tableByLogical
+    foreach ($t in $manifest.tables) {
+        if ($t.move -in 'detect', 'reference') { continue }
+        if ($Tables -and $Tables -notcontains $t.logicalName) { continue }
+        $plan = $tablePlans[$t.logicalName]
+        if (-not $plan.Usable) { continue }
+        $td = Compare-CcTable -TablePlan $plan -Source $srcData -Target $tgtData -Maps $maps -TablePlans $tablePlans
         $tableDiffs.Add($td) | Out-Null
     }
 
-    $detect = Get-CcDetectOnly -Manifest $manifest -SourceRecordsByTable $sourceRecordsByTable -TargetRecordsByTable $targetRecordsByTable
+    $detect = Get-CcDetectOnly -Manifest $manifest -Source $srcData -Target $tgtData -TablePlans $tablePlans
 
+    $all = @($tableDiffs | ForEach-Object { $_.records } | ForEach-Object { $_ })
     $summary = [pscustomobject]@{
-        missingInTarget = (@($tableDiffs.records | Where-Object status -eq 'MissingInTarget')).Count
-        extraInTarget   = (@($tableDiffs.records | Where-Object status -eq 'ExtraInTarget')).Count
-        changed         = (@($tableDiffs.records | Where-Object status -eq 'Changed')).Count
-        equal           = (@($tableDiffs.records | Where-Object status -eq 'Equal')).Count
+        missingInTarget = @($all | Where-Object status -eq 'MissingInTarget').Count
+        extraInTarget   = @($all | Where-Object status -eq 'ExtraInTarget').Count
+        changed         = @($all | Where-Object status -eq 'Changed').Count
+        equal           = @($all | Where-Object status -eq 'Equal').Count
+        ambiguous       = @($all | Where-Object status -eq 'Ambiguous').Count
     }
 
     $diff = [pscustomobject]@{
+        diffId     = "dif_$([guid]::NewGuid().ToString('N').Substring(0, 12))"
         source     = $source.Id
         target     = $target.Id
         generated  = (Get-Date).ToString('o')
         summary    = $summary
         tables     = $tableDiffs
-        detectOnly = $detect
-        # kept for the plan/apply step so they do not re-read
+        detectOnly = @($detect)
+        notices    = @($notices)
+        # Kept for plan and run, so they do not read both environments again.
         _context   = [pscustomobject]@{
-            SourceRecordsByTable = $sourceRecordsByTable
-            TargetRecordsByTable = $targetRecordsByTable
-            SourceIndexes        = $sourceIndexes
-            TargetIndexes        = $targetIndexes
-            Maps                 = $maps
-            EntitySetByLogical   = $entitySetByLogical
-            Manifest             = $manifest
+            Manifest   = $manifest
+            TablePlans = $tablePlans
+            Source     = $srcData
+            Target     = $tgtData
+            Maps       = $maps
         }
     }
 
@@ -113,7 +117,7 @@ function Compare-CcConfig {
         if (-not (Test-Path $OutputDir)) { New-Item -ItemType Directory -Path $OutputDir | Out-Null }
         $stamp = Get-Date -Format 'yyyyMMdd-HHmmss'
         Write-CcMarkdownReport -Diff $diff -Path (Join-Path $OutputDir "diff-$($source.Id)-to-$($target.Id)-$stamp.md")
-        $diff | Select-Object source, target, generated, summary, tables, detectOnly |
+        $diff | Select-Object diffId, source, target, generated, summary, tables, detectOnly, notices |
             ConvertTo-Json -Depth 40 | Set-Content -Path (Join-Path $OutputDir "diff-$($source.Id)-to-$($target.Id)-$stamp.json") -Encoding UTF8
         Write-Host "Reports written to $OutputDir" -ForegroundColor Green
     }

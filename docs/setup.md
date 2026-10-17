@@ -23,7 +23,7 @@ The app opens with sample workstreams, queues, and routing rulesets. Every scree
 
 ## Branding
 
-The app ships with a Power Pete visual identity (purple palette, wordmark) by default - no `.env` needed. Set `VITE_BRAND=capgemini` in `app/.env` for the Capgemini Zodiak identity (blue palette, logo) instead. Both are defined in `app/src/brands/`: colors, logo, favicon, page title. Add a new one by dropping a third file next to `capgemini.ts` and `powerpete.ts` and registering it in `app/src/brands/index.ts`.
+The app is built on the Capgemini (Zodiak) design system in `app/src/ui`: tokens, the Ubuntu fonts, the 2025 logo set and the components, all shipped with the app. Light and dark follow the toggle in the header. The tokens come from the Capgemini design system; after it changes, replace `app/src/ui/capgemini/tokens.json` and run `npm run tokens` in `app`.
 
 ## Point it at the backend
 

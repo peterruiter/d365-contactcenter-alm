@@ -1,89 +1,71 @@
-import { useEffect, useState, type CSSProperties } from 'react'
-import { FluentProvider, Switch, Tab, TabList } from '@fluentui/react-components'
-import { lightTheme, darkTheme } from './theme'
-import { ComparePage } from './pages/ComparePage'
+import { useEffect, useState } from 'react'
+import { AppFooter, AppHeader, Link, Tabs, ThemeToggle } from './ui'
+import { MigratePage } from './pages/MigratePage'
+import { HistoryPage } from './pages/HistoryPage'
 import { SetupPage } from './pages/SetupPage'
+import { useMigration } from './hooks/useMigration'
 import { getSetup, isLocalRunner } from './services/localSetup'
-import { Footer } from './components/Footer'
-import { brand } from './brands'
+import { getAlmService } from './services'
+import { brand } from './brand'
 import './styles/app.css'
 
+type Page = 'migrate' | 'history' | 'setup'
+
 export default function App() {
-  const [dark, setDark] = useState<boolean>(false)
-  // Local runner only: Setup (app registrations + checks) next to Compare. Opens on Compare once
-  // two environments are ready, otherwise on Setup. The published app has no tabs.
-  const [tab, setTab] = useState<'setup' | 'compare' | null>(isLocalRunner ? null : 'compare')
+  const m = useMigration()
+  const hasHistory = !!getAlmService().listRuns
+  // The local runner opens on Setup until two environments pass their checks.
+  const [page, setPage] = useState<Page | null>(isLocalRunner ? null : 'migrate')
 
   useEffect(() => {
+    document.title = brand.browserTitle
     if (!isLocalRunner) return
     getSetup()
-      .then((s) => setTab(s.environments.filter((e) => e.ready).length >= 2 ? 'compare' : 'setup'))
-      .catch(() => setTab('setup'))
+      .then((s) => setPage(s.environments.filter((e) => e.ready).length >= 2 ? 'migrate' : 'setup'))
+      .catch(() => setPage('setup'))
   }, [])
 
-  // Browser tab title and favicon follow the active brand too - both are set once here rather
-  // than duplicated as static values in index.html, so src/brands/ stays the single source of
-  // truth for a brand's identity.
-  useEffect(() => {
-    document.title = brand.productTitle
-    const link = document.querySelector<HTMLLinkElement>("link[rel~='icon']")
-    if (link) {
-      link.href = brand.favicon
-      link.type = brand.favicon.endsWith('.png') ? 'image/png' : 'image/svg+xml'
-    }
-  }, [])
-
-  const brandVars = {
-    '--brand-primary': brand.colors.primary,
-    '--brand-primary-dark': brand.colors.primaryDark,
-    '--brand-accent': brand.colors.accent,
-  } as CSSProperties
+  const tabs = [
+    { id: 'migrate', label: 'Migrate' },
+    ...(hasHistory ? [{ id: 'history', label: 'History' }] : []),
+    ...(isLocalRunner ? [{ id: 'setup', label: 'Setup' }] : []),
+  ]
 
   return (
-    <FluentProvider theme={dark ? darkTheme : lightTheme} style={{ height: '100%' }}>
-      <div className={`app-shell${dark ? ' theme-dark' : ''}`} style={brandVars}>
-        <header className="app-header">
-          <div className="brand">
-            {/* Always the light/white logo variant: the header background is always the brand's
-                colored gradient, light-on-dark, regardless of the light/dark theme toggle below. */}
-            <img className="brand-logo" src={brand.logoLight} alt={brand.logoAlt} />
-          </div>
-          <div className="header-divider" />
-          <div className="header-title">
-            <span className="header-product">{brand.productTitle}</span>
-            <span className="header-sub">{brand.headerSubtitle}</span>
-          </div>
-          <div className="header-actions">
-            {/* The header background is always the brand's colored gradient, regardless of the
-                light/dark toggle below, but Fluent colors this switch from the active theme - in
-                light mode that means a dark thumb/icon that disappears against it. Nesting a dark-themed
-                provider here (rather than guessing at Fluent's internal class names) makes Fluent
-                render the switch with its own correct light-on-dark contrast unconditionally. */}
-            <FluentProvider theme={darkTheme} style={{ background: 'transparent' }}>
-              <Switch checked={dark} onChange={(_, d) => setDark(d.checked)} label={dark ? 'Dark' : 'Light'} />
-            </FluentProvider>
-          </div>
-        </header>
-
-        {isLocalRunner && tab && (
-          <nav className="app-tabs">
-            <TabList selectedValue={tab} onTabSelect={(_, d) => setTab(d.value as 'setup' | 'compare')}>
-              <Tab value="setup">Setup</Tab>
-              <Tab value="compare">Compare</Tab>
-            </TabList>
-            <span className="app-tabs-hint">Local runner</span>
-          </nav>
+    <div className="app">
+      <AppHeader
+        productName={brand.productName}
+        subtitle={brand.subtitle}
+        nav={
+          tabs.length > 1 && page ? (
+            <Tabs tone="heavy" items={tabs} selected={page} onSelect={(id) => setPage(id as Page)} idBase="main-nav" />
+          ) : undefined
+        }
+        actions={<ThemeToggle tone="heavy" label="Dark" />}
+      />
+      <main className="app-main" id="main">
+        {page === 'migrate' && <MigratePage m={m} />}
+        {page === 'history' && <HistoryPage runs={m.runs} environments={m.environments} onRefresh={m.refreshRuns} />}
+        {page === 'setup' && (
+          <SetupPage
+            onReady={() => {
+              // Environments set up just now: reload the list the migration flow picks from.
+              window.location.reload()
+            }}
+          />
         )}
-
-        <main className="app-body">
-          <div className="content">
-            {/* Remounted on every tab switch, so Compare picks up environments set up just now. */}
-            {tab === 'compare' && <ComparePage />}
-            {tab === 'setup' && <SetupPage onGoCompare={() => setTab('compare')} />}
-          </div>
-          <Footer />
-        </main>
-      </div>
-    </FluentProvider>
+      </main>
+      <AppFooter
+        left={<span>{brand.footer.disclaimer}</span>}
+        right={
+          <span className="row">
+            <span>{brand.footer.creator}</span>
+            <Link href={brand.footer.mailHref}>Mail</Link>
+            <Link href={brand.footer.teamsHref} target="_blank" rel="noreferrer">Teams</Link>
+            <Link href={brand.footer.sourceHref} target="_blank" rel="noreferrer">Source</Link>
+          </span>
+        }
+      />
+    </div>
   )
 }
