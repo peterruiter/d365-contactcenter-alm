@@ -5,6 +5,9 @@ All notable changes to this project are recorded here. Format follows [Keep a Ch
 ## [Unreleased]
 
 ### XrmToolBox tool
+- **The review tree shows the structure, not a list per table.** Every record sits under the one it belongs to - a workstream, its routing configuration, that configuration's work classification and route-to-queue steps - and under each record the things it uses (the ruleset a step runs, the queue it routes to) are listed where they are used, marked "uses", with their own place in the tree as well. A container says how much sits under it, how much of that is ticked, and, after a plan check, how many records under it are blocked. *Show: By table* gives the old list per table back.
+- **A record now says where it is used.** The details pane lists what points at it, through which column, next to what it needs and everything under it; a double-click in any of the three lists goes to that record, and the line under the title goes up to the record it sits in.
+- **The plan check says why a record is in the plan**: a record added because something else needs it now names that record ("Needed by workstream 'Mortgage chat'").
 - **Contact Center ALM for XrmToolBox** (`xrmtoolbox/`). Compare, review, plan check, dry run, apply with the check afterwards, and rollback, on two XrmToolBox connections: the tool's connection is the source, a second one the target. No backend and no app registration. Ticking a record ticks everything under it, as in the app. Runs and snapshots are kept in XrmToolBox's settings folder. See [docs/xrmtoolbox.md](docs/xrmtoolbox.md).
 - **The engine in C#** (`CcAlm.Core`, .NET Standard 2.0), a port of the PowerShell engine on the same manifest, working through an `IDataverse` interface: the Dataverse SDK in XrmToolBox, an in-memory Dataverse in the tests. Its tests replay the synthetic scenario and every recording, and require the same compare and plan the PowerShell engine recorded, table by table. On a real Dev to Test, read through the SDK, both engines gave identical results.
 - A new workstream's routing contract, which Dataverse provisions on its own, is recorded in the snapshot, so rollback deletes it too.
@@ -17,6 +20,11 @@ All notable changes to this project are recorded here. Format follows [Keep a Ch
 ### Selecting
 - **Ticking a record ticks everything under it and what that uses.** A workstream brings its routing configuration, its work classification and route-to-queue steps, their rulesets, its queues, templates and the rest; unticking takes them away again, except what another ticked record still needs. The table, group and select-all checkboxes work the same way.
 - **One checkbox above the list selects or clears everything shown**, combined with the filters and the search, and every group heading has its own.
+
+### How it looks and who built it
+- **The product has an icon**: the brand blue square with "CC" and an arrow, drawn by `scripts/make-icons.ps1` at every size that is needed - `runner-exe/icon.ico` for the exe (16 to 256 px; below 32 px the arrow is dropped so the letters stay sharp), the XrmToolBox tool list's 32 and 80 px, and a 128 px package icon for nuget.org and the Tool Library. One drawing, so the exe, the tool list and the package listing look the same.
+- **The exe says what it is and who wrote it.** `ContactCenterALM-LocalRunner.exe` now carries its icon and a full version resource: file description, product name, company and author (Peter Ruiter), copyright and licence, the project URL in the comments, the file version with the build number and the product version with the commit (`0.3.0+21.abc1234`), so an exe on a laptop can be traced back to a commit.
+- The Tool Library package carries the icon, a readme written for its listing (`xrmtoolbox/package-readme.md`) and the repository link.
 
 ### Version and updates
 - **The app shows which build it is**: `Version 0.3.0 · build N (commit)` in the footer, in Dynamics and in the local runner. The build number is the commit count, so a newer build always has a higher number. The exe carries the same version in its file properties.

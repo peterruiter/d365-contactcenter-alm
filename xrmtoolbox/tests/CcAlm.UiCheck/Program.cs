@@ -57,8 +57,16 @@ static class Program
             () => { control.UseSessionForTesting(new MigrationSession(scenario.Dev, scenario.Test)); control.CompareForTesting(); },
             () => { control.SelectFirstRecordForTesting("Mortgage chat"); },
             () => Shot(form, outDir, "1-review.png", log),
-            () => control.PlanForTesting(),
+            // A queue: used by a workstream and by a ruleset, so "Where it is used" has something to say.
+            () => { control.SelectFirstRecordForTesting("Mortgage queue"); },
+            () => Shot(form, outDir, "1b-review-used-by.png", log),
+            () => control.ShowViewForTesting("By table"),
+            () => Shot(form, outDir, "1c-review-by-table.png", log),
+            () => { control.ShowViewForTesting("By structure"); control.PlanForTesting(); },
             () => Shot(form, outDir, "2-plan.png", log),
+            // Back to the tree: it now says which workstream or channel the blocked records sit in.
+            () => { control.ShowTabForTesting(0); control.SelectFirstRecordForTesting("Mortgage WhatsApp"); },
+            () => Shot(form, outDir, "2b-review-blocked.png", log),
             () => control.DryRunForTesting(),
             () => { },
             () => Shot(form, outDir, "3-run.png", log),
@@ -80,9 +88,19 @@ static class Program
     static void Shot(Form form, string dir, string name, TextWriter log)
     {
         using (var bmp = new Bitmap(form.Width, form.Height))
-        using (var g = Graphics.FromImage(bmp))
         {
-            g.CopyFromScreen(form.Location, Point.Empty, form.Size);
+            // From the screen, which shows the window as Windows draws it. Without an interactive
+            // desktop (a build agent, a terminal without one) that cannot be read, so the window
+            // draws itself instead: the same layout, without the frame.
+            try
+            {
+                using (var g = Graphics.FromImage(bmp)) g.CopyFromScreen(form.Location, Point.Empty, form.Size);
+            }
+            catch (Exception ex)
+            {
+                log.WriteLine("no screen (" + ex.GetType().Name + "), drawing the window itself");
+                form.DrawToBitmap(bmp, new Rectangle(0, 0, form.Width, form.Height));
+            }
             bmp.Save(Path.Combine(dir, name), ImageFormat.Png);
         }
         log.WriteLine("saved " + name);

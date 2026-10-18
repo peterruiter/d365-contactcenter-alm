@@ -18,8 +18,9 @@ namespace CcAlm.XrmToolBox
 {
     /// <summary>
     /// The tool: the XrmToolBox connection is the source, a second connection the target. Review what
-    /// differs, tick what to move (a record brings everything under it), check the plan, dry-run,
-    /// apply with a check afterwards, and roll back.
+    /// differs - by structure, so every record sits under the workstream or channel it belongs to -
+    /// tick what to move (a record brings everything under it), check the plan, dry-run, apply with a
+    /// check afterwards, and roll back.
     /// </summary>
     public sealed class MainControl : MultipleConnectionsPluginControlBase
     {
@@ -43,12 +44,14 @@ namespace CcAlm.XrmToolBox
         IOrganizationService _targetService;
         MigrationSession _session;
         DiffModel _diff;
+        Hierarchy _hier;
         Selection _selection;
         Plan _plan;
         string _dryRunPlanId;
         RunResult _lastRun;
         bool _syncingChecks;
         bool _testing;
+        readonly ToolTip _tips = new ToolTip();
 
         string TargetName => _targetDetail?.ConnectionName ?? _session?.Target.Name ?? "the target";
 
@@ -65,6 +68,7 @@ namespace CcAlm.XrmToolBox
         internal void PlanForTesting() => BuildPlan();
         internal void DryRunForTesting() => Run(dry: true);
         internal void ShowTabForTesting(int index) => _tabs.SelectedIndex = index;
+        internal void ShowViewForTesting(string view) { _view.SelectedIndex = _view.Items.IndexOf(view); }
         internal void SelectFirstRecordForTesting(string name)
         {
             var node = AllRecordNodes().FirstOrDefault(n => ((RecordDiff)n.Tag).DisplayName == name);
@@ -79,13 +83,23 @@ namespace CcAlm.XrmToolBox
         TabControl _tabs;
         TabPage _tabReview, _tabPlan, _tabRun;
         // Review
+        ComboBox _view;
         TextBox _search;
         readonly Dictionary<string, CheckBox> _statusFilters = new Dictionary<string, CheckBox>();
         CheckBox _selectAll, _includeDeps;
-        Label _selectionCount;
+        Label _selectionCount, _hint;
         TreeView _tree;
+        // Which nodes the person has open, kept across rebuilds; the counts a container shows; and
+        // what the last plan check blocked, so the tree says where the blocked records sit.
+        readonly HashSet<string> _expanded = new HashSet<string>();
+        bool _expansionSeeded, _applyingExpansion;
+        readonly Dictionary<TreeNode, string> _nodeText = new Dictionary<TreeNode, string>();
+        readonly Dictionary<string, Rollup> _rollups = new Dictionary<string, Rollup>();
+        readonly HashSet<string> _blocked = new HashSet<string>();
         Label _detailTitle, _detailStatus;
-        ListView _fields, _needs, _under;
+        LinkLabel _detailOwner;
+        Label _headNeeds, _headUsedBy, _headUnder;
+        ListView _fields, _needs, _usedBy, _under;
         TextBox _notices;
         // Plan
         Label _planSummary;
@@ -188,9 +202,12 @@ namespace CcAlm.XrmToolBox
                 {
                     if (args.Error != null) { ShowError(args.Error, "The compare did not finish"); return; }
                     _diff = (DiffModel)args.Result;
+                    _hier = Hierarchy.Of(_diff);
+                    _rollups.Clear();
+                    _expanded.Clear(); _expansionSeeded = false;
                     _selection = new Selection(_diff);
                     _selection.SelectAll();
-                    _plan = null; _dryRunPlanId = null;
+                    _plan = null; _dryRunPlanId = null; _blocked.Clear();
                     ShowNotices();
                     RebuildTree();
                     _tabs.SelectedTab = _tabReview;
@@ -216,13 +233,56 @@ namespace CcAlm.XrmToolBox
 
         // --- Review tree ---------------------------------------------------------------------------
 
-        IEnumerable<RecordDiff> Shown(TableDiff t)
+        /// <summary>What a container node says about everything under it: how much, and how much moves.</summary>
+        sealed class Rollup
         {
+            public int Under;
+            public List<string> Movable = new List<string>();
+        }
+
+        /// <summary>The structure view is the default: every record under the one it belongs to.</summary>
+        bool ByStructure => _view == null || _view.SelectedIndex == 0;
+
+        (string Status, string Label, Color Color) StatusOf(RecordDiff r) => Statuses.First(x => x.Status == r.Status);
+
+        string TableLabel(string table) => _diff.TablePlans.TryGetValue(table, out var p) ? p.Table.DisplayLabel : table;
+
+        /// <summary>What one record of the table is called ("workstream"), for naming a single record.</summary>
+        string ItemLabel(string table)
+        {
+            if (!_diff.TablePlans.TryGetValue(table, out var p)) return table;
+            // A link has no useful name of its own; the relationship's label says what it is.
+            return p.Table.Move == "associate" ? p.Table.DisplayLabel : p.Table.ItemLabel;
+        }
+
+        static string Capitalised(string text) =>
+            string.IsNullOrEmpty(text) ? text : char.ToUpperInvariant(text[0]) + text.Substring(1);
+
+        string GroupOf(string table) =>
+            _diff.TablePlans.TryGetValue(table, out var p) && !string.IsNullOrEmpty(p.Table.Group) ? p.Table.Group : "Other";
+
+        /// <summary>Does the record pass the status filters and the search box?</summary>
+        bool Matches(RecordDiff r)
+        {
+            if (!_statusFilters.TryGetValue(r.Status, out var cb) || !cb.Checked) return false;
             var q = (_search.Text ?? "").Trim();
-            return t.Records
-                .Where(r => _statusFilters.TryGetValue(r.Status, out var cb) && cb.Checked)
-                .Where(r => q.Length == 0 || r.FullName.IndexOf(q, StringComparison.OrdinalIgnoreCase) >= 0 || t.Label.IndexOf(q, StringComparison.OrdinalIgnoreCase) >= 0)
-                .OrderBy(r => r.FullName, StringComparer.CurrentCultureIgnoreCase);
+            return q.Length == 0
+                || r.FullName.IndexOf(q, StringComparison.OrdinalIgnoreCase) >= 0
+                || TableLabel(r.Table).IndexOf(q, StringComparison.OrdinalIgnoreCase) >= 0;
+        }
+
+        IEnumerable<RecordDiff> Shown(TableDiff t) => t.Records.Where(Matches).OrderBy(r => r.FullName, StringComparer.CurrentCultureIgnoreCase);
+
+        Rollup RollupOf(string reference)
+        {
+            if (_rollups.TryGetValue(reference, out var cached)) return cached;
+            var roll = new Rollup();
+            foreach (var x in _hier.Descendants(reference))
+            {
+                roll.Under++;
+                if (_diff.Find(x)?.IsMovable == true) roll.Movable.Add(x);
+            }
+            return _rollups[reference] = roll;
         }
 
         void RebuildTree()
@@ -230,27 +290,150 @@ namespace CcAlm.XrmToolBox
             if (_diff == null) return;
             _tree.BeginUpdate();
             _tree.Nodes.Clear();
-            foreach (var group in _diff.Tables.GroupBy(t => string.IsNullOrEmpty(t.Group) ? "Other" : t.Group).OrderBy(g => g.Min(t => t.Stage)))
+            _nodeText.Clear();
+            if (ByStructure) BuildStructureNodes(); else BuildTableNodes();
+            if (!_expansionSeeded) { SeedExpansion(_tree.Nodes, 0); _expansionSeeded = true; }
+            _applyingExpansion = true;
+            ApplyExpansion(_tree.Nodes);
+            _applyingExpansion = false;
+            if (_tree.Nodes.Count > 0) _tree.Nodes[0].EnsureVisible();
+            _tree.EndUpdate();
+            SyncChecks();
+        }
+
+        /// <summary>Group, table, record: the plain list per table.</summary>
+        void BuildTableNodes()
+        {
+            foreach (var group in _diff.Tables.GroupBy(t => GroupOf(t.Table)).OrderBy(g => g.Min(t => t.Stage)))
             {
-                var gNode = new TreeNode(group.Key) { Tag = "group", NodeFont = new Font(_tree.Font, FontStyle.Bold) };
+                var gNode = new TreeNode(group.Key) { Tag = "group", Name = "g:" + group.Key, NodeFont = new Font(_tree.Font, FontStyle.Bold) };
                 foreach (var t in group)
                 {
                     var rows = Shown(t).ToList();
                     if (rows.Count == 0) continue;
-                    var tNode = new TreeNode($"{t.Label} ({rows.Count})") { Tag = t };
+                    var tNode = new TreeNode($"{t.Label} ({rows.Count})") { Tag = t, Name = "t:" + t.Table };
                     foreach (var r in rows)
                     {
-                        var st = Statuses.First(x => x.Status == r.Status);
-                        tNode.Nodes.Add(new TreeNode($"{r.FullName}   [{st.Label}]") { Tag = r, ForeColor = r.IsMovable ? Ink : Muted, ToolTipText = st.Label });
+                        var st = StatusOf(r);
+                        tNode.Nodes.Add(new TreeNode($"{r.FullName}   [{st.Label}]")
+                        { Tag = r, Name = "t:" + t.Table + "/" + r.Ref, ForeColor = r.IsMovable ? Ink : Muted, ToolTipText = st.Label + UsedWhereText(r) });
                     }
                     gNode.Nodes.Add(tNode);
                 }
                 if (gNode.Nodes.Count > 0) _tree.Nodes.Add(gNode);
             }
-            _tree.ExpandAll();
-            if (_tree.Nodes.Count > 0) _tree.Nodes[0].EnsureVisible();
-            _tree.EndUpdate();
-            SyncChecks();
+        }
+
+        /// <summary>
+        /// Every record under the one it belongs to: a workstream, its routing configuration, that
+        /// configuration's steps, and under each step what it uses - the ruleset it runs, the queue it
+        /// routes to - so what a record includes, and what includes it, is on screen without clicking.
+        /// </summary>
+        void BuildStructureNodes()
+        {
+            // A record shows when it passes the filters, and so does every record above it: a
+            // workstream that is the same in both environments stays visible to hold its new steps.
+            var visible = new HashSet<string>();
+            foreach (var r in _diff.AllRecords)
+            {
+                if (!Matches(r)) continue;
+                for (var x = r.Ref; x != null; x = _hier.OwnerOf(x)) if (!visible.Add(x)) break;
+            }
+
+            var groupStage = new Dictionary<string, int>();
+            foreach (var t in _diff.Tables)
+            {
+                var g = GroupOf(t.Table);
+                if (!groupStage.TryGetValue(g, out var stage) || t.Stage < stage) groupStage[g] = t.Stage;
+            }
+
+            var roots = _hier.Roots.Where(visible.Contains).Select(x => _diff.Find(x)).Where(r => r != null).ToList();
+            foreach (var group in roots.GroupBy(r => GroupOf(r.Table))
+                                       .OrderBy(g => groupStage.TryGetValue(g.Key, out var stage) ? stage : int.MaxValue)
+                                       .ThenBy(g => g.Key, StringComparer.CurrentCultureIgnoreCase))
+            {
+                var gNode = new TreeNode { Tag = "group", Name = "g:" + group.Key, NodeFont = new Font(_tree.Font, FontStyle.Bold) };
+                foreach (var r in group) gNode.Nodes.Add(StructureNode(r, visible, gNode.Name, new HashSet<string>()));
+                gNode.Text = $"{group.Key} ({gNode.Nodes.Count})";
+                _tree.Nodes.Add(gNode);
+            }
+        }
+
+        TreeNode StructureNode(RecordDiff r, HashSet<string> visible, string parentKey, HashSet<string> above)
+        {
+            var key = parentKey + "/" + r.Ref;
+            var node = new TreeNode { Tag = r, Name = key };
+            var branch = new HashSet<string>(above) { r.Ref };
+            foreach (var childRef in _hier.ChildrenOf(r.Ref))
+            {
+                var child = _diff.Find(childRef);
+                if (child == null || !visible.Contains(childRef) || branch.Contains(childRef)) continue;
+                node.Nodes.Add(StructureNode(child, visible, key, branch));
+            }
+            // What it uses, where it uses it. A leaf: the record itself sits elsewhere in the tree.
+            foreach (var use in _hier.UsesOf(r.Ref))
+            {
+                var used = _diff.Find(use.Ref);
+                if (used == null || !Matches(used)) continue;
+                var st = StatusOf(used);
+                node.Nodes.Add(new TreeNode($"uses {used.FullName} — {ItemLabel(used.Table)}   [{st.Label}]")
+                {
+                    Tag = used,
+                    Name = key + "/uses:" + use.Ref,
+                    ForeColor = Muted,
+                    ToolTipText = $"{Capitalised(ItemLabel(used.Table))} · {st.Label}{Environment.NewLine}Used here through {use.Via}."
+                                  + (use.Deferred ? " The link is set in the final pass of the run." : "")
+                                  + UsedWhereText(used),
+                });
+            }
+            SetStructureText(node, r);
+            return node;
+        }
+
+        void SetStructureText(TreeNode node, RecordDiff r)
+        {
+            var st = StatusOf(r);
+            // At the top of the tree a record needs the parent its name came from; below it, that
+            // parent is the node above it.
+            var name = _hier.OwnerOf(r.Ref) == null ? r.FullName : r.DisplayName;
+            var text = $"{name} — {ItemLabel(r.Table)}   [{st.Label}]";
+            var places = _hier.UsedBy(r.Ref).Select(u => u.Ref).Distinct().Count();
+            if (places > 1) text += $" · used in {places} places";
+            _nodeText[node] = text;
+            node.Text = text;
+            node.ForeColor = r.IsMovable ? Ink : Muted;
+            node.ToolTipText = $"{Capitalised(ItemLabel(r.Table))} · {st.Label}" + (r.Note != null ? " · " + r.Note : "") + UsedWhereText(r);
+        }
+
+        string UsedWhereText(RecordDiff r)
+        {
+            var by = _hier.UsedBy(r.Ref).Select(u => _diff.Find(u.Ref)).Where(x => x != null).Select(x => x.FullName).Distinct().ToList();
+            if (by.Count == 0) return "";
+            var first = by.Take(6).Select(x => "• " + x);
+            var more = by.Count > 6 ? $"{Environment.NewLine}• and {by.Count - 6} more" : "";
+            return $"{Environment.NewLine}Used by:{Environment.NewLine}{string.Join(Environment.NewLine, first)}{more}";
+        }
+
+        void SeedExpansion(TreeNodeCollection nodes, int depth)
+        {
+            foreach (TreeNode n in nodes)
+            {
+                // The table view opens everything, as it always did. The structure view opens the
+                // groups and what stands on its own, so the first screen is the workstreams and
+                // channels, not every step of every one of them.
+                if (n.Nodes.Count > 0 && depth < (ByStructure ? 2 : 3)) _expanded.Add(n.Name);
+                SeedExpansion(n.Nodes, depth + 1);
+            }
+        }
+
+        void ApplyExpansion(TreeNodeCollection nodes)
+        {
+            foreach (TreeNode n in nodes)
+            {
+                if (n.Nodes.Count == 0) continue;
+                if (_expanded.Contains(n.Name)) n.Expand();
+                ApplyExpansion(n.Nodes);
+            }
         }
 
         IEnumerable<TreeNode> RecordNodes(TreeNode root)
@@ -264,23 +447,21 @@ namespace CcAlm.XrmToolBox
 
         IEnumerable<TreeNode> AllRecordNodes() => _tree.Nodes.Cast<TreeNode>().SelectMany(RecordNodes);
 
+        /// <summary>Every record on screen, each one once however often it is shown.</summary>
+        List<RecordDiff> ShownRecords()
+        {
+            var seen = new HashSet<string>();
+            return AllRecordNodes().Select(n => (RecordDiff)n.Tag).Where(r => seen.Add(r.Ref)).ToList();
+        }
+
         void SyncChecks()
         {
             if (_selection == null) return;
             _syncingChecks = true;
             _tree.BeginUpdate();
-            foreach (TreeNode g in _tree.Nodes)
-            {
-                foreach (TreeNode t in g.Nodes)
-                {
-                    foreach (TreeNode r in t.Nodes) r.Checked = _selection.Selected.Contains(((RecordDiff)r.Tag).Ref);
-                    var movable = t.Nodes.Cast<TreeNode>().Where(n => ((RecordDiff)n.Tag).IsMovable).ToList();
-                    t.Checked = movable.Count > 0 && movable.All(n => n.Checked);
-                }
-                g.Checked = g.Nodes.Cast<TreeNode>().Any() && g.Nodes.Cast<TreeNode>().All(n => n.Checked || !RecordNodes(n).Any(r => ((RecordDiff)r.Tag).IsMovable));
-            }
+            foreach (TreeNode n in _tree.Nodes) SyncNode(n);
             _tree.EndUpdate();
-            var shown = AllRecordNodes().Select(n => (RecordDiff)n.Tag).Where(r => r.IsMovable).ToList();
+            var shown = ShownRecords().Where(r => r.IsMovable).ToList();
             var selectedShown = shown.Count(r => _selection.Selected.Contains(r.Ref));
             _selectAll.CheckState = shown.Count == 0 || selectedShown == 0 ? CheckState.Unchecked : selectedShown == shown.Count ? CheckState.Checked : CheckState.Indeterminate;
             _selectAll.Text = shown.Count == _diff.AllRecords.Count(r => r.IsMovable) ? $"Select all {shown.Count} records" : $"Select all {shown.Count} records shown";
@@ -289,20 +470,65 @@ namespace CcAlm.XrmToolBox
             UpdateButtons();
         }
 
+        /// <summary>
+        /// The ticks and the counts a container shows, down the whole tree: how many records sit under
+        /// it, how many of those are ticked, and how many the last plan check blocked.
+        /// </summary>
+        (int Movable, int Ticked) SyncNode(TreeNode node)
+        {
+            int movable = 0, ticked = 0;
+            if (node.Tag is RecordDiff self && self.IsMovable)
+            {
+                movable++;
+                if (_selection.Selected.Contains(self.Ref)) ticked++;
+            }
+            foreach (TreeNode child in node.Nodes)
+            {
+                var counts = SyncNode(child);
+                movable += counts.Movable;
+                ticked += counts.Ticked;
+            }
+
+            if (node.Tag is RecordDiff r)
+            {
+                // From the structure, not from the nodes: a record used in two places is shown twice
+                // and must not be counted twice.
+                var roll = RollupOf(r.Ref);
+                var tickedUnder = roll.Movable.Count(x => _selection.Selected.Contains(x));
+                node.Checked = r.IsMovable
+                    ? _selection.Selected.Contains(r.Ref)
+                    : roll.Movable.Count > 0 && tickedUnder == roll.Movable.Count;
+                if (_nodeText.TryGetValue(node, out var text))
+                {
+                    if (roll.Under > 0) text += $" · {roll.Under} under it, {tickedUnder} of {roll.Movable.Count} ticked";
+                    if (_blocked.Count > 0)
+                    {
+                        var blocked = (_blocked.Contains(r.Ref) ? 1 : 0) + _hier.Descendants(r.Ref).Count(_blocked.Contains);
+                        if (blocked > 0) text += $" · {blocked} blocked";
+                    }
+                    if (node.Text != text) node.Text = text;
+                }
+            }
+            else node.Checked = movable > 0 && ticked == movable;
+            return (movable, ticked);
+        }
+
         void OnTreeCheck(object sender, TreeViewEventArgs e)
         {
             if (_syncingChecks || _selection == null || e.Action == TreeViewAction.Unknown) return;
-            var refs = (e.Node.Tag is RecordDiff rd ? new[] { e.Node } : RecordNodes(e.Node))
-                .Select(n => (RecordDiff)n.Tag).Where(r => r.IsMovable).Select(r => r.Ref).ToList();
+            // Ticking a record ticks that record and Selection brings the rest. Ticking anything else -
+            // a group, a table, a record that cannot move itself - ticks the records under it.
+            var nodes = e.Node.Tag is RecordDiff self && self.IsMovable ? new[] { e.Node } : RecordNodes(e.Node).ToArray();
+            var refs = nodes.Select(n => (RecordDiff)n.Tag).Where(r => r.IsMovable).Select(r => r.Ref).Distinct().ToList();
             if (refs.Count > 0)
             {
                 var before = _selection.Selected.Count;
                 _selection.Set(refs, e.Node.Checked);
-                var brought = _selection.Selected.Count - before - (e.Node.Checked ? refs.Count(r => true) : 0);
+                var brought = _selection.Selected.Count - before - (e.Node.Checked ? refs.Count : 0);
                 if (e.Node.Tag is RecordDiff && e.Node.Checked && brought > 0)
                     Notify($"Selected with everything under it and what that uses: {brought} more record{(brought == 1 ? "" : "s")}.", null);
             }
-            _plan = null; _dryRunPlanId = null;
+            _plan = null; _dryRunPlanId = null; _blocked.Clear();
             SyncChecks();
             ShowDetails(_tree.SelectedNode?.Tag as RecordDiff);
         }
@@ -310,24 +536,61 @@ namespace CcAlm.XrmToolBox
         void OnSelectAll(object sender, EventArgs e)
         {
             if (_syncingChecks || _selection == null) return;
-            var shown = AllRecordNodes().Select(n => (RecordDiff)n.Tag).Where(r => r.IsMovable).Select(r => r.Ref).ToList();
+            var shown = ShownRecords().Where(r => r.IsMovable).Select(r => r.Ref).ToList();
             var on = _selectAll.CheckState != CheckState.Unchecked;
             if (_selectAll.CheckState == CheckState.Indeterminate) { on = true; }
             _selection.Set(shown, on);
-            _plan = null; _dryRunPlanId = null;
+            _plan = null; _dryRunPlanId = null; _blocked.Clear();
             SyncChecks();
+        }
+
+        /// <summary>Puts a record on screen where it sits in the tree, and shows its details.</summary>
+        void SelectRecord(string reference)
+        {
+            if (reference == null || _diff == null) return;
+            var node = AllRecordNodes().FirstOrDefault(n => ((RecordDiff)n.Tag).Ref == reference);
+            if (node == null) return;
+            _tree.SelectedNode = node;
+            node.EnsureVisible();
+            _tree.Focus();
         }
 
         // --- Details -------------------------------------------------------------------------------
 
         void ShowDetails(RecordDiff r)
         {
-            _fields.Items.Clear(); _needs.Items.Clear(); _under.Items.Clear();
-            if (r == null || _diff == null) { _detailTitle.Text = "Select a record"; _detailStatus.Text = ""; return; }
-            var st = Statuses.First(x => x.Status == r.Status);
+            _fields.Items.Clear(); _needs.Items.Clear(); _usedBy.Items.Clear(); _under.Items.Clear();
+            if (r == null || _diff == null)
+            {
+                _detailTitle.Text = "Select a record";
+                _detailStatus.Text = "";
+                _detailOwner.Visible = false;
+                _headNeeds.Text = "What it needs";
+                _headUsedBy.Text = "Where it is used";
+                _headUnder.Text = "Everything under it";
+                return;
+            }
+            var st = StatusOf(r);
             _detailTitle.Text = r.FullName;
-            _detailStatus.Text = $"{_diff.TablePlans[r.Table].Table.DisplayLabel} · {st.Label}" + (r.Note != null ? " · " + r.Note : "");
+            _detailStatus.Text = $"{Capitalised(ItemLabel(r.Table))} · {st.Label}" + (r.Note != null ? " · " + r.Note : "");
             _detailStatus.ForeColor = st.Color;
+
+            // Where it sits: the records it is inside, outermost first, and a click goes up to them.
+            var path = _hier.PathTo(r.Ref);
+            if (path.Count > 0)
+            {
+                var names = path.Select(x => _diff.Find(x)?.DisplayName ?? x);
+                _detailOwner.Text = "In " + string.Join(" › ", names);
+                _detailOwner.Tag = path[path.Count - 1];
+                _tips.SetToolTip(_detailOwner, "Go to " + (_diff.Find(path[path.Count - 1])?.FullName ?? "it"));
+                _detailOwner.Visible = true;
+            }
+            else
+            {
+                _detailOwner.Text = "";
+                _detailOwner.Tag = null;
+                _detailOwner.Visible = false;
+            }
 
             foreach (var f in r.Fields) _fields.Items.Add(new ListViewItem(new[] { f.Label, f.Source ?? "(empty)", f.Kind == "definition" ? "" : f.Target ?? "(empty)" }));
             if (r.Fields.Count == 0) _fields.Items.Add(new ListViewItem(new[] { r.Status == RecordStatus.MissingInTarget ? "New in the target" : "No differences", "", "" }) { ForeColor = Muted });
@@ -338,14 +601,40 @@ namespace CcAlm.XrmToolBox
                 var dep = _diff.Find(d.Ref);
                 var state = inTarget ? "in the target" : dep?.Status == RecordStatus.MissingInTarget ? (_selection.Selected.Contains(d.Ref) ? "new · selected" : "new · not selected") : "missing";
                 if (d.Deferred) state += " · linked at the end";
-                _needs.Items.Add(new ListViewItem(new[] { d.Label, d.Via, state }) { ForeColor = state.StartsWith("missing") || state.Contains("not selected") ? Red : Ink });
+                if (d.Owner) state += " · it is under this one";
+                _needs.Items.Add(new ListViewItem(new[] { d.Label, d.Via, state })
+                { ForeColor = state.StartsWith("missing") || state.Contains("not selected") ? Red : Ink, Tag = dep != null ? d.Ref : null });
             }
-            foreach (var refUnder in _selection.OwnedBy(r.Ref))
+            if (r.DependsOn.Count == 0) _needs.Items.Add(new ListViewItem(new[] { "It needs nothing else", "", "" }) { ForeColor = Muted });
+
+            // The other direction: what would notice if this record were not moved.
+            foreach (var use in _hier.UsedBy(r.Ref))
+            {
+                var by = _diff.Find(use.Ref);
+                if (by == null) continue;
+                var selected = _selection.Selected.Contains(use.Ref);
+                _usedBy.Items.Add(new ListViewItem(new[] { by.FullName, TableLabel(by.Table), use.Via + (selected ? " · selected" : "") }) { Tag = use.Ref });
+            }
+            if (_usedBy.Items.Count == 0) _usedBy.Items.Add(new ListViewItem(new[] { "Nothing else points at it", "", "" }) { ForeColor = Muted });
+
+            foreach (var refUnder in _hier.Descendants(r.Ref))
             {
                 var u = _diff.Find(refUnder);
                 if (u == null) continue;
-                _under.Items.Add(new ListViewItem(new[] { u.FullName, _diff.TablePlans[u.Table].Table.DisplayLabel, Statuses.First(x => x.Status == u.Status).Label + (_selection.Selected.Contains(refUnder) ? " · selected" : "") }));
+                _under.Items.Add(new ListViewItem(new[] { u.FullName, TableLabel(u.Table), StatusOf(u).Label + (_selection.Selected.Contains(refUnder) ? " · selected" : "") }) { Tag = refUnder });
             }
+            if (_under.Items.Count == 0) _under.Items.Add(new ListViewItem(new[] { "Nothing sits under it", "", "" }) { ForeColor = Muted });
+
+            _headNeeds.Text = $"What it needs ({r.DependsOn.Count})";
+            _headUsedBy.Text = $"Where it is used ({_hier.UsedBy(r.Ref).Select(u => u.Ref).Distinct().Count()})";
+            var roll = RollupOf(r.Ref);
+            _headUnder.Text = roll.Under == 0 ? "Everything under it" : $"Everything under it ({roll.Under}, {roll.Movable.Count} can move)";
+        }
+
+        /// <summary>A double-click in one of the three lists goes to that record in the tree.</summary>
+        void GoToListRecord(ListView list)
+        {
+            if (list.SelectedItems.Count > 0) SelectRecord(list.SelectedItems[0].Tag as string);
         }
 
         // --- Plan ----------------------------------------------------------------------------------
@@ -355,7 +644,10 @@ namespace CcAlm.XrmToolBox
             if (_diff == null || _selection == null) return;
             _plan = Session().BuildPlan(_selection.Selected.ToList(), _includeDeps.Checked);
             _dryRunPlanId = null;
+            _blocked.Clear();
+            foreach (var o in _plan.Operations.Where(o => o.Status == "blocked")) _blocked.Add(o.Ref);
             ShowPlan();
+            RebuildTree();   // the counts per workstream now say where the blocked records sit
             _tabs.SelectedTab = _tabPlan;
             UpdateButtons();
         }
@@ -376,6 +668,10 @@ namespace CcAlm.XrmToolBox
                 {
                     var why = o.Status == "blocked" ? string.Join(" ", o.Blockers.Select(b => b.Message))
                         : string.Join("; ", o.Dependencies.Select(d => $"{d.Label}: {StateText(d.State)}").Concat(o.Warnings));
+                    // Nothing is in the plan without a reason: for a record added because something
+                    // else needs it, that reason comes first.
+                    if (o.AutoIncluded && o.NeededBy.Count > 0)
+                        why = $"Needed by {string.Join(", ", o.NeededBy)}." + (why.Length > 0 ? "  " + why : "");
                     var action = o.Op == "create" ? "Create" : o.Op == "update" ? "Update" : o.Op == "link" ? "Link" : "Keep";
                     _planList.Items.Add(new ListViewItem(new[] { o.Status == "blocked" ? "Blocked" : "Ready", action, o.TableLabel, o.FullName + (o.AutoIncluded ? "  (needed)" : ""), why }, grp)
                     { ForeColor = o.Status == "blocked" ? Red : Ink, Tag = o });
@@ -649,11 +945,18 @@ namespace CcAlm.XrmToolBox
             var split = _split = new SplitContainer { Dock = DockStyle.Fill, FixedPanel = FixedPanel.None };
             _tabReview.Controls.Add(split);
 
-            // Left: filters, select all, tree.
+            // Left: how to show them, filters, select all, the tree.
             var top = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 64, Padding = new Padding(4), WrapContents = true };
-            _search = new TextBox { Width = 220 };
+            _view = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Width = 132 };
+            _view.Items.AddRange(new object[] { "By structure", "By table" });
+            _view.SelectedIndex = 0;
+            _view.SelectedIndexChanged += (s, e) => { _expanded.Clear(); _expansionSeeded = false; ShowHint(); RebuildTree(); };
+            _tips.SetToolTip(_view, "By structure: every record under the workstream, channel or queue it belongs to.\r\nBy table: one list per table.");
+            top.Controls.Add(new Label { Text = "Show:", AutoSize = true, Padding = new Padding(0, 6, 0, 0) });
+            top.Controls.Add(_view);
+            _search = new TextBox { Width = 180 };
             _search.TextChanged += (s, e) => RebuildTree();
-            top.Controls.Add(new Label { Text = "Find:", AutoSize = true, Padding = new Padding(0, 6, 0, 0) });
+            top.Controls.Add(new Label { Text = "Find:", AutoSize = true, Padding = new Padding(6, 6, 0, 0) });
             top.Controls.Add(_search);
             foreach (var st in Statuses)
             {
@@ -671,39 +974,60 @@ namespace CcAlm.XrmToolBox
             _tree = new TreeView { Dock = DockStyle.Fill, CheckBoxes = true, HideSelection = false, ShowNodeToolTips = true, BorderStyle = BorderStyle.None, FullRowSelect = true };
             _tree.AfterCheck += OnTreeCheck;
             _tree.AfterSelect += (s, e) => ShowDetails(e.Node.Tag as RecordDiff);
-            var hint = new Label
-            {
-                Dock = DockStyle.Bottom, Height = 36, ForeColor = Muted, Padding = new Padding(6, 2, 6, 2),
-                Text = "Ticking a record also ticks everything under it and what that uses: a workstream brings its routing configuration, work classification and route-to-queue steps, their rulesets and queues.",
-            };
+            _tree.AfterExpand += (s, e) => { if (!_applyingExpansion && e.Node.Name != null) _expanded.Add(e.Node.Name); };
+            _tree.AfterCollapse += (s, e) => { if (!_applyingExpansion && e.Node.Name != null) _expanded.Remove(e.Node.Name); };
+            _hint = new Label { Dock = DockStyle.Bottom, Height = 36, ForeColor = Muted, Padding = new Padding(6, 2, 6, 2) };
+            ShowHint();
             _includeDeps = new CheckBox { Text = "Add the records they need to the plan", Checked = true, Dock = DockStyle.Bottom, Height = 24, Padding = new Padding(6, 0, 0, 0) };
             split.Panel1.Controls.Add(_tree);
             split.Panel1.Controls.Add(selectRow);
             split.Panel1.Controls.Add(top);
             split.Panel1.Controls.Add(_includeDeps);
-            split.Panel1.Controls.Add(hint);
+            split.Panel1.Controls.Add(_hint);
 
             // Right: details.
             var right = new Panel { Dock = DockStyle.Fill, Padding = new Padding(8) };
             split.Panel2.Controls.Add(right);
             _detailTitle = new Label { Text = "Compare to see what differs", Dock = DockStyle.Top, Height = 28, Font = new Font("Segoe UI Semilight", 13f), ForeColor = Ink, AutoEllipsis = true };
+            _detailOwner = new LinkLabel { Dock = DockStyle.Top, Height = 20, Visible = false, LinkColor = Blue, ActiveLinkColor = Blue, AutoEllipsis = true };
+            _detailOwner.LinkClicked += (s, e) => SelectRecord(_detailOwner.Tag as string);
             _detailStatus = new Label { Dock = DockStyle.Top, Height = 22, ForeColor = Muted, AutoEllipsis = true };
             _fields = NewList(("Setting", 180), ("Source", 220), ("Target", 220));
             _needs = NewList(("Needs", 300), ("Through", 160), ("State", 180));
+            _usedBy = NewList(("Used by", 340), ("Table", 160), ("Through", 160));
             _under = NewList(("Under it", 340), ("Table", 160), ("Status", 160));
+            foreach (var list in new[] { _needs, _usedBy, _under })
+            {
+                var l = list;
+                l.DoubleClick += (s, e) => GoToListRecord(l);
+                _tips.SetToolTip(l, "Double-click a row to go to that record in the tree.");
+            }
             _notices = new TextBox { Dock = DockStyle.Bottom, Height = 90, Multiline = true, ReadOnly = true, ScrollBars = ScrollBars.Vertical, BorderStyle = BorderStyle.None, BackColor = ColorTranslator.FromHtml("#F8FAFC") };
-            var grid = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 6, ColumnCount = 1 };
-            grid.RowStyles.Add(new RowStyle(SizeType.Absolute, 24)); grid.RowStyles.Add(new RowStyle(SizeType.Percent, 34));
-            grid.RowStyles.Add(new RowStyle(SizeType.Absolute, 24)); grid.RowStyles.Add(new RowStyle(SizeType.Percent, 33));
-            grid.RowStyles.Add(new RowStyle(SizeType.Absolute, 24)); grid.RowStyles.Add(new RowStyle(SizeType.Percent, 33));
+            _headNeeds = Heading("What it needs");
+            _headUsedBy = Heading("Where it is used");
+            _headUnder = Heading("Everything under it");
+            var grid = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 8, ColumnCount = 1 };
+            grid.RowStyles.Add(new RowStyle(SizeType.Absolute, 24)); grid.RowStyles.Add(new RowStyle(SizeType.Percent, 28));
+            grid.RowStyles.Add(new RowStyle(SizeType.Absolute, 24)); grid.RowStyles.Add(new RowStyle(SizeType.Percent, 24));
+            grid.RowStyles.Add(new RowStyle(SizeType.Absolute, 24)); grid.RowStyles.Add(new RowStyle(SizeType.Percent, 24));
+            grid.RowStyles.Add(new RowStyle(SizeType.Absolute, 24)); grid.RowStyles.Add(new RowStyle(SizeType.Percent, 24));
             grid.Controls.Add(Heading("What differs"), 0, 0); grid.Controls.Add(_fields, 0, 1);
-            grid.Controls.Add(Heading("What it needs"), 0, 2); grid.Controls.Add(_needs, 0, 3);
-            grid.Controls.Add(Heading("Everything under it"), 0, 4); grid.Controls.Add(_under, 0, 5);
+            grid.Controls.Add(_headNeeds, 0, 2); grid.Controls.Add(_needs, 0, 3);
+            grid.Controls.Add(_headUsedBy, 0, 4); grid.Controls.Add(_usedBy, 0, 5);
+            grid.Controls.Add(_headUnder, 0, 6); grid.Controls.Add(_under, 0, 7);
             right.Controls.Add(grid);
             right.Controls.Add(_notices);
             right.Controls.Add(_detailStatus);
+            right.Controls.Add(_detailOwner);
             right.Controls.Add(_detailTitle);
         }
+
+        void ShowHint() =>
+            _hint.Text = ByStructure
+                ? "Every record sits under the one it belongs to; a line marked \"uses\" is a record from elsewhere in the tree, shown where it is used. "
+                  + "Ticking a record also ticks everything under it and what that uses."
+                : "One list per table. Ticking a record also ticks everything under it and what that uses: a workstream brings its routing configuration, "
+                  + "its steps, their rulesets and queues.";
 
         void BuildPlanTab()
         {

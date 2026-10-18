@@ -35,6 +35,11 @@ namespace CcAlm.Core.Engine
         public bool Deferred { get; set; }
         /// <summary>lookup, name (a template named by unique name) or embedded (a GUID in a definition).</summary>
         public string Kind { get; set; }
+        /// <summary>
+        /// The parent the record is matched under (a routing step's routing configuration), as
+        /// opposed to something it merely points at (the queue it routes to). Where it sits.
+        /// </summary>
+        public bool Owner { get; set; }
         public string Ref => $"{Table}|{MatchKey}";
     }
 

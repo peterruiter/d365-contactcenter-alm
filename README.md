@@ -56,7 +56,7 @@ This repo targets A. See the table in [docs/architecture.md](docs/architecture.m
 
 ## Or in XrmToolBox
 
-The same compare, plan, dry run, apply, check afterwards and rollback as an [XrmToolBox](https://www.xrmtoolbox.com) tool, on your own XrmToolBox connections: no backend, no app registration. The engine is a C# port held to the same answers as the PowerShell one. See [docs/xrmtoolbox.md](docs/xrmtoolbox.md).
+The same compare, plan, dry run, apply, check afterwards and rollback as an [XrmToolBox](https://www.xrmtoolbox.com) tool, on your own XrmToolBox connections: no backend, no app registration. The engine is a C# port held to the same answers as the PowerShell one. Its review tree shows the configuration the way it is built - every record under the workstream, channel or queue it belongs to, with what each one uses listed where it is used - so what moves with what is visible before you tick anything. See [docs/xrmtoolbox.md](docs/xrmtoolbox.md).
 
 ## What it does not move
 
@@ -137,7 +137,7 @@ Steps and auth in [docs/backend.md](docs/backend.md).
 | `backend/cli/` | The same engine as a command-line tool, for pipelines. |
 | `backend/local-runner/` | Local web server, profile store and setup checks behind `scripts/run-local.ps1`. |
 | `connector/` | Custom connector definition (OpenAPI + Entra auth). |
-| `scripts/` | `deploy.ps1`, `init-app.ps1`, `deploy-backend.ps1`, `run-local.ps1`, `build-runner-release.ps1`, `test.ps1`, `record-fixture.ps1`. |
+| `scripts/` | `deploy.ps1`, `init-app.ps1`, `deploy-backend.ps1`, `run-local.ps1`, `build-runner-release.ps1`, `test.ps1`, `record-fixture.ps1`, `make-icons.ps1`. |
 | `xrmtoolbox/` | The XrmToolBox tool: the engine in C# (`CcAlm.Core`), the tool (`CcAlm.XrmToolBox`), and their tests. See [docs/xrmtoolbox.md](docs/xrmtoolbox.md). |
 | `tests/` | Offline Pester tests: unit tests, a synthetic Dev and Test on the real schema, and replays of recorded environments. See [docs/testing.md](docs/testing.md). |
 | `Start-LocalRunner.cmd` | Double-click launcher for the local runner. |

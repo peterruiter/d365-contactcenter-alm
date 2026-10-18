@@ -168,6 +168,20 @@ namespace CcAlm.Core.Engine
                 foreach (var g in References.Guids(r.Get(col) as string))
                     if (maps.SourceGuidToRef.TryGetValue(g, out var rf)) Add(rf.Entity, rf.Key, plan.ColumnLabel(col), false, "embedded");
             }
+
+            // Which one of them is the parent the record is matched under, rather than something it
+            // merely points at: the first lookup among its match keys that has a value, the same one
+            // its context name is built from (Keys.RecordContext). That is where the record sits.
+            foreach (var k in plan.Table.MatchKeys)
+            {
+                if (!Values.IsLookupKey(k)) continue;
+                var parent = r.GetLookup(Values.Bare(k));
+                if (parent == null || !maps.SourceGuidToRef.TryGetValue(parent.Id.ToString(), out var pRef)) continue;
+                var owner = deps.FirstOrDefault(d => d.Table == pRef.Entity && d.MatchKey == pRef.Key);
+                if (owner == null) continue;
+                owner.Owner = true;
+                break;
+            }
             return deps;
         }
 
