@@ -58,6 +58,11 @@ static class Program
         foreach (var t in diff.Tables)
             Console.WriteLine($"  {t.Table}: " + string.Join(", ", t.Records.GroupBy(r => r.Status).OrderBy(g => g.Key).Select(g => $"{g.Key} {g.Count()}")));
 
+        foreach (var d in diff.DetectOnly)
+            Console.WriteLine($"  set up by hand: {d.Label} '{d.Record}': {d.Message}");
+        foreach (var n in diff.Notices)
+            Console.WriteLine($"  note: {n.Message}");
+
         // Everything that can move, or only the tables asked for, with what those need.
         List<string> selection = null;
         if (only.Count > 0)

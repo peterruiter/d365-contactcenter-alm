@@ -206,9 +206,14 @@
       "order": 27, "stage": 11, "logicalName": "msdyn_ccuserprompt", "item": "playbook prompt", "move": "upsert",
       "label": "Playbook prompts", "group": "Conversation orchestration",
       "matchKeys": ["_msdyn_ccplaybookpolicyid_value", "msdyn_name"],
-      "exclude": ["msdyn_workflowrule_name", "msdyn_errormessage"],
+      "exclude": ["msdyn_errormessage"],
       "guidBearingColumns": ["msdyn_inclusionlist", "msdyn_exclusionlist"],
       "notes": "The natural-language instruction under a playbook, with the queues it applies to. The compiled rule (msdyn_workflowrule, a file) is left behind on purpose: publishing in the target regenerates it from this prompt, so what moves is the authored intent and not a compiled rule pointing at another environment's queues. The queue lists are read as references, so queues are remapped like everywhere else. A moved playbook arrives at the stage it had in the source; publishing it stays a step someone takes in the target."
+    },
+    {
+      "order": 27, "stage": 11, "logicalName": "msdyn_contactcentergeneratedrule", "item": "agentic routing rule", "move": "detect",
+      "label": "Agentic routing rules", "group": "Conversation orchestration", "matchKeys": ["msdyn_name"],
+      "notes": "Agentic routing keeps its rules in an elastic table, partitioned by the environment's own organization id (partitionid) and with a time to live. A copy would carry the source environment's partition into the target, where the runtime would not see it, and rows can expire on their own, so these are reported rather than moved. Set them up in the target; see detectOnly."
     },
     {
       "order": 28, "stage": 12, "logicalName": "msdyn_productivityagentscript", "item": "agent script", "move": "upsert",
@@ -224,6 +229,14 @@
     }
   ],
   "detectOnly": [
+    {
+      "logicalName": "msdyn_ccplaybookpolicy", "signal": "msdyn_eventtype", "type": "playbookPublish",
+      "message": "Moves as a draft. Publishing compiles the prompt into a rule naming that environment's own queues, so the compiled rule stays behind: publish it in the target, in Conversation orchestration in the Copilot Service admin center."
+    },
+    {
+      "logicalName": "msdyn_contactcentergeneratedrule", "signal": "msdyn_generatedrule", "type": "agenticRoutingRule",
+      "message": "An agentic routing rule. Its rule is stored in an elastic table partitioned by the environment's own id, so it is set up in the target rather than copied."
+    },
     {
       "logicalName": "msdyn_productivityagentscriptstep", "signal": "msdyn_macroactionid", "type": "macro",
       "message": "Runs a macro. A macro is a solution component, not configuration data: move it by solution, then pick it on the step in the target."

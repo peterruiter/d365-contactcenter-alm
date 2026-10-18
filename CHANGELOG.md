@@ -4,6 +4,10 @@ All notable changes to this project are recorded here. Format follows [Keep a Ch
 
 ## [Unreleased]
 
+### Agentic routing and publishing playbooks
+- **Agentic routing rules (`msdyn_contactcentergeneratedrule`) are read and reported, never written.** The table is elastic: partitioned by the environment's own organization id, with a time to live on its rows. A copied rule would carry the source environment's partition into the target, where the runtime would not see it, and could expire on its own, so the review tab lists them under what to set up by hand instead of pretending they moved.
+- **A playbook that is about to move says it will need publishing.** It moves as a draft by design; publishing compiles the prompt into a rule naming that environment's own queues. The notice stops once the playbook is in the target.
+
 ### Agent scripts
 - **Agent scripts and their steps move** (`msdyn_productivityagentscript`, `msdyn_productivityagentscriptstep`), matched on the unique name the product itself keys them on, and under their script for the steps. A step that routes to another script has that script remapped like any other lookup, so the step points at the target's own copy.
 - **A step that runs a macro says so instead of arriving empty.** A macro is a solution component, not configuration data, and its lookup points at a `workflow` record; the review tab now lists those steps under "set up by hand in the target" with what to do - move the macro by solution, then pick it on the step there.

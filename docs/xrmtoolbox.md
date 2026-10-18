@@ -41,6 +41,9 @@ Runs and snapshots are kept in `%AppData%\MscrmTools\XrmToolBox\Settings\Contact
 
 - **Record workstreams** (email, case) point at their table's record routing hub. Set up record routing for that table in the target first; the plan blocks the workstream otherwise. The hub's intake rules are not moved.
 - **Per-environment set-up** - phone numbers, WhatsApp and SMS accounts, Copilot Studio agents - is listed under the Review tab's notes and stays a manual step.
+- **Conversation orchestration playbooks move as drafts.** Publishing compiles the prompt into a rule naming that environment's own queues, so the compiled rule stays behind: publish each moved playbook in the target yourself, in Conversation orchestration in the Copilot Service admin center. The Review tab lists the playbooks this applies to.
+- **Agentic routing rules are reported, not moved.** They live in an elastic table partitioned by the environment's own organization id and with a time to live, so a copy would land in the wrong partition and could expire; set them up in the target.
+- **Agent script steps that run a macro** keep their text and order, but not the macro: a macro is a solution component. Move it by solution, then pick it on the step in the target.
 - Templates and other records that come with a **managed solution** must be installed in the target; the plan says which.
 - Writing Contact Center configuration through the API is not a Microsoft-supported path. Dry-run first, and try it on Dev and Test before Production.
 
