@@ -107,7 +107,12 @@ if (-not $SkipExe) {
     Compress-Archive -Path (Join-Path $root '*') -DestinationPath $payload
 
     $publishDir = Join-Path $stage 'exe'
-    dotnet publish $exeProject -c Release -o $publishDir -p:InformationalVersion="$($buildInfo.version)+$($buildInfo.build).$($buildInfo.commit)" --nologo -v quiet
+    # The build's identity in the exe's file properties too: the file version carries the build
+    # number, the product version the commit, so an exe on a laptop can be traced back to a commit.
+    dotnet publish $exeProject -c Release -o $publishDir --nologo -v quiet `
+        -p:Version="$($buildInfo.version)" `
+        -p:FileVersion="$($buildInfo.version).$($buildInfo.build)" `
+        -p:InformationalVersion="$($buildInfo.version)+$($buildInfo.build).$($buildInfo.commit)"
     if ($LASTEXITCODE) { throw 'dotnet publish failed.' }
     $exe = Join-Path $OutputDir "$name.exe"
     Copy-Item (Join-Path $publishDir "$name.exe") $exe -Force

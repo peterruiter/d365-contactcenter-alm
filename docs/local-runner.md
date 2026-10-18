@@ -115,7 +115,19 @@ Build from a clean, pushed commit: the build number and commit come from git, an
 
 It builds the app in runner mode and zips it with the engine, the runner and the launcher, in the repo's own folder layout. The zip leaves out the app source, which is how `run-local.ps1` knows never to build.
 
-The exe (`runner-exe/`, needs the .NET 10 SDK; `-SkipExe` skips it) embeds the same files and hosts the PowerShell 7 SDK in a self-contained single-file .NET 10 app. The project pins the .NET runtime and the `System.Security.Cryptography.*` packages to their latest security patches; check `dotnet list runner-exe package --vulnerable --include-transitive` before each release and bump them when it reports anything.
+The exe (`runner-exe/`, needs the .NET 10 SDK; `-SkipExe` skips it) embeds the same files and hosts the PowerShell 7 SDK in a self-contained single-file .NET 10 app. It carries the product icon (`runner-exe/icon.ico`, drawn by `scripts/make-icons.ps1`) and a full version resource, so **Properties > Details** in Explorer says what it is and who wrote it:
+
+| | |
+| --- | --- |
+| File description | Contact Center ALM local runner |
+| Product name | Contact Center ALM |
+| Company / author | Peter Ruiter |
+| Copyright | Copyright (c) 2026 Peter Ruiter. MIT licence. |
+| Comments | what it does, and the project URL |
+| File version | version and build number, `0.3.0.21` |
+| Product version | version, build and commit, `0.3.0+21.bc04fe3` |
+
+The names and the copyright live in `runner-exe/CcAlmRunner.csproj`; the release script fills in the versions from the build's identity, the same one that goes into the app and `build.json`. The project pins the .NET runtime and the `System.Security.Cryptography.*` packages to their latest security patches; check `dotnet list runner-exe package --vulnerable --include-transitive` before each release and bump them when it reports anything.
 
 ## Security notes
 
