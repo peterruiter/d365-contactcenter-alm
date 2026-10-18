@@ -4,6 +4,12 @@ All notable changes to this project are recorded here. Format follows [Keep a Ch
 
 ## [Unreleased]
 
+### Agent scripts
+- **Agent scripts and their steps move** (`msdyn_productivityagentscript`, `msdyn_productivityagentscriptstep`), matched on the unique name the product itself keys them on, and under their script for the steps. A step that routes to another script has that script remapped like any other lookup, so the step points at the target's own copy.
+- **A step that runs a macro says so instead of arriving empty.** A macro is a solution component, not configuration data, and its lookup points at a `workflow` record; the review tab now lists those steps under "set up by hand in the target" with what to do - move the macro by solution, then pick it on the step there.
+- Because scripts and session templates are both moved now, the link between them (which scripts a session template opens) is picked up as a many-to-many relationship and moved with them.
+- Checked against two real environments: two scripts and four steps moved, including a step routing to the other script, which arrived pointing at the target's own copy of it. The next compare found nothing left to do.
+
 ### Conversation orchestration playbooks
 - **Playbooks move between environments** (`msdyn_ccplaybookpolicy` and the `msdyn_ccuserprompt` under it). A playbook is matched on its name and the scenario it is built on, its prompt on that playbook and its own name, so a second compare of the same two environments reports them as the same instead of writing them again. The scenarios themselves (`msdyn_cceventingscenario`) ship with the product and are only mapped, never written.
 - **The compiled rule is deliberately left behind.** Publishing a playbook turns its prompt into a runtime rule that names the environment's own queues; copying that rule into another environment would carry those queues with it. What moves is the authored prompt, with the queue lists read as references so queues are remapped like everywhere else, and a moved playbook stays at the stage it had in the source - publishing it is a step someone takes in the target.

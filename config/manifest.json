@@ -21,7 +21,8 @@
     { "stage": 8, "label": "Channels", "description": "Live chat, voice, SMS and WhatsApp settings" },
     { "stage": 9, "label": "Agent content", "description": "Quick replies and tags" },
     { "stage": 10, "label": "Contact center settings", "description": "The environment-wide Omnichannel configuration" },
-    { "stage": 11, "label": "Conversation orchestration", "description": "Playbooks and the prompts that drive them" }
+    { "stage": 11, "label": "Conversation orchestration", "description": "Playbooks and the prompts that drive them" },
+    { "stage": 12, "label": "Agent scripts", "description": "The scripts agents follow during a conversation, and their steps" }
   ],
   "tables": [
     {
@@ -208,9 +209,25 @@
       "exclude": ["msdyn_workflowrule_name", "msdyn_errormessage"],
       "guidBearingColumns": ["msdyn_inclusionlist", "msdyn_exclusionlist"],
       "notes": "The natural-language instruction under a playbook, with the queues it applies to. The compiled rule (msdyn_workflowrule, a file) is left behind on purpose: publishing in the target regenerates it from this prompt, so what moves is the authored intent and not a compiled rule pointing at another environment's queues. The queue lists are read as references, so queues are remapped like everywhere else. A moved playbook arrives at the stage it had in the source; publishing it stays a step someone takes in the target."
+    },
+    {
+      "order": 28, "stage": 12, "logicalName": "msdyn_productivityagentscript", "item": "agent script", "move": "upsert",
+      "label": "Agent scripts", "group": "Agent scripts", "matchKeys": ["msdyn_uniquename"],
+      "notes": "A script an agent follows during a conversation. The unique name is what the product keys it on, so that is what it is matched on here."
+    },
+    {
+      "order": 29, "stage": 12, "logicalName": "msdyn_productivityagentscriptstep", "item": "agent script step", "move": "upsert",
+      "label": "Agent script steps", "group": "Agent scripts",
+      "matchKeys": ["_msdyn_agentscriptid_value", "msdyn_uniquename"],
+      "tieBreaker": "msdyn_order",
+      "notes": "The steps under a script, in order. A step that routes to another script has that script remapped like any other lookup. A step that runs a macro is reported instead: see detectOnly."
     }
   ],
   "detectOnly": [
+    {
+      "logicalName": "msdyn_productivityagentscriptstep", "signal": "msdyn_macroactionid", "type": "macro",
+      "message": "Runs a macro. A macro is a solution component, not configuration data: move it by solution, then pick it on the step in the target."
+    },
     {
       "logicalName": "msdyn_ocvoicechannelsetting", "signal": "msdyn_phonenumberid", "type": "phoneNumber",
       "message": "Uses a phone number. Acquire a number in the target environment and assign it to this channel."
