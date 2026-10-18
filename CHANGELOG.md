@@ -5,6 +5,7 @@ All notable changes to this project are recorded here. Format follows [Keep a Ch
 ## [Unreleased]
 
 ### XrmToolBox tool
+- **The Plan check and Run tabs are no longer empty until you find the right button in the toolbar.** Opening *Plan check* checks the plan (it reads nothing from Dataverse, so it is instant), opening *Run* checks it too and then says how many records are ready, with the *Dry run* button on the tab itself. Before a compare, each tab says what to do first instead of showing an empty list.
 - **Fixed: a compare was thrown away a few seconds after it finished**, leaving an empty tree next to "147 of 147 selected" and a disabled *Check the plan*. XrmToolBox calls a tool's UpdateConnection again for the same environment - when its metadata cache has finished loading, when it refreshes a connection - and the tool treated every one of those as a new environment. Only a different source environment clears the compare now; the same one again keeps it, and the new connection is used from that moment on, so impersonating someone after a compare writes as that person.
 - **Fixed: choosing the target renamed the source.** The target arrives through the same method, and its name overwrote the source's label, so both said the same environment while the compare itself used the right two.
 - **Starting over clears the screen.** The selection count, the plan summary, the notices and the details pane are emptied with the tree instead of staying behind from the compare before.

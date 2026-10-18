@@ -124,6 +124,7 @@ namespace CcAlm.XrmToolBox
         Button _btnAddMissing;
         // Run
         Label _runTitle, _runCurrent;
+        Button _btnDryRunHere;
         ProgressBar _runProgress;
         ListView _runList;
         TextBox _checkText;
@@ -219,6 +220,22 @@ namespace CcAlm.XrmToolBox
 
         bool Ready() => _testing || (Service != null && _targetService != null);
 
+        /// <summary>What the Plan check and Run tabs say when there is nothing in them yet.</summary>
+        void ShowWhatIsNext()
+        {
+            if (_planSummary == null || _runTitle == null) return;
+            var next = _diff == null ? "Compare two environments first: the Compare button above reads both."
+                : _selection == null || _selection.Selected.Count == 0 ? "Nothing is ticked. Tick what to move on the Review tab."
+                : null;
+            if (_plan == null) { _planSummary.Text = next ?? "Opening this tab checks the plan."; _planSummary.ForeColor = Muted; }
+            if (_lastRun != null) return;
+            var ready = _plan?.Summary.Ready ?? 0;
+            _runTitle.Text = next ?? (ready > 0
+                ? $"{ready} record{(ready == 1 ? "" : "s")} ready to write. A dry run goes through every write without writing anything; Apply unlocks after it."
+                : _plan == null ? "Check the plan first: open the Plan check tab." : "Nothing in the plan can be written yet. The Plan check tab says why.");
+            _runTitle.ForeColor = Ink;
+        }
+
         void UpdateButtons()
         {
             if (_btnCompare == null) return;
@@ -232,6 +249,8 @@ namespace CcAlm.XrmToolBox
             _btnApply.ToolTipText = _btnApply.Enabled ? $"Write the plan to {_targetDetail?.ConnectionName}." : "Apply unlocks after a dry run of this plan.";
             _btnRollback.Enabled = ready;
             if (_btnRollbackRun != null) _btnRollbackRun.Enabled = _lastRun?.Snapshot != null && !_lastRun.IsDryRun;
+            if (_btnDryRunHere != null) _btnDryRunHere.Enabled = _btnDry.Enabled;
+            ShowWhatIsNext();
         }
 
         // --- Compare -------------------------------------------------------------------------------
@@ -687,16 +706,29 @@ namespace CcAlm.XrmToolBox
 
         // --- Plan ----------------------------------------------------------------------------------
 
-        void BuildPlan()
+        /// <summary>
+        /// Opening a tab does what that tab is for. The plan check reads nothing from Dataverse - it
+        /// works from what the compare read - so there is no reason to make someone press a button in
+        /// the toolbar first and stare at an empty list until they find it.
+        /// </summary>
+        void OnTabOpened()
         {
-            if (_diff == null || _selection == null) return;
+            if (_tabs.SelectedTab == _tabPlan && _plan == null) BuildPlan(show: false);
+            // The Run tab needs a plan before a dry run can be offered; build it, stay here.
+            else if (_tabs.SelectedTab == _tabRun && _plan == null && _lastRun == null) BuildPlan(show: false);
+            UpdateButtons();
+        }
+
+        void BuildPlan(bool show = true)
+        {
+            if (_diff == null || _selection == null || _selection.Selected.Count == 0) return;
             _plan = Session().BuildPlan(_selection.Selected.ToList(), _includeDeps.Checked);
             _dryRunPlanId = null;
             _blocked.Clear();
             foreach (var o in _plan.Operations.Where(o => o.Status == "blocked")) _blocked.Add(o.Ref);
             ShowPlan();
             RebuildTree();   // the counts per workstream now say where the blocked records sit
-            _tabs.SelectedTab = _tabPlan;
+            if (show) _tabs.SelectedTab = _tabPlan;
             UpdateButtons();
         }
 
@@ -968,6 +1000,7 @@ namespace CcAlm.XrmToolBox
             _tabPlan = new TabPage("2. Plan check");
             _tabRun = new TabPage("3. Run");
             _tabs.TabPages.AddRange(new[] { _tabReview, _tabPlan, _tabRun });
+            _tabs.SelectedIndexChanged += (s, e) => OnTabOpened();
             BuildReview();
             BuildPlanTab();
             BuildRunTab();
@@ -1080,7 +1113,7 @@ namespace CcAlm.XrmToolBox
         void BuildPlanTab()
         {
             var top = new Panel { Dock = DockStyle.Top, Height = 40, Padding = new Padding(8, 8, 8, 4) };
-            _planSummary = new Label { Dock = DockStyle.Fill, Text = "Select what to move on the Review tab, then Check the plan.", ForeColor = Muted };
+            _planSummary = new Label { Dock = DockStyle.Fill, Text = "Compare two environments first: the Compare button above reads both.", ForeColor = Muted };
             _btnAddMissing = new Button { Text = "Add what is missing", Dock = DockStyle.Right, Width = 160, Enabled = false };
             _btnAddMissing.Click += (s, e) => AddMissing();
             top.Controls.Add(_planSummary);
@@ -1094,10 +1127,16 @@ namespace CcAlm.XrmToolBox
         void BuildRunTab()
         {
             var top = new Panel { Dock = DockStyle.Top, Height = 74, Padding = new Padding(8) };
-            _runTitle = new Label { Dock = DockStyle.Top, Height = 24, Font = new Font("Segoe UI Semibold", 10f), ForeColor = Ink, Text = "Dry-run the plan first; Apply unlocks after a dry run of the same plan." };
+            _runTitle = new Label { Dock = DockStyle.Top, Height = 24, Font = new Font("Segoe UI Semibold", 10f), ForeColor = Ink, Text = "Compare two environments first: the Compare button above reads both." };
             _runProgress = new ProgressBar { Dock = DockStyle.Top, Height = 14 };
             _runCurrent = new Label { Dock = DockStyle.Top, Height = 22, ForeColor = Muted };
+            // The same dry run as in the toolbar, where someone looking at an empty run list is.
+            _btnDryRunHere = new Button { Text = "Dry run", Dock = DockStyle.Top, Height = 28, Enabled = false, Font = new Font("Segoe UI Semibold", 9f) };
+            _btnDryRunHere.Click += (s, e) => Run(dry: true);
+            var dryRunHost = new Panel { Dock = DockStyle.Right, Width = 128, Padding = new Padding(8, 0, 0, 0) };
+            dryRunHost.Controls.Add(_btnDryRunHere);
             top.Controls.Add(_runCurrent); top.Controls.Add(_runProgress); top.Controls.Add(_runTitle);
+            top.Controls.Add(dryRunHost);
 
             var bottom = new Panel { Dock = DockStyle.Bottom, Height = 170, Padding = new Padding(8, 4, 8, 8) };
             _checkText = new TextBox { Dock = DockStyle.Fill, Multiline = true, ReadOnly = true, ScrollBars = ScrollBars.Vertical, BorderStyle = BorderStyle.FixedSingle, BackColor = ColorTranslator.FromHtml("#F8FAFC") };

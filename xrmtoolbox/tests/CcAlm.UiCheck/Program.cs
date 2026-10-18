@@ -75,8 +75,11 @@ static class Program
             () => Shot(form, outDir, "1b-review-used-by.png", log),
             () => control.ShowViewForTesting("By table"),
             () => Shot(form, outDir, "1c-review-by-table.png", log),
-            () => { control.ShowViewForTesting("By structure"); control.PlanForTesting(); },
+            // Opening the tabs without touching the toolbar: they must fill themselves.
+            () => { control.ShowViewForTesting("By structure"); control.ShowTabForTesting(1); },
             () => Shot(form, outDir, "2-plan.png", log),
+            () => control.ShowTabForTesting(2),
+            () => Shot(form, outDir, "2a-run-before-running.png", log),
             // Back to the tree: it now says which workstream or channel the blocked records sit in.
             () => { control.ShowTabForTesting(0); control.SelectFirstRecordForTesting("Mortgage WhatsApp"); },
             () => Shot(form, outDir, "2b-review-blocked.png", log),
