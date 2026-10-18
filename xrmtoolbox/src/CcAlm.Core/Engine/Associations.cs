@@ -98,7 +98,7 @@ namespace CcAlm.Core.Engine
                 string Name(RecordRef r) => maps.Labels.TryGetValue(r.Ref, out var l) ? (string.IsNullOrEmpty(l.Context) ? l.DisplayName : $"{l.Context} › {l.DisplayName}") : r.Key;
                 var row = new RecordDiff { Table = def.SchemaName, MatchKey = link.Key, Status = status, DisplayName = Name(link.Other), Context = Name(link.Owner) };
                 // The owner as a parent (it brings the link); the other end as something the link uses.
-                row.DependsOn.Add(new DependencyRef { Table = link.Owner.Entity, MatchKey = link.Owner.Key, Label = Keys.RefLabel(maps, link.Owner.Entity, link.Owner.Key, plans), Via = def.Label, Deferred = false, Kind = "lookup" });
+                row.DependsOn.Add(new DependencyRef { Table = link.Owner.Entity, MatchKey = link.Owner.Key, Label = Keys.RefLabel(maps, link.Owner.Entity, link.Owner.Key, plans), Via = def.Label, Deferred = false, Kind = "lookup", Owner = true });
                 row.DependsOn.Add(new DependencyRef { Table = link.Other.Entity, MatchKey = link.Other.Key, Label = Keys.RefLabel(maps, link.Other.Entity, link.Other.Key, plans), Via = def.Label, Deferred = true, Kind = "lookup" });
                 return row;
             }

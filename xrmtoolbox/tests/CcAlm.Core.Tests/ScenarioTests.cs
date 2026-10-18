@@ -135,6 +135,17 @@ namespace CcAlm.Core.Tests
         }
 
         [Fact]
+        public void A_record_added_because_something_else_needs_it_says_which_record_that_is()
+        {
+            // One workstream on its own: what it needs comes along, and the plan says why it is there.
+            var plan = _session.BuildPlan(new[] { T.Row(_diff, "msdyn_liveworkstream", "Mortgage chat").Ref }.ToList());
+            var queue = T.Op(plan, "queue", "Mortgage queue");
+            Assert.True(queue.AutoIncluded);
+            Assert.Contains("workstream 'Mortgage chat'", queue.NeededBy);
+            Assert.False(T.Op(plan, "msdyn_liveworkstream", "Mortgage chat").AutoIncluded);
+        }
+
+        [Fact]
         public void Blocks_only_what_cannot_be_written_each_with_its_reason()
         {
             Assert.Equal(new[] { "GPT chat", "Mortgage WhatsApp" }, _plan.Operations.Where(o => o.Status == "blocked").Select(o => o.DisplayName).OrderBy(x => x));
