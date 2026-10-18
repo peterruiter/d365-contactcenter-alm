@@ -20,7 +20,8 @@
     { "stage": 7, "label": "Routing and assignment", "description": "Routing configurations, assignment methods and their steps" },
     { "stage": 8, "label": "Channels", "description": "Live chat, voice, SMS and WhatsApp settings" },
     { "stage": 9, "label": "Agent content", "description": "Quick replies and tags" },
-    { "stage": 10, "label": "Contact center settings", "description": "The environment-wide Omnichannel configuration" }
+    { "stage": 10, "label": "Contact center settings", "description": "The environment-wide Omnichannel configuration" },
+    { "stage": 11, "label": "Conversation orchestration", "description": "Playbooks and the prompts that drive them" }
   ],
   "tables": [
     {
@@ -45,6 +46,11 @@
         "msdyn_entitylogicalname"
       ],
       "notes": "One per table that has record routing (Case routing hub for incident). A record workstream (email, case) must point at its table's hub, so the lookup is mapped by table name. Set up record routing for that table in the target first; its intake rules are not moved."
+    },
+    {
+      "order": 0, "stage": 0, "logicalName": "msdyn_cceventingscenario", "item": "orchestration scenario", "move": "reference",
+      "label": "Orchestration scenarios", "group": "Reference", "matchKeys": ["msdyn_scenarioname"],
+      "notes": "The scenarios a conversation orchestration playbook is built on ('Escalate priority based on transfer to a queue'). They ship with the product, identically in every environment, so they are mapped, never written. Two of the 28 share a name; a playbook built on that one is reported ambiguous."
     },
     {
       "order": 1, "stage": 1, "logicalName": "msdyn_operatinghour", "item": "operating hours record", "move": "upsert",
@@ -189,6 +195,19 @@
       "label": "Contact center settings", "group": "Settings", "matchKeys": ["msdyn_name"],
       "exclude": ["msdyn_publickeyurl"],
       "notes": "One per environment and always present, so it is only ever updated."
+    },
+    {
+      "order": 26, "stage": 11, "logicalName": "msdyn_ccplaybookpolicy", "item": "playbook", "move": "upsert",
+      "label": "Playbooks", "group": "Conversation orchestration", "matchKeys": ["msdyn_name", "_msdyn_cceventingscenarioid_value"],
+      "notes": "Conversation orchestration playbooks (preview). This is the header: which scenario it is built on, which event triggers it, and whether it runs rule-based or through a language model. The instruction itself is in the prompt underneath it."
+    },
+    {
+      "order": 27, "stage": 11, "logicalName": "msdyn_ccuserprompt", "item": "playbook prompt", "move": "upsert",
+      "label": "Playbook prompts", "group": "Conversation orchestration",
+      "matchKeys": ["_msdyn_ccplaybookpolicyid_value", "msdyn_name"],
+      "exclude": ["msdyn_workflowrule_name", "msdyn_errormessage"],
+      "guidBearingColumns": ["msdyn_inclusionlist", "msdyn_exclusionlist"],
+      "notes": "The natural-language instruction under a playbook, with the queues it applies to. The compiled rule (msdyn_workflowrule, a file) is left behind on purpose: publishing in the target regenerates it from this prompt, so what moves is the authored intent and not a compiled rule pointing at another environment's queues. The queue lists are read as references, so queues are remapped like everywhere else. A moved playbook arrives at the stage it had in the source; publishing it stays a step someone takes in the target."
     }
   ],
   "detectOnly": [

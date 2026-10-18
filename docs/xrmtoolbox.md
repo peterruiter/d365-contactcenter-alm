@@ -1,6 +1,6 @@
 # XrmToolBox tool
 
-**Contact Center ALM** for [XrmToolBox](https://www.xrmtoolbox.com) moves Dynamics 365 Contact Center configuration between two environments: workstreams with their routing configurations, work classification and route-to-queue rules, queues, rulesets, decision contracts, templates, capacity profiles, channels and agent content. It runs in XrmToolBox on your own connections, so there is nothing to deploy and no app registration to create: sign in the way you sign in for any other XrmToolBox tool.
+**Contact Center ALM** for [XrmToolBox](https://www.xrmtoolbox.com) moves Dynamics 365 Contact Center configuration between two environments: workstreams with their routing configurations, work classification and route-to-queue rules, queues, rulesets, decision contracts, templates, capacity profiles, channels, agent content and conversation orchestration playbooks. It runs in XrmToolBox on your own connections, so there is nothing to deploy and no app registration to create: sign in the way you sign in for any other XrmToolBox tool.
 
 It does what the Dynamics app and the local runner do, with the same rules and the same answers: records are matched by name, never by GUID; every dependency is checked before anything runs; a dry run shows exactly what an apply would do; an apply checks afterwards that the target now matches the source; and every apply can be rolled back.
 
@@ -16,7 +16,7 @@ Needs XrmToolBox 1.2025.10 or later.
 
 1. Connect to the **source** environment the usual way and open **Contact Center ALM**.
 2. **Choose target…** picks the second connection: the environment to move to.
-3. **Compare** reads both. The Review tab shows every difference **by structure**: each record sits under the one it belongs to, grouped as Foundations, Workstreams, Queues, Routing, Channels and Agent content, and marked New, Changed, Ambiguous or Only in target (Same is hidden; tick it to see those too).
+3. **Compare** reads both. The Review tab shows every difference **by structure**: each record sits under the one it belongs to, grouped as Foundations, Workstreams, Queues, Routing, Channels, Agent content and Conversation orchestration, and marked New, Changed, Ambiguous or Only in target (Same is hidden; tick it to see those too).
 
    ```
    Workstreams (3)

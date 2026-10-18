@@ -4,6 +4,12 @@ All notable changes to this project are recorded here. Format follows [Keep a Ch
 
 ## [Unreleased]
 
+### Conversation orchestration playbooks
+- **Playbooks move between environments** (`msdyn_ccplaybookpolicy` and the `msdyn_ccuserprompt` under it). A playbook is matched on its name and the scenario it is built on, its prompt on that playbook and its own name, so a second compare of the same two environments reports them as the same instead of writing them again. The scenarios themselves (`msdyn_cceventingscenario`) ship with the product and are only mapped, never written.
+- **The compiled rule is deliberately left behind.** Publishing a playbook turns its prompt into a runtime rule that names the environment's own queues; copying that rule into another environment would carry those queues with it. What moves is the authored prompt, with the queue lists read as references so queues are remapped like everywhere else, and a moved playbook stays at the stage it had in the source - publishing it is a step someone takes in the target.
+- Checked against two real environments: two playbooks with their prompts moved, read back identical, and the next compare found nothing left to do.
+- `CcAlm.LiveCheck` can now write, and only when asked: `--only <tables>` keeps a run to the tables named with what they need, `--apply` writes that plan and saves its snapshot. Without `--apply` it stays what it was, a read-only compare, plan and dry run.
+
 ### XrmToolBox tool
 - **The Plan check and Run tabs are no longer empty until you find the right button in the toolbar.** Opening *Plan check* checks the plan (it reads nothing from Dataverse, so it is instant), opening *Run* checks it too and then says how many records are ready, with the *Dry run* button on the tab itself. Before a compare, each tab says what to do first instead of showing an empty list.
 - **Fixed: a compare was thrown away a few seconds after it finished**, leaving an empty tree next to "147 of 147 selected" and a disabled *Check the plan*. XrmToolBox calls a tool's UpdateConnection again for the same environment - when its metadata cache has finished loading, when it refreshes a connection - and the tool treated every one of those as a new environment. Only a different source environment clears the compare now; the same one again keeps it, and the new connection is used from that moment on, so impersonating someone after a compare writes as that person.

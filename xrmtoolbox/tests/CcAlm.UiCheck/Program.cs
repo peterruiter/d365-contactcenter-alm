@@ -64,14 +64,19 @@ static class Program
         form.Controls.Add(control);
         var log = new StringWriter();
         var scenario = new Scenario();
+        // Records to put on screen: a container, something shared by several records, and one the
+        // plan check blocks. The two sets of data have different names for them.
+        var container = recordedDir != null ? "Voice" : "Mortgage chat";
+        var shared = recordedDir != null ? "Default messaging queue" : "Mortgage queue";
+        var blocked = recordedDir != null ? "Microsoft 365 Copilot workstream" : "Mortgage WhatsApp";
         var steps = new Action[]
         {
             () => { control.UseSessionForTesting(recordedDir != null ? Recorded(recordedDir) : new MigrationSession(scenario.Dev, scenario.Test)); control.CompareForTesting(); },
             () => log.WriteLine(control.TreeSummaryForTesting()),
-            () => { control.SelectFirstRecordForTesting("Mortgage chat"); },
+            () => { control.SelectFirstRecordForTesting(container); },
             () => Shot(form, outDir, "1-review.png", log),
             // A queue: used by a workstream and by a ruleset, so "Where it is used" has something to say.
-            () => { control.SelectFirstRecordForTesting("Mortgage queue"); },
+            () => { control.SelectFirstRecordForTesting(shared); },
             () => Shot(form, outDir, "1b-review-used-by.png", log),
             () => control.ShowViewForTesting("By table"),
             () => Shot(form, outDir, "1c-review-by-table.png", log),
@@ -81,7 +86,7 @@ static class Program
             () => control.ShowTabForTesting(2),
             () => Shot(form, outDir, "2a-run-before-running.png", log),
             // Back to the tree: it now says which workstream or channel the blocked records sit in.
-            () => { control.ShowTabForTesting(0); control.SelectFirstRecordForTesting("Mortgage WhatsApp"); },
+            () => { control.ShowTabForTesting(0); control.SelectFirstRecordForTesting(blocked); },
             () => Shot(form, outDir, "2b-review-blocked.png", log),
             () => control.DryRunForTesting(),
             () => { },
@@ -118,6 +123,9 @@ static class Program
             // draws itself instead: the same layout, without the frame.
             try
             {
+                // CCALM_UICHECK_DRAW=1: never read the screen, so another window cannot end up in
+                // the picture. For screenshots meant for other people.
+                if (Environment.GetEnvironmentVariable("CCALM_UICHECK_DRAW") == "1") throw new InvalidOperationException("drawing was asked for");
                 using (var g = Graphics.FromImage(bmp)) g.CopyFromScreen(form.Location, Point.Empty, form.Size);
             }
             catch (Exception ex)
