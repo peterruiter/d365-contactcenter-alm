@@ -24,9 +24,21 @@
     <Nullable>enable</Nullable>
     <AssemblyName>ContactCenterALM-LocalRunner</AssemblyName>
     <RootNamespace>CcAlmRunner</RootNamespace>
-    <Product>Contact Center ALM local runner</Product>
+
+    <!-- The icon and what Windows shows under Properties > Details, so the exe says what it is and
+         who wrote it. The release script overrides the versions with the build's own identity. -->
+    <ApplicationIcon>icon.ico</ApplicationIcon>
+    <AssemblyTitle>Contact Center ALM local runner</AssemblyTitle>
+    <Product>Contact Center ALM</Product>
+    <Authors>Peter Ruiter</Authors>
     <Company>Peter Ruiter</Company>
-    <Copyright>(c) Peter Ruiter. MIT.</Copyright>
+    <Copyright>Copyright © 2026 Peter Ruiter. MIT licence.</Copyright>
+    <Description>Compares and moves Dynamics 365 Contact Center configuration between environments: workstreams with their routing, queues, rulesets, templates and channels. Written by Peter Ruiter - https://github.com/peterruiter/d365-contactcenter-alm</Description>
+    <Version>0.3.0</Version>
+    <FileVersion>0.3.0.0</FileVersion>
+    <InformationalVersion>0.3.0</InformationalVersion>
+    <!-- Keep the product version readable: the SDK otherwise appends the full commit sha to it. -->
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
   </PropertyGroup>
 
   <ItemGroup>

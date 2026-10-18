@@ -9,7 +9,10 @@
     <authors>Peter Ruiter</authors>
     <owners>Peter Ruiter</owners>
     <license type="expression">MIT</license>
+    <icon>icon.png</icon>
+    <readme>package-readme.md</readme>
     <projectUrl>https://github.com/peterruiter/d365-contactcenter-alm</projectUrl>
+    <repository type="git" url="https://github.com/peterruiter/d365-contactcenter-alm.git" />
     <requireLicenseAcceptance>false</requireLicenseAcceptance>
     <description>Compare and move Dynamics 365 Contact Center configuration between environments: workstreams with their routing configurations, work classification and route-to-queue rules, queues, rulesets, templates, capacity profiles and channels. Records are matched by name, never by GUID. Every dependency is checked before anything runs; then dry run, apply with a check afterwards that the target matches the source, and rollback from a snapshot.</description>
     <summary>Move Dynamics 365 Contact Center configuration between environments, with dependency checks, dry run, verification and rollback.</summary>
@@ -25,5 +28,9 @@
   <files>
     <file src="src\CcAlm.XrmToolBox\bin\Release\net48\CcAlm.XrmToolBox.dll" target="lib\net48\Plugins\" />
     <file src="src\CcAlm.XrmToolBox\bin\Release\net48\CcAlm.Core.dll" target="lib\net48\Plugins\" />
+    <!-- The listing on nuget.org and in the Tool Library: the tool's own icon, and a readme of its
+         own because the repository's readme links by relative path, which only works on GitHub. -->
+    <file src="icon.png" target="" />
+    <file src="package-readme.md" target="" />
   </files>
 </package>
