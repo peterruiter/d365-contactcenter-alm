@@ -9,10 +9,13 @@
     <authors>Peter Ruiter</authors>
     <owners>Peter Ruiter</owners>
     <license type="expression">MIT</license>
-    <icon>icon.png</icon>
-    <!-- The Tool Library reads the old iconUrl, not the icon packed in the file ("Logo Url is not
-         valid" when it is missing), so the package carries both: icon for nuget.org's listing,
-         iconUrl for xrmtoolbox.com. Packing warns NU5048 about the pair; build.ps1 silences it. -->
+    <!-- iconUrl, and deliberately no packed icon. The Tool Library reads iconUrl and wants a URL it
+         can see is an image; nuget.org replaces iconUrl with its own endpoint for the packed icon
+         whenever there is one, and that endpoint has no file extension and answers
+         application/octet-stream, which the Tool Library rejects ("Logo Url is not valid").
+         Without a packed icon the URL below reaches the Tool Library as it is written. The cost is
+         that nuget.org's own listing shows its default icon: it only renders packed ones.
+         Packing warns NU5048 that iconUrl is deprecated; build.ps1 silences that one warning. -->
     <iconUrl>https://raw.githubusercontent.com/peterruiter/d365-contactcenter-alm/master/xrmtoolbox/icon.png</iconUrl>
     <readme>package-readme.md</readme>
     <projectUrl>https://github.com/peterruiter/d365-contactcenter-alm</projectUrl>
@@ -32,9 +35,8 @@
   <files>
     <file src="src\CcAlm.XrmToolBox\bin\Release\net48\CcAlm.XrmToolBox.dll" target="lib\net48\Plugins\" />
     <file src="src\CcAlm.XrmToolBox\bin\Release\net48\CcAlm.Core.dll" target="lib\net48\Plugins\" />
-    <!-- The listing on nuget.org and in the Tool Library: the tool's own icon, and a readme of its
-         own because the repository's readme links by relative path, which only works on GitHub. -->
-    <file src="icon.png" target="" />
+    <!-- A readme of its own: the repository's readme links by relative path, which only works on
+         GitHub. The icon is not packed; see iconUrl above. -->
     <file src="package-readme.md" target="" />
   </files>
 </package>
