@@ -10,6 +10,10 @@
     <owners>Peter Ruiter</owners>
     <license type="expression">MIT</license>
     <icon>icon.png</icon>
+    <!-- The Tool Library reads the old iconUrl, not the icon packed in the file ("Logo Url is not
+         valid" when it is missing), so the package carries both: icon for nuget.org's listing,
+         iconUrl for xrmtoolbox.com. Packing warns NU5048 about the pair; build.ps1 silences it. -->
+    <iconUrl>https://raw.githubusercontent.com/peterruiter/d365-contactcenter-alm/master/xrmtoolbox/icon.png</iconUrl>
     <readme>package-readme.md</readme>
     <projectUrl>https://github.com/peterruiter/d365-contactcenter-alm</projectUrl>
     <repository type="git" url="https://github.com/peterruiter/d365-contactcenter-alm.git" />

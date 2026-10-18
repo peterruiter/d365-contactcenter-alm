@@ -29,7 +29,8 @@ $spec = $spec.Replace('$version$', $version).Replace('$releaseNotes$', [Security
 $specPath = Join-Path $here 'obj/ContactCenterALM.XrmToolBox.nuspec'
 New-Item -ItemType Directory -Path (Split-Path $specPath) -Force | Out-Null
 Set-Content -Path $specPath -Value $spec -Encoding utf8NoBOM
-dotnet pack (Join-Path $here 'src/CcAlm.XrmToolBox/CcAlm.XrmToolBox.csproj') -c Release --no-build -nologo -v q -o $out "-p:NuspecFile=$specPath" "-p:NuspecBasePath=$here"
+# NU5048: the package deliberately carries both icon and iconUrl; see the nuspec.
+dotnet pack (Join-Path $here 'src/CcAlm.XrmToolBox/CcAlm.XrmToolBox.csproj') -c Release --no-build -nologo -v q -o $out "-p:NuspecFile=$specPath" "-p:NuspecBasePath=$here" -p:NoWarn=NU5048
 if ($LASTEXITCODE) { throw 'Pack failed.' }
 
 $zip = Join-Path $out 'ContactCenterALM-XrmToolBox.zip'
