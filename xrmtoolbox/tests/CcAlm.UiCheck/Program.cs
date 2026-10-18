@@ -22,7 +22,10 @@ static class Program
             return File.Exists(path) ? Assembly.LoadFrom(path) : null;
         };
         if (args.Length > 1 && args[1] == "--mef") { Mef(outDir); return; }
-        Run(outDir);
+        // --recorded <dir>: drive the tool with a recorded compare of two real environments
+        // (tests/fixtures/recorded/<name>) instead of the synthetic scenario, to see the tree at
+        // the size it has in practice.
+        Run(outDir, args.Length > 2 && args[1] == "--recorded" ? args[2] : null);
     }
 
     // Finds the tool the way XrmToolBox does: an MEF export of IXrmToolBoxPlugin with its metadata.
@@ -43,7 +46,16 @@ static class Program
         File.WriteAllText(Path.Combine(outDir, "mef.txt"), log.ToString());
     }
 
-    static void Run(string outDir)
+    static MigrationSession Recorded(string dir)
+    {
+        var source = new FakeDataverse("Dev", "https://dev.recorded.example", FakeDataverse.LoadMetadata(Path.Combine(dir, "source.metadata.json")));
+        source.LoadRecords(Path.Combine(dir, "source.records.json"));
+        var target = new FakeDataverse("Test", "https://test.recorded.example", FakeDataverse.LoadMetadata(Path.Combine(dir, "target.metadata.json")));
+        target.LoadRecords(Path.Combine(dir, "target.records.json"));
+        return new MigrationSession(source, target);
+    }
+
+    static void Run(string outDir, string recordedDir = null)
     {
         Application.EnableVisualStyles();
         var form = new Form { Width = 1500, Height = 900, StartPosition = FormStartPosition.Manual, Location = new Point(20, 20), Text = "Contact Center ALM - UI check" };
@@ -54,7 +66,8 @@ static class Program
         var scenario = new Scenario();
         var steps = new Action[]
         {
-            () => { control.UseSessionForTesting(new MigrationSession(scenario.Dev, scenario.Test)); control.CompareForTesting(); },
+            () => { control.UseSessionForTesting(recordedDir != null ? Recorded(recordedDir) : new MigrationSession(scenario.Dev, scenario.Test)); control.CompareForTesting(); },
+            () => log.WriteLine(control.TreeSummaryForTesting()),
             () => { control.SelectFirstRecordForTesting("Mortgage chat"); },
             () => Shot(form, outDir, "1-review.png", log),
             // A queue: used by a workstream and by a ruleset, so "Where it is used" has something to say.
@@ -70,6 +83,12 @@ static class Program
             () => control.DryRunForTesting(),
             () => { },
             () => Shot(form, outDir, "3-run.png", log),
+            // Last, because the second one empties the tree on purpose: XrmToolBox raises the
+            // connection again when its metadata cache has loaded, and the compare has to survive
+            // that; a different source environment has to clear it.
+            () => { control.ShowTabForTesting(0); control.SourceConnectionForTesting("Dev", recordedDir != null ? "https://dev.recorded.example" : "https://dev.example"); log.WriteLine("after the same connection again: " + FirstLine(control.TreeSummaryForTesting())); },
+            () => { control.SourceConnectionForTesting("Other", "https://other.example"); log.WriteLine("after a different environment: " + FirstLine(control.TreeSummaryForTesting())); },
+            () => Shot(form, outDir, "4-review-after-other-environment.png", log),
             () => form.Close(),
         };
         int i = 0;
@@ -84,6 +103,8 @@ static class Program
         Application.Run(form);
         File.WriteAllText(Path.Combine(outDir, "log.txt"), log.ToString() + "done");
     }
+
+    static string FirstLine(string text) => new StringReader(text).ReadLine();
 
     static void Shot(Form form, string dir, string name, TextWriter log)
     {

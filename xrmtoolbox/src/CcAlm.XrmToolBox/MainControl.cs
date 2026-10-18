@@ -48,6 +48,7 @@ namespace CcAlm.XrmToolBox
         Selection _selection;
         Plan _plan;
         string _dryRunPlanId;
+        string _sourceUrl;
         RunResult _lastRun;
         bool _syncingChecks;
         bool _testing;
@@ -61,6 +62,7 @@ namespace CcAlm.XrmToolBox
             _testing = true;
             _session = session;
             _lblSource.Text = "Source: " + session.Source.Name;
+            _sourceUrl = session.Source.Url;
             _lblTarget.Text = "Target: " + session.Target.Name;
             UpdateButtons();
         }
@@ -69,6 +71,21 @@ namespace CcAlm.XrmToolBox
         internal void DryRunForTesting() => Run(dry: true);
         internal void ShowTabForTesting(int index) => _tabs.SelectedIndex = index;
         internal void ShowViewForTesting(string view) { _view.SelectedIndex = _view.Items.IndexOf(view); }
+        internal void SourceConnectionForTesting(string name, string url) => SourceChanged(null, name, url);
+        internal string TreeSummaryForTesting()
+        {
+            var lines = new List<string>
+            {
+                $"top-level nodes: {_tree.Nodes.Count}, all nodes: {_tree.GetNodeCount(true)}, records shown: {ShownRecords().Count}",
+                $"tree: visible={_tree.Visible} size={_tree.Size} handle={_tree.IsHandleCreated} top={(_tree.TopNode == null ? "(none)" : _tree.TopNode.Text)}",
+            };
+            foreach (TreeNode g in _tree.Nodes)
+            {
+                lines.Add($"  [{(g.IsVisible ? "visible" : "hidden ")}] {g.Text}  ({g.Nodes.Count} under it)");
+                foreach (TreeNode c in g.Nodes) lines.Add($"      [{(c.IsVisible ? "visible" : "hidden ")}] {c.Text}");
+            }
+            return string.Join(Environment.NewLine, lines);
+        }
         internal void SelectFirstRecordForTesting(string name)
         {
             var node = AllRecordNodes().FirstOrDefault(n => ((RecordDiff)n.Tag).DisplayName == name);
@@ -125,8 +142,28 @@ namespace CcAlm.XrmToolBox
         public override void UpdateConnection(IOrganizationService newService, ConnectionDetail detail, string actionName, object parameter)
         {
             base.UpdateConnection(newService, detail, actionName, parameter);
-            ResetSession();
-            _lblSource.Text = "Source: " + (detail?.ConnectionName ?? "not connected");
+            // The target is chosen through this method as well. The base keeps it out of Service and
+            // ConnectionDetail and raises ConnectionDetailsUpdated for it, which is where it belongs;
+            // here it would overwrite the source.
+            if (actionName == "AdditionalOrganization") return;
+            SourceChanged(newService, detail?.ConnectionName, UrlOf(detail));
+        }
+
+        /// <summary>
+        /// A source environment. XrmToolBox calls UpdateConnection again for the same environment -
+        /// when its metadata cache has loaded, when it has refreshed the connection - so only a
+        /// different environment throws the compare away. Resetting on every call emptied the tree
+        /// and locked the buttons seconds after a compare, with the selection count still on screen.
+        /// </summary>
+        void SourceChanged(IOrganizationService service, string name, string url)
+        {
+            var changed = !string.Equals(url?.TrimEnd('/'), _sourceUrl?.TrimEnd('/'), StringComparison.OrdinalIgnoreCase);
+            _sourceUrl = url;
+            if (changed) ResetSession();
+            // The same environment through a new connection (a reconnect, or impersonating someone):
+            // what the compare read stays good, but everything from here on goes through the new one.
+            else if (service != null) (_session?.Source as SdkDataverse)?.UseConnection(service);
+            _lblSource.Text = "Source: " + (name ?? "not connected");
             UpdateButtons();
         }
 
@@ -150,11 +187,22 @@ namespace CcAlm.XrmToolBox
             UpdateButtons();
         }
 
+        /// <summary>
+        /// Back to before the compare. Everything it put on screen goes with it: a cleared tree next
+        /// to "147 of 147 selected" reads as a tool that lost its mind.
+        /// </summary>
         void ResetSession()
         {
-            _session = null; _diff = null; _selection = null; _plan = null; _dryRunPlanId = null;
+            _session = null; _diff = null; _hier = null; _selection = null; _plan = null; _dryRunPlanId = null;
             _tree?.Nodes.Clear();
+            _nodeText.Clear(); _rollups.Clear(); _blocked.Clear();
+            _expanded.Clear(); _expansionSeeded = false;
             _planList?.Items.Clear();
+            if (_selectAll != null) { _selectAll.CheckState = CheckState.Unchecked; _selectAll.Text = "Select all"; }
+            if (_selectionCount != null) _selectionCount.Text = "";
+            if (_planSummary != null) { _planSummary.Text = "Select what to move on the Review tab, then Check the plan."; _planSummary.ForeColor = Muted; }
+            if (_notices != null) _notices.Text = "";
+            if (_fields != null) ShowDetails(null);
             UpdateButtons();
         }
 

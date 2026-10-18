@@ -17,7 +17,7 @@ namespace CcAlm.XrmToolBox
     /// </summary>
     public sealed class SdkDataverse : IDataverse
     {
-        readonly IOrganizationService _service;
+        IOrganizationService _service;
         readonly Dictionary<string, TableSchema> _schemas = new Dictionary<string, TableSchema>();
         readonly Dictionary<string, Dictionary<string, AttributeMetadata>> _attributes = new Dictionary<string, Dictionary<string, AttributeMetadata>>();
 
@@ -30,6 +30,14 @@ namespace CcAlm.XrmToolBox
 
         public string Name { get; }
         public string Url { get; }
+
+        /// <summary>
+        /// The connection to work through from here on. XrmToolBox hands out a new one when it
+        /// reconnects or when the person impersonates someone; it is the same environment, so what
+        /// was read stays good, but everything after this must go through the new one.
+        /// </summary>
+        public void UseConnection(IOrganizationService service) =>
+            _service = service ?? throw new ArgumentNullException(nameof(service));
 
         public TableSchema GetTableSchema(string logicalName)
         {
