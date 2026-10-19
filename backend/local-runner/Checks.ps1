@@ -237,14 +237,27 @@ function Test-CcCheckAccess($entry, [string] $secret) {
     $writable = [System.Collections.Generic.List[object]]::new()
     $readable = 0
 
-    # Read: one row from every table. 404 means the table is not in this org (a channel that is not
-    # installed); that is a warning, not a blocker.
+    # Where to read each table and which column to ask for. A version 2 manifest does not carry entity
+    # set names or columns - the engine reads those from each environment - so ask this environment.
+    $sets = @{}
+    $meta = Invoke-CcCheckRequest -Uri "$api/EntityDefinitions?`$select=LogicalName,EntitySetName,PrimaryIdAttribute" -Headers $h
+    if ($meta.Status -ne 200) {
+        return New-CcCheckResult 'fail' 'Could not read the table list from this environment.' @(Get-CcDataverseError $meta) 'Table access could not be checked.'
+    }
+    foreach ($e in @($meta.Json.value)) { $sets[$e.LogicalName] = $e }
+
+    # Read: one row from every table. A table this environment does not have (a channel that is not
+    # installed) is a warning, not a blocker.
     $h['Prefer'] = 'odata.maxpagesize=1'
     foreach ($tbl in $manifest.tables) {
-        $r = Invoke-CcCheckRequest -Uri "$api/$($tbl.entitySet)?`$select=$($tbl.select[0])" -Headers $h
+        $def = $sets[$tbl.logicalName]
+        if (-not $def) { $absent.Add($tbl.logicalName); continue }
+        $r = Invoke-CcCheckRequest -Uri "$api/$($def.EntitySetName)?`$select=$($def.PrimaryIdAttribute)" -Headers $h
         if ($r.Status -eq 200) {
             $readable++
-            if ($tbl.move -ne 'detect') { $writable.Add($tbl) }
+            # Reference and detect tables are read to resolve lookups and to report; they are never
+            # written, so no create, update or delete privilege is wanted for them.
+            if ($tbl.move -notin 'detect', 'reference') { $writable.Add($tbl) }
         }
         elseif ($r.Status -eq 404 -or (Get-CcDataverseError $r) -match 'Resource not found|Could not find') { $absent.Add($tbl.logicalName) }
         elseif ($r.Status -eq 403) { $fails.Add("No read access: $($tbl.logicalName)") }

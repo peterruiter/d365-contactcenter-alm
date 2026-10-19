@@ -4,6 +4,10 @@ All notable changes to this project are recorded here. Format follows [Keep a Ch
 
 ## [Unreleased]
 
+### Local runner setup checks
+- **Fixed: the Table access check crashed with "Cannot index into a null array"** on every environment, so the last setup check never passed. It asked the manifest for each table's entity set name and columns, which a version 2 manifest does not carry - the engine reads those from the environment. The check now asks the environment for them, and a table that is not installed there is skipped instead of counted as a failure.
+- **Reference and detect tables no longer demand write access.** They are read to resolve lookups and to report; the check was asking for create, update and delete on them, which no one needs to grant.
+
 ### Agentic routing and publishing playbooks
 - **Agentic routing rules (`msdyn_contactcentergeneratedrule`) are read and reported, never written.** The table is elastic: partitioned by the environment's own organization id, with a time to live on its rows. A copied rule would carry the source environment's partition into the target, where the runtime would not see it, and could expire on its own, so the review tab lists them under what to set up by hand instead of pretending they moved.
 - **A playbook that is about to move says it will need publishing.** It moves as a draft by design; publishing compiles the prompt into a rule naming that environment's own queues. The notice stops once the playbook is in the target.
