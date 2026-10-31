@@ -101,9 +101,18 @@ Describe 'Plan' {
     }
 
     It 'blocks only what cannot be written, each with its reason' {
-        @($plan.operations | Where-Object status -eq 'blocked' | ForEach-Object displayName | Sort-Object) | Should -Be @('GPT chat', 'Mortgage WhatsApp')
+        @($plan.operations | Where-Object status -eq 'blocked' | ForEach-Object displayName | Sort-Object) | Should -Be @('ChatGPT notification', 'GPT chat', 'Mortgage WhatsApp')
         (& $op msdyn_liveworkstream 'GPT chat').blockers.code | Should -Be @('managedMissing')
         (& $op msdyn_ocwhatsappchannelnumber 'Mortgage WhatsApp').blockers.code | Should -Contain 'external'
+    }
+
+    It 'shows a record from a managed solution, but blocks it with the reason' {
+        $row = Get-CcDiffRow $diff msdyn_notificationtemplate 'ChatGPT notification'
+        $row.status | Should -Be 'MissingInTarget'
+        $row.managed | Should -BeTrue
+        $row.note | Should -Match 'managed solution'
+        (& $op msdyn_notificationtemplate 'ChatGPT notification').blockers.code | Should -Be @('managed')
+        (& $op msdyn_notificationtemplate 'ChatGPT notification').autoIncluded | Should -BeFalse
     }
 
     It 'plans records without dependencies as ready' {
@@ -186,7 +195,7 @@ Describe 'Apply, check afterwards and roll back' {
     It 'writes every ready record and fails none' {
         $run.summary.failed | Should -Be 0
         $run.summary.skipped | Should -Be 0
-        $run.summary.blocked | Should -Be 2
+        $run.summary.blocked | Should -Be 3
         $run.state | Should -Be 'PartiallyFailed'
     }
 
@@ -201,7 +210,7 @@ Describe 'Apply, check afterwards and roll back' {
 
     It 'leaves only the blocked records to move' {
         $plan2 = New-CcPlan -Diff $after 6>$null
-        @($plan2.operations | Where-Object op -ne 'skip-existing' | ForEach-Object displayName | Sort-Object) | Should -Be @('GPT chat', 'Mortgage WhatsApp')
+        @($plan2.operations | Where-Object op -ne 'skip-existing' | ForEach-Object displayName | Sort-Object) | Should -Be @('ChatGPT notification', 'GPT chat', 'Mortgage WhatsApp')
     }
 
     It "rewrites a ruleset's embedded GUIDs to the target's records" {
@@ -248,6 +257,98 @@ Describe 'Apply, check afterwards and roll back' {
     }
 }
 
+Describe 'Copies that differ only in spaces around a text' {
+    It 'takes them as one record, not as two it cannot tell apart' {
+        $s = New-CcSyntheticScenario
+        Add-CcFakeRecord $s.Dev msdyn_cannedmessage @{ msdyn_title = 'Benefits'; msdyn_locale_field = 1033; msdyn_message = "Register for an account.`n" } | Out-Null
+        Add-CcFakeRecord $s.Dev msdyn_cannedmessage @{ msdyn_title = 'Benefits'; msdyn_locale_field = 1033; msdyn_message = 'Register for an account.' } | Out-Null
+        Mount-CcFakeDataverse -Orgs $s.Dev, $s.Test | Out-Null
+        $diff = Compare-CcConfig -Environments $s.Envs -SourceId dev -TargetId test 6>$null
+        $rows = @(Get-CcDiffRow $diff msdyn_cannedmessage 'Benefits')
+        $rows.Count | Should -Be 1
+        $rows[0].status | Should -Be 'MissingInTarget'
+        $rows[0].note | Should -Match '2 identical copies'
+    }
+}
+
+Describe 'Record routing intake rules' {
+    BeforeAll {
+        $s = New-CcSyntheticScenario -RecordRouting
+        $before = Copy-CcFakeOrg $s.Test -Url 'https://contoso-test-before.crm4.dynamics.com'
+        Mount-CcFakeDataverse -Orgs $s.Dev, $s.Test, $before | Out-Null
+        $diff = Compare-CcConfig -Environments $s.Envs -SourceId dev -TargetId test 6>$null
+        $mortgage = Get-CcDiffRow $diff intakerule 'Mortgage cases'
+        $plan = New-CcPlan -Diff $diff -Selection @(@{ table = 'intakerule'; matchKey = $mortgage.matchKey }) 6>$null
+        $dry = (Invoke-CcTestRun -Environments $s.Envs -SourceId dev -TargetId test -Mode dryRun -Selection (Get-CcSelection $plan)).Run
+        $result = Invoke-CcTestRun -Environments $s.Envs -SourceId dev -TargetId test -Mode apply -Selection (Get-CcSelection $plan)
+        $run = $result.Run
+        function Get-TestIntakeRules {
+            $hub = @($s.Test.Tables['msdyn_masterentityroutingconfiguration'].Rows)[0]
+            $rs = Get-CcFakeRow $s.Test.Tables['msdyn_decisionruleset'] $hub._msdyn_rulesetid_value
+            @(([xml]$rs.msdyn_rulesetdefinition).SelectNodes('//rules/rule'))
+        }
+    }
+
+    It 'compares the rules one by one, by name, under their hub' {
+        (Get-CcDiffRow $diff intakerule 'Billing cases').status | Should -Be 'Equal'
+        $mortgage.status | Should -Be 'MissingInTarget'
+        $mortgage.context | Should -Be 'Case routing hub'
+        (Get-CcDiffRow $diff intakerule 'Test cases').status | Should -Be 'ExtraInTarget'
+    }
+
+    It 'does not offer the intake ruleset itself, which holds every workstream''s rules, as a ruleset' {
+        @(Get-CcDiffRow $diff msdyn_decisionruleset 'Case decision ruleset').Count | Should -Be 0
+    }
+
+    It 'puts a rule under the workstream it routes to, and needs the hub' {
+        $mortgage.dependsOn[0].table | Should -Be 'msdyn_liveworkstream'
+        $mortgage.dependsOn[0].label | Should -Match 'Mortgage chat'
+        $mortgage.dependsOn[0].deferred | Should -BeFalse
+        $mortgage.dependsOn.table | Should -Contain 'msdyn_masterentityroutingconfiguration'
+    }
+
+    It 'plans the rule after the new workstream it routes to' {
+        $op = $plan.operations | Where-Object table -eq 'intakerule'
+        $op.status | Should -Be 'ready'
+        $op.op | Should -Be 'create'
+        ($op.dependencies | Where-Object table -eq 'msdyn_liveworkstream').state | Should -Be 'createdEarlier'
+        $plan.operations.displayName | Should -Contain 'Mortgage chat'
+    }
+
+    It 'dry-runs the merge' {
+        ($dry.items | Where-Object table -eq 'intakerule').outcome | Should -Be 'wouldCreate'
+        $dry.summary.failed | Should -Be 0
+    }
+
+    It "merges the rule into the target's ruleset after the rule before it, keeping the target's own" {
+        $run.summary.failed | Should -Be 0
+        ($run.items | Where-Object table -eq 'intakerule').outcome | Should -Be 'created'
+        @(Get-TestIntakeRules | ForEach-Object { $_.GetAttribute('name') }) | Should -Be @('Test cases', 'Billing cases', 'Mortgage cases')
+    }
+
+    It "routes the rule to the target's own copy of the workstream" {
+        $ws = $s.Test.Tables['msdyn_liveworkstream'].Rows | Where-Object msdyn_name -eq 'Mortgage chat'
+        $xml = (Get-TestIntakeRules | Where-Object { $_.GetAttribute('name') -eq 'Mortgage cases' }).OuterXml
+        $xml | Should -Match $ws.msdyn_liveworkstreamid
+        $xml | Should -Not -Match $s.Ids.dev.mortgageChat
+    }
+
+    It 'checks the rule afterwards and finds it the same as the source' {
+        $run.verification.state | Should -Be 'Verified'
+        $run.verification.checked | Should -Be $run.verification.matched
+    }
+
+    It 'puts the target back exactly as it was when rolled back' {
+        $store = @{ Run = $run }
+        Invoke-CcRollbackJob -Environments $s.Envs -SnapshotPath $result.SnapshotPath -LoadRun { $store.Run | ConvertTo-Json -Depth 40 | ConvertFrom-Json } -SaveRun { param($r) $store.Run = $r }
+        @($store.Run.cleanup.unresolved).Count | Should -Be 0
+        @(Get-TestIntakeRules | ForEach-Object { $_.GetAttribute('name') }) | Should -Be @('Test cases', 'Billing cases')
+        $envs = @((New-CcFakeEnvironment before Before $before), (New-CcFakeEnvironment test Test $s.Test))
+        $d = Compare-CcConfig -Environments $envs -SourceId before -TargetId test 6>$null
+        $d.summary.missingInTarget + $d.summary.extraInTarget + $d.summary.changed | Should -Be 0
+    }
+}
+
 Describe 'Runs split over time-budgeted slices' {
     BeforeAll {
         $s = New-CcSyntheticScenario
@@ -269,7 +370,7 @@ Describe 'Runs split over time-budgeted slices' {
 
     It 'ends where a single run ends: everything written once, all of it checked' {
         $run.summary.failed | Should -Be 0
-        $run.summary.blocked | Should -Be 2
+        $run.summary.blocked | Should -Be 3
         $run.verification.state | Should -Be 'Verified'
         $d = Compare-CcConfig -Environments $s.Envs -SourceId dev -TargetId test 6>$null
         $d.summary.ambiguous | Should -Be 1   # only Weekend, which was ambiguous in Dev to begin with

@@ -85,7 +85,7 @@ Describe 'An apply from stored reads' {
 
     It 'ends the same as an apply from fresh reads' {
         $run.summary.failed | Should -Be 0
-        $run.summary.blocked | Should -Be 2
+        $run.summary.blocked | Should -Be 3
         $run.verification.state | Should -Be 'Verified'
     }
 }

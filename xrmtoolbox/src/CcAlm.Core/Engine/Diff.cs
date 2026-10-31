@@ -53,6 +53,8 @@ namespace CcAlm.Core.Engine
         public List<FieldDiff> Fields { get; } = new List<FieldDiff>();
         public List<DependencyRef> DependsOn { get; } = new List<DependencyRef>();
         public string Note { get; set; }
+        /// <summary>Comes with a managed solution: shown, never moved (the plan blocks it).</summary>
+        public bool Managed { get; set; }
         public string Ref => $"{Table}|{MatchKey}";
         public string FullName => string.IsNullOrEmpty(Context) ? DisplayName : $"{Context} › {DisplayName}";
         public bool IsMovable => RecordStatus.IsMovable(Status);

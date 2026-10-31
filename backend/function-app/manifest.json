@@ -20,7 +20,9 @@
     { "stage": 7, "label": "Routing and assignment", "description": "Routing configurations, assignment methods and their steps" },
     { "stage": 8, "label": "Channels", "description": "Live chat, voice, SMS and WhatsApp settings" },
     { "stage": 9, "label": "Agent content", "description": "Quick replies and tags" },
-    { "stage": 10, "label": "Contact center settings", "description": "The environment-wide Omnichannel configuration" }
+    { "stage": 10, "label": "Contact center settings", "description": "The environment-wide Omnichannel configuration" },
+    { "stage": 11, "label": "Conversation orchestration", "description": "Playbooks and the prompts that drive them" },
+    { "stage": 12, "label": "Agent scripts", "description": "The scripts agents follow during a conversation, and their steps" }
   ],
   "tables": [
     {
@@ -44,7 +46,12 @@
       "matchKeys": [
         "msdyn_entitylogicalname"
       ],
-      "notes": "One per table that has record routing (Case routing hub for incident). A record workstream (email, case) must point at its table's hub, so the lookup is mapped by table name. Set up record routing for that table in the target first; its intake rules are not moved."
+      "notes": "One per table that has record routing (Case routing hub for incident). A record workstream (email, case) must point at its table's hub, so the lookup is mapped by table name. Set up record routing for that table in the target first. Its intake rules are compared one by one (Intake rules), each under the workstream it routes to, and merged into the target hub's own intake ruleset, which keeps its other rules."
+    },
+    {
+      "order": 0, "stage": 0, "logicalName": "msdyn_cceventingscenario", "item": "orchestration scenario", "move": "reference",
+      "label": "Orchestration scenarios", "group": "Reference", "matchKeys": ["msdyn_scenarioname"],
+      "notes": "The scenarios a conversation orchestration playbook is built on ('Escalate priority based on transfer to a queue'). They ship with the product, identically in every environment, so they are mapped, never written. Two of the 28 share a name; a playbook built on that one is reported ambiguous."
     },
     {
       "order": 1, "stage": 1, "logicalName": "msdyn_operatinghour", "item": "operating hours record", "move": "upsert",
@@ -189,9 +196,51 @@
       "label": "Contact center settings", "group": "Settings", "matchKeys": ["msdyn_name"],
       "exclude": ["msdyn_publickeyurl"],
       "notes": "One per environment and always present, so it is only ever updated."
+    },
+    {
+      "order": 26, "stage": 11, "logicalName": "msdyn_ccplaybookpolicy", "item": "playbook", "move": "upsert",
+      "label": "Playbooks", "group": "Conversation orchestration", "matchKeys": ["msdyn_name", "_msdyn_cceventingscenarioid_value"],
+      "notes": "Conversation orchestration playbooks (preview). This is the header: which scenario it is built on, which event triggers it, and whether it runs rule-based or through a language model. The instruction itself is in the prompt underneath it."
+    },
+    {
+      "order": 27, "stage": 11, "logicalName": "msdyn_ccuserprompt", "item": "playbook prompt", "move": "upsert",
+      "label": "Playbook prompts", "group": "Conversation orchestration",
+      "matchKeys": ["_msdyn_ccplaybookpolicyid_value", "msdyn_name"],
+      "exclude": ["msdyn_errormessage"],
+      "guidBearingColumns": ["msdyn_inclusionlist", "msdyn_exclusionlist"],
+      "notes": "The natural-language instruction under a playbook, with the queues it applies to. The compiled rule (msdyn_workflowrule, a file) is left behind on purpose: publishing in the target regenerates it from this prompt, so what moves is the authored intent and not a compiled rule pointing at another environment's queues. The queue lists are read as references, so queues are remapped like everywhere else. A moved playbook arrives at the stage it had in the source; publishing it stays a step someone takes in the target."
+    },
+    {
+      "order": 27, "stage": 11, "logicalName": "msdyn_contactcentergeneratedrule", "item": "agentic routing rule", "move": "detect",
+      "label": "Agentic routing rules", "group": "Conversation orchestration", "matchKeys": ["msdyn_name"],
+      "notes": "Agentic routing keeps its rules in an elastic table, partitioned by the environment's own organization id (partitionid) and with a time to live. A copy would carry the source environment's partition into the target, where the runtime would not see it, and rows can expire on their own, so these are reported rather than moved. Set them up in the target; see detectOnly."
+    },
+    {
+      "order": 28, "stage": 12, "logicalName": "msdyn_productivityagentscript", "item": "agent script", "move": "upsert",
+      "label": "Agent scripts", "group": "Agent scripts", "matchKeys": ["msdyn_uniquename"],
+      "notes": "A script an agent follows during a conversation. The unique name is what the product keys it on, so that is what it is matched on here."
+    },
+    {
+      "order": 29, "stage": 12, "logicalName": "msdyn_productivityagentscriptstep", "item": "agent script step", "move": "upsert",
+      "label": "Agent script steps", "group": "Agent scripts",
+      "matchKeys": ["_msdyn_agentscriptid_value", "msdyn_uniquename"],
+      "tieBreaker": "msdyn_order",
+      "notes": "The steps under a script, in order. A step that routes to another script has that script remapped like any other lookup. A step that runs a macro is reported instead: see detectOnly."
     }
   ],
   "detectOnly": [
+    {
+      "logicalName": "msdyn_ccplaybookpolicy", "signal": "msdyn_eventtype", "type": "playbookPublish",
+      "message": "Moves as a draft. Publishing compiles the prompt into a rule naming that environment's own queues, so the compiled rule stays behind: publish it in the target, in Conversation orchestration in the Copilot Service admin center."
+    },
+    {
+      "logicalName": "msdyn_contactcentergeneratedrule", "signal": "msdyn_generatedrule", "type": "agenticRoutingRule",
+      "message": "An agentic routing rule. Its rule is stored in an elastic table partitioned by the environment's own id, so it is set up in the target rather than copied."
+    },
+    {
+      "logicalName": "msdyn_productivityagentscriptstep", "signal": "msdyn_macroactionid", "type": "macro",
+      "message": "Runs a macro. A macro is a solution component, not configuration data: move it by solution, then pick it on the step in the target."
+    },
     {
       "logicalName": "msdyn_ocvoicechannelsetting", "signal": "msdyn_phonenumberid", "type": "phoneNumber",
       "message": "Uses a phone number. Acquire a number in the target environment and assign it to this channel."

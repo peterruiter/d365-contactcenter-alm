@@ -33,6 +33,7 @@ Describe 'Recording <Name>' -ForEach $fixtures {
         foreach ($t in $diff.tables) {
             $now = @{}; foreach ($g in @($t.records | Group-Object status)) { $now[$g.Name] = $g.Count }
             $then = $f.Baseline.byTable.($t.table)
+            if (-not $then) { continue }   # a kind of record the engine did not have when this was recorded
             foreach ($p in @($then.PSObject.Properties)) { $now[$p.Name] | Should -Be $p.Value -Because "$($t.table) had $($p.Value) $($p.Name) when recorded" }
         }
     }

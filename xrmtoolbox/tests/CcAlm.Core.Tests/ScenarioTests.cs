@@ -148,9 +148,21 @@ namespace CcAlm.Core.Tests
         [Fact]
         public void Blocks_only_what_cannot_be_written_each_with_its_reason()
         {
-            Assert.Equal(new[] { "GPT chat", "Mortgage WhatsApp" }, _plan.Operations.Where(o => o.Status == "blocked").Select(o => o.DisplayName).OrderBy(x => x));
+            Assert.Equal(new[] { "ChatGPT notification", "GPT chat", "Mortgage WhatsApp" }, _plan.Operations.Where(o => o.Status == "blocked").Select(o => o.DisplayName).OrderBy(x => x));
             Assert.Equal(new[] { "managedMissing" }, T.Op(_plan, "msdyn_liveworkstream", "GPT chat").Blockers.Select(b => b.Code));
             Assert.Contains("external", T.Op(_plan, "msdyn_ocwhatsappchannelnumber", "Mortgage WhatsApp").Blockers.Select(b => b.Code));
+        }
+
+        [Fact]
+        public void Shows_a_record_from_a_managed_solution_but_blocks_it_with_the_reason()
+        {
+            var row = T.Row(_session.Diff, "msdyn_notificationtemplate", "ChatGPT notification");
+            Assert.Equal(RecordStatus.MissingInTarget, row.Status);
+            Assert.True(row.Managed);
+            Assert.Contains("managed solution", row.Note);
+            var op = T.Op(_plan, "msdyn_notificationtemplate", "ChatGPT notification");
+            Assert.Equal(new[] { "managed" }, op.Blockers.Select(b => b.Code));
+            Assert.False(op.AutoIncluded);
         }
 
         [Fact]
@@ -231,6 +243,94 @@ namespace CcAlm.Core.Tests
         }
     }
 
+    public class CopyTests
+    {
+        [Fact]
+        public void Copies_that_differ_only_in_spaces_around_a_text_are_one_record()
+        {
+            var s = new Scenario();
+            s.Dev.Add("msdyn_cannedmessage", new Dictionary<string, object> { ["msdyn_title"] = "Benefits", ["msdyn_locale_field"] = 1033L, ["msdyn_message"] = "Register for an account.\n" });
+            s.Dev.Add("msdyn_cannedmessage", new Dictionary<string, object> { ["msdyn_title"] = "Benefits", ["msdyn_locale_field"] = 1033L, ["msdyn_message"] = "Register for an account." });
+            var diff = new MigrationSession(s.Dev, s.Test).Compare();
+            var rows = T.Rows(diff, "msdyn_cannedmessage", "Benefits");
+            Assert.Single(rows);
+            Assert.Equal(RecordStatus.MissingInTarget, rows[0].Status);
+            Assert.Contains("2 identical copies", rows[0].Note);
+        }
+    }
+
+    public class IntakeRuleTests
+    {
+        readonly Scenario _s = new Scenario(recordRouting: true);
+        readonly MigrationSession _session;
+        readonly DiffModel _diff;
+        readonly RecordDiff _mortgage;
+
+        public IntakeRuleTests()
+        {
+            _session = new MigrationSession(_s.Dev, _s.Test);
+            _diff = _session.Compare();
+            _mortgage = T.Row(_diff, Intake.Table, "Mortgage cases");
+        }
+
+        List<string> TestRuleNames()
+        {
+            var hub = _s.Test.Rows["msdyn_masterentityroutingconfiguration"].Single();
+            var rs = _s.Test.Find("msdyn_decisionruleset", hub.GetLookup("msdyn_rulesetid").Id);
+            var doc = new System.Xml.XmlDocument();
+            doc.LoadXml((string)rs.Get("msdyn_rulesetdefinition"));
+            return doc.SelectNodes("//rules/rule").Cast<System.Xml.XmlElement>().Select(e => e.GetAttribute("name")).ToList();
+        }
+
+        [Fact]
+        public void Compares_the_rules_one_by_one_by_name_under_their_hub()
+        {
+            Assert.Equal(RecordStatus.Equal, T.Row(_diff, Intake.Table, "Billing cases").Status);
+            Assert.Equal(RecordStatus.MissingInTarget, _mortgage.Status);
+            Assert.Equal("Case routing hub", _mortgage.Context);
+            Assert.Equal(RecordStatus.ExtraInTarget, T.Row(_diff, Intake.Table, "Test cases").Status);
+            Assert.Null(T.Row(_diff, "msdyn_decisionruleset", "Case decision ruleset"));
+        }
+
+        [Fact]
+        public void A_rule_sits_under_the_workstream_it_routes_to_and_is_ticked_with_it()
+        {
+            Assert.Equal("msdyn_liveworkstream", _mortgage.DependsOn[0].Table);
+            Assert.True(_mortgage.DependsOn[0].Owner);
+            Assert.Contains(_mortgage.DependsOn, d => d.Table == Intake.HubTable);
+            var sel = new Selection(_diff);
+            sel.Toggle(T.Row(_diff, "msdyn_liveworkstream", "Mortgage chat").Ref);
+            Assert.Contains(_mortgage.Ref, sel.Selected);
+        }
+
+        [Fact]
+        public void Merges_the_rule_into_the_target_ruleset_checks_it_and_rolls_back()
+        {
+            var plan = _session.BuildPlan(new[] { _mortgage.Ref });
+            var op = plan.Operations.Single(o => o.Table == Intake.Table);
+            Assert.Equal("ready", op.Status);
+            Assert.Equal("createdEarlier", op.Dependencies.Single(d => d.Table == "msdyn_liveworkstream").State);
+
+            var dry = T.Run(_session, plan, dry: true);
+            Assert.Equal(Outcome.WouldCreate, dry.Items.Single(i => i.Table == Intake.Table).Outcome);
+
+            var run = T.Run(_session, plan, dry: false);
+            Assert.Equal(0, run.Summary.Failed);
+            Assert.Equal(Outcome.Created, run.Items.Single(i => i.Table == Intake.Table).Outcome);
+            Assert.Equal(new[] { "Test cases", "Billing cases", "Mortgage cases" }, TestRuleNames());
+            var hub = _s.Test.Rows["msdyn_masterentityroutingconfiguration"].Single();
+            var def = (string)_s.Test.Find("msdyn_decisionruleset", hub.GetLookup("msdyn_rulesetid").Id).Get("msdyn_rulesetdefinition");
+            var ws = _s.Test.Where("msdyn_liveworkstream", "msdyn_name", "Mortgage chat").Single();
+            Assert.Contains(ws.Id.ToString(), def);
+            Assert.DoesNotContain(_s.DevIds["mortgageChat"].ToString(), def);
+            Assert.Equal("Verified", run.Verification.State);
+
+            var rb = _session.Rollback(run.Snapshot);
+            Assert.Empty(rb.Unresolved);
+            Assert.Equal(new[] { "Test cases", "Billing cases" }, TestRuleNames());
+        }
+    }
+
     public class RunTests
     {
         [Fact]
@@ -285,7 +385,7 @@ namespace CcAlm.Core.Tests
 
             Assert.Equal(0, run.Summary.Failed);
             Assert.Equal(0, run.Summary.Skipped);
-            Assert.Equal(2, run.Summary.Blocked);
+            Assert.Equal(3, run.Summary.Blocked);
             Assert.Equal("Verified", run.Verification.State);
             Assert.Equal(run.Verification.Checked, run.Verification.Matched);
             Assert.Empty(run.Verification.Added);
@@ -312,7 +412,7 @@ namespace CcAlm.Core.Tests
             // Only the blocked records are left to move.
             var again = new MigrationSession(s.Dev, s.Test);
             again.Compare();
-            Assert.Equal(new[] { "GPT chat", "Mortgage WhatsApp" }, again.BuildPlan(null).Operations.Where(o => o.Op != "skip-existing").Select(o => o.DisplayName).OrderBy(x => x));
+            Assert.Equal(new[] { "ChatGPT notification", "GPT chat", "Mortgage WhatsApp" }, again.BuildPlan(null).Operations.Where(o => o.Op != "skip-existing").Select(o => o.DisplayName).OrderBy(x => x));
 
             var rb = session.Rollback(run.Snapshot);
             Assert.Empty(rb.Unresolved);

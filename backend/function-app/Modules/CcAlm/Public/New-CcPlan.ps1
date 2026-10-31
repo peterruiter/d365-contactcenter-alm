@@ -64,7 +64,7 @@ function New-CcPlan {
             foreach ($d in @($entry.Record.dependsOn | Where-Object { $_ })) {
                 $dRef = "$($d.table)|$($d.matchKey)"
                 $dEntry = $byRef[$dRef]
-                if (-not $dEntry -or $dEntry.Record.status -ne 'MissingInTarget') { continue }
+                if (-not $dEntry -or $dEntry.Record.status -ne 'MissingInTarget' -or $dEntry.Record.managed) { continue }
                 if (-not $neededBy.ContainsKey($dRef)) { $neededBy[$dRef] = [System.Collections.Generic.List[string]]::new() }
                 $who = Get-CcRefLabel $maps $entry.Table $entry.Record.matchKey $plans
                 if (-not $neededBy[$dRef].Contains($who)) { $neededBy[$dRef].Add($who) | Out-Null }
@@ -122,6 +122,16 @@ function New-CcPlan {
             $o.warnings.Add('Already exists in the target. This table is only ever created, never changed, so it is left as it is.') | Out-Null
             continue
         }
+        if ($r.managed) {
+            $o.blockers.Add([pscustomobject]@{ code = 'managed'; message = 'Comes with a managed solution, which moves it: install or update that solution in the target.'; fix = $null }) | Out-Null
+        }
+        if ($tplan.Table.move -eq 'intake') {
+            $hubKey = ($o.matchKey -split '\|(?=(?:name|id)=)', 2)[0]
+            $tgtSet = $tplan.Intake.Target[$hubKey]
+            if ($tgtSet -and -not $tgtSet.RulesetId) {
+                $o.blockers.Add([pscustomobject]@{ code = 'noIntakeRuleset'; message = "The target's $($o.context) has no intake rules yet. Add one intake rule there in the admin center, then compare again."; fix = $null }) | Out-Null
+            }
+        }
         if ($o.op -eq 'create' -and $tplan.Table.move -eq 'update-only') {
             $o.blockers.Add([pscustomobject]@{ code = 'updateOnly'; message = "$($o.tableLabel) exist once per environment and are never created by this tool. Create it in the target first, then compare again."; fix = $null }) | Out-Null
         }
@@ -140,8 +150,15 @@ function New-CcPlan {
             $label = if ($d.matchKey -like 'unresolved:*') { "a $(Get-CcItemLabel $plans[$d.table].Table) that no longer exists in the source" } else { Get-CcRefLabel $maps $d.table $d.matchKey $plans }
             $dep = [pscustomobject]@{ table = $d.table; matchKey = $d.matchKey; label = $label; via = $d.via; state = $null }
 
+            $dSrcId = Get-CcIdByKey -Env $ctx.Source -Table $d.table -Key $d.matchKey
+            $dManaged = $dSrcId -and $ctx.Source.ById[$d.table][$dSrcId].ismanaged -eq $true
             if ($maps.TargetKeyToGuid.ContainsKey($dRef)) {
                 $dep.state = 'inTarget'
+            }
+            elseif ($dManaged) {
+                # Never created by this tool, even when it is ticked too: its solution brings it.
+                $dep.state = 'missing'
+                $o.blockers.Add([pscustomobject]@{ code = 'managedMissing'; message = "Needs $label, which comes with a managed solution that is not installed in the target. Install that solution there first."; fix = $null }) | Out-Null
             }
             elseif ($opByRef.ContainsKey($dRef) -and $opByRef[$dRef].op -eq 'create') {
                 $dep.state = if ($d.deferred) { 'linkedLater' } else { 'createdEarlier' }
@@ -159,18 +176,12 @@ function New-CcPlan {
             else {
                 $dep.state = 'missing'
                 $dEntry = $byRef[$dRef]
-                $srcRec = $null
-                $srcId = Get-CcIdByKey -Env $ctx.Source -Table $d.table -Key $d.matchKey
-                if ($srcId) { $srcRec = $ctx.Source.ById[$d.table][$srcId] }
                 if ($dEntry -and $dEntry.Record.status -eq 'MissingInTarget') {
                     $o.blockers.Add([pscustomobject]@{
                             code    = 'missingDependency'
                             message = "Needs $label, which is not in the target and not selected."
                             fix     = [pscustomobject]@{ action = 'include'; table = $d.table; matchKey = $d.matchKey; label = "Add $label" }
                         }) | Out-Null
-                }
-                elseif ($srcRec -and $srcRec.ismanaged -eq $true) {
-                    $o.blockers.Add([pscustomobject]@{ code = 'managedMissing'; message = "Needs $label, which comes with a managed solution that is not installed in the target. Install that solution there first."; fix = $null }) | Out-Null
                 }
                 elseif ($d.kind -eq 'name') {
                     $o.blockers.Add([pscustomobject]@{ code = 'notFound'; message = "Its $($d.via.ToLowerInvariant()) names $($d.matchKey -replace '^[^=]+=', "'")' which exists in neither environment. Fix it in the source first."; fix = $null }) | Out-Null

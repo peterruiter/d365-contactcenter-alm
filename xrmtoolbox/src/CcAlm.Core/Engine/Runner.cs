@@ -196,6 +196,7 @@ namespace CcAlm.Core.Engine
             }
 
             var links = new List<PendingLink>();
+            var intakeDefs = new Dictionary<Guid, string>();   // target intake ruleset → its definition as this run left it
             foreach (var o in ready)
             {
                 if (options.Cancel.IsCancellationRequested) { result.State = "Cancelled"; break; }
@@ -224,6 +225,49 @@ namespace CcAlm.Core.Engine
                         Add(o, Outcome.Linked, $"Linked {what}.", o.Stage);
                     }
                     catch (Exception ex) { Add(o, Outcome.Failed, $"Could not link {what}: {ex.Message}", o.Stage); }
+                    continue;
+                }
+
+                if (tplan.Intake != null)
+                {
+                    // One intake rule, merged into the target hub's own intake ruleset (Intake).
+                    var waits = o.Dependencies.FirstOrDefault(d => (d.State == "createdEarlier" || d.State == "linkedLater") && failed.Contains(d.Ref));
+                    if (waits != null) { Add(o, Outcome.Skipped, $"Not written because {waits.Label} could not be written.", o.Stage); failed.Add(o.Ref); continue; }
+                    var rule = Intake.SourceRule(tplan, o.MatchKey, maps, plans);
+                    if (rule.Problem != null) { Add(o, Outcome.Skipped, rule.Problem, o.Stage); failed.Add(o.Ref); continue; }
+                    var tgtSet = tplan.Intake.Target[rule.HubKey];
+                    var rsId = tgtSet.RulesetId.Value;
+                    var where = $"the intake rules of {o.Context}";
+                    try
+                    {
+                        if (!intakeDefs.ContainsKey(rsId))
+                        {
+                            // Read again before the first write: the rules may have changed since the compare.
+                            intakeDefs[rsId] = dry ? tgtSet.Definition : target.Retrieve(tplan.TargetSchema, rsId, new[] { "msdyn_rulesetdefinition" })?.Get("msdyn_rulesetdefinition") as string;
+                            if (!dry)
+                            {
+                                var entry = new SnapshotEntry { Table = Intake.RulesetTable, Id = rsId, Label = $"Intake rules of {o.Context}", Order = o.Order };
+                                entry.Data["msdyn_rulesetdefinition"] = intakeDefs[rsId];
+                                snapshot.Updated.Add(entry);
+                                options.SaveSnapshot?.Invoke(snapshot);
+                            }
+                        }
+                        var merged = Intake.Merge(intakeDefs[rsId], rule.Xml, rule.RuleKey, rule.Order);
+                        if (dry)
+                        {
+                            intakeDefs[rsId] = merged;
+                            Add(o, o.Op == "create" ? Outcome.WouldCreate : Outcome.WouldUpdate, o.Op == "create" ? $"Will be added to {where}." : $"Will be replaced in {where}.", o.Stage);
+                            continue;
+                        }
+                        // Written twice, like every ruleset, so Dataverse records what it depends on.
+                        var values = new Dictionary<string, object> { ["msdyn_rulesetdefinition"] = merged };
+                        target.Update(tplan.TargetSchema, rsId, values);
+                        options.Sleep(TimeSpan.FromSeconds(2));
+                        target.Update(tplan.TargetSchema, rsId, values);
+                        intakeDefs[rsId] = merged;
+                        Add(o, o.Op == "create" ? Outcome.Created : Outcome.Updated, o.Op == "create" ? $"Added to {where}." : $"Replaced in {where}.", o.Stage);
+                    }
+                    catch (Exception ex) { Add(o, Outcome.Failed, ex.Message, o.Stage); failed.Add(o.Ref); }
                     continue;
                 }
 

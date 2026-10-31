@@ -103,6 +103,22 @@ function Compare-CcConfig {
             $tableDiffs.Add((Compare-CcAssociations -Def $def -SourcePairs $sp -TargetPairs $tp -Maps $maps -TablePlans $tablePlans -Source $srcData -Target $tgtData)) | Out-Null
         }
 
+        # Record routing intake rules, one by one; their rulesets are left out of the ruleset table.
+        $hubPlan = $tablePlans['msdyn_masterentityroutingconfiguration']
+        $rulesetPlan = $tablePlans['msdyn_decisionruleset']
+        if ($hubPlan -and $hubPlan.Usable -and $rulesetPlan -and $rulesetPlan.Usable) {
+            $srcSets = Get-CcIntakeRulesets -Env $srcData
+            $tgtSets = Get-CcIntakeRulesets -Env $tgtData
+            $tablePlans['intakerule'] = New-CcIntakeTablePlan -SourceSets $srcSets -TargetSets $tgtSets -RulesetPlan $rulesetPlan
+            $intakeRulesets = Get-CcIntakeRulesetKeys -SourceSets $srcSets -TargetSets $tgtSets -Source $srcData -Target $tgtData
+            foreach ($td in @($tableDiffs | Where-Object table -eq 'msdyn_decisionruleset')) {
+                $td.records = [System.Collections.Generic.List[object]]@($td.records | Where-Object { -not $intakeRulesets.ContainsKey("msdyn_decisionruleset|$($_.matchKey)") })
+            }
+            if (-not $Tables -or $Tables -contains 'intakerule' -or $Tables -contains 'msdyn_liveworkstream') {
+                $tableDiffs.Add((Compare-CcIntakeRules -SourceSets $srcSets -TargetSets $tgtSets -Maps $maps -TablePlans $tablePlans)) | Out-Null
+            }
+        }
+
         $detect = Get-CcDetectOnly -Manifest $manifest -Source $srcData -Target $tgtData -TablePlans $tablePlans
 
         $all = @($tableDiffs | ForEach-Object { $_.records } | ForEach-Object { $_ })

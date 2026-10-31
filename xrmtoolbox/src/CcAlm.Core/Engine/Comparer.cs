@@ -93,6 +93,17 @@ namespace CcAlm.Core.Engine
                 if (!tReads.Records.ContainsKey(def.SchemaName)) tReads.Records[def.SchemaName] = target.GetRecords(def.TargetIntersect, cols).ToList();
                 diff.Tables.Add(Associations.Compare(def, Associations.Pairs(sReads.Records[def.SchemaName], m), Associations.Pairs(tReads.Records[def.SchemaName], m), diff.Maps, diff.TablePlans));
             }
+            // Record routing intake rules, one by one; their rulesets are left out of the ruleset table.
+            if (diff.TablePlans.TryGetValue(Intake.HubTable, out var hubPlan) && hubPlan.Usable
+                && diff.TablePlans.TryGetValue(Intake.RulesetTable, out var rulesetPlan) && rulesetPlan.Usable)
+            {
+                var intake = new IntakeDef { Source = Intake.Rulesets(diff.Source), Target = Intake.Rulesets(diff.Target) };
+                diff.TablePlans[Intake.Table] = Intake.TablePlanFor(intake, rulesetPlan);
+                var intakeRulesets = Intake.RulesetRefs(intake, diff.Source, diff.Target);
+                foreach (var td in diff.Tables.Where(x => x.Table == Intake.RulesetTable)) td.Records.RemoveAll(r => intakeRulesets.Contains(r.Ref));
+                if (only == null || only.Contains(Intake.Table) || only.Contains("msdyn_liveworkstream"))
+                    diff.Tables.Add(Intake.Compare(intake, diff.Maps, diff.TablePlans));
+            }
             diff.DetectOnly.AddRange(DetectOnly(manifest, diff.Source, diff.Target, diff.TablePlans));
 
             var all = diff.AllRecords.ToList();
@@ -194,13 +205,17 @@ namespace CcAlm.Core.Engine
             var srcByKey = source.ByKey.TryGetValue(logical, out var sb) ? sb : new Dictionary<string, List<Guid>>();
             var tgtByKey = target.ByKey.TryGetValue(logical, out var tb) ? tb : new Dictionary<string, List<Guid>>();
 
+            // Records that come with a managed solution are shown, so the picture is complete, but
+            // never moved: the solution carries them (the planner blocks them).
+            const string managedNote = "Comes with a managed solution, so it is shown but not moved: install or update that solution in the target.";
             RecordDiff Row(string status, string key, Record src, Record tgt, IEnumerable<FieldDiff> fields, IEnumerable<DependencyRef> deps, string note)
             {
                 var rec = src ?? tgt;
                 var env = src != null ? source : target;
+                if (rec.IsManaged) note = note == null ? managedNote : managedNote + " " + note;
                 var row = new RecordDiff
                 {
-                    Table = logical, MatchKey = key, Status = status, Note = note,
+                    Table = logical, MatchKey = key, Status = status, Note = note, Managed = rec.IsManaged,
                     DisplayName = Keys.RecordLabel(rec, plan),
                     Context = Keys.RecordContext(rec, plan, env, plans),
                 };
@@ -221,7 +236,6 @@ namespace CcAlm.Core.Engine
                 var key = kv.Key;
                 var srcIds = kv.Value;
                 var srcRec = source.Table(logical)[srcIds[0]];
-                if (srcRec.IsManaged) continue;   // ships with a managed solution in both orgs
 
                 if (srcIds.Count > 1) { result.Records.Add(Row(RecordStatus.Ambiguous, key, srcRec, null, null, null, DupNote(srcIds.Count, "source"))); continue; }
                 if (tgtByKey.TryGetValue(key, out var tIds) && tIds.Count > 1) { result.Records.Add(Row(RecordStatus.Ambiguous, key, srcRec, null, null, null, DupNote(tIds.Count, "target"))); continue; }
@@ -278,7 +292,6 @@ namespace CcAlm.Core.Engine
             {
                 if (srcByKey.ContainsKey(kv.Key)) continue;
                 var tgtRec = target.Table(logical)[kv.Value[0]];
-                if (tgtRec.IsManaged) continue;
                 result.Records.Add(Row(RecordStatus.ExtraInTarget, kv.Key, null, tgtRec, null, null, null));
             }
             return result;

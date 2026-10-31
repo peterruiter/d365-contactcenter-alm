@@ -92,9 +92,14 @@ function Compare-CcTable {
     $srcByKey = $Source.ByKey[$logical]
     $tgtByKey = $Target.ByKey[$logical]
 
+    # Records that come with a managed solution are shown, so the picture is complete, but never
+    # moved: the solution carries them (New-CcPlan blocks them).
+    $managedNote = 'Comes with a managed solution, so it is shown but not moved: install or update that solution in the target.'
     function New-Row($status, $key, $srcRec, $tgtRec, $fields, $deps, $note) {
         $rec = if ($srcRec) { $srcRec } else { $tgtRec }
         $env = if ($srcRec) { $Source } else { $Target }
+        $managed = $rec.ismanaged -eq $true
+        if ($managed) { $note = (@($managedNote, $note) | Where-Object { $_ }) -join ' ' }
         [pscustomobject]@{
             matchKey    = $key
             status      = $status
@@ -105,6 +110,7 @@ function Compare-CcTable {
             fields      = @($fields | Where-Object { $_ })
             dependsOn   = @($deps | Where-Object { $_ })
             note        = $note
+            managed     = $managed
         }
     }
 
@@ -120,7 +126,6 @@ function Compare-CcTable {
     foreach ($key in $srcByKey.Keys) {
         $srcIds = $srcByKey[$key]
         $srcRec = $Source.ById[$logical][$srcIds[0]]
-        if ($srcRec.ismanaged -eq $true) { continue }   # ships with a managed solution in both orgs
 
         if ($srcIds.Count -gt 1) {
             $records.Add((New-Row 'Ambiguous' $key $srcRec $null @() @() (Get-DupNote $srcIds.Count 'source'))) | Out-Null
@@ -194,7 +199,6 @@ function Compare-CcTable {
     foreach ($key in $tgtByKey.Keys) {
         if ($srcByKey.ContainsKey($key)) { continue }
         $tgtRec = $Target.ById[$logical][$tgtByKey[$key][0]]
-        if ($tgtRec.ismanaged -eq $true) { continue }
         $records.Add((New-Row 'ExtraInTarget' $key $null $tgtRec @() @() $null)) | Out-Null
     }
 

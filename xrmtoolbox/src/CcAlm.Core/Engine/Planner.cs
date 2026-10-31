@@ -125,7 +125,7 @@ namespace CcAlm.Core.Engine
                     var entry = byRef[queue.Dequeue()];
                     foreach (var d in entry.DependsOn)
                     {
-                        if (!byRef.TryGetValue(d.Ref, out var dEntry) || dEntry.Status != RecordStatus.MissingInTarget) continue;
+                        if (!byRef.TryGetValue(d.Ref, out var dEntry) || dEntry.Status != RecordStatus.MissingInTarget || dEntry.Managed) continue;
                         if (!neededBy.TryGetValue(d.Ref, out var who)) neededBy[d.Ref] = who = new List<string>();
                         var label = Keys.RefLabel(maps, entry.Table, entry.MatchKey, plans);
                         if (!who.Contains(label)) who.Add(label);
@@ -166,6 +166,14 @@ namespace CcAlm.Core.Engine
                     o.Warnings.Add("Already exists in the target. This table is only ever created, never changed, so it is left as it is.");
                     continue;
                 }
+                if (r.Managed)
+                    o.Blockers.Add(new Blocker { Code = "managed", Message = "Comes with a managed solution, which moves it: install or update that solution in the target." });
+                if (tplan.Intake != null)
+                {
+                    var hubKey = Intake.SplitKey(o.MatchKey).HubKey;
+                    if (tplan.Intake.Target.TryGetValue(hubKey, out var tgtSet) && !tgtSet.RulesetId.HasValue)
+                        o.Blockers.Add(new Blocker { Code = "noIntakeRuleset", Message = $"The target's {o.Context} has no intake rules yet. Add one intake rule there in the admin center, then compare again." });
+                }
                 if (o.Op == "create" && tplan.Table.Move == "update-only")
                     o.Blockers.Add(new Blocker { Code = "updateOnly", Message = $"{o.TableLabel} exist once per environment and are never created by this tool. Create it in the target first, then compare again." });
                 if (o.Op == "create")
@@ -179,6 +187,12 @@ namespace CcAlm.Core.Engine
                     var dep = new PlanDependency { Table = d.Table, MatchKey = d.MatchKey, Label = label, Via = d.Via };
 
                     if (maps.TargetKeyToGuid.ContainsKey(d.Ref)) dep.State = "inTarget";
+                    else if (diff.Source.ByKeyOne(d.Table, d.MatchKey)?.IsManaged == true)
+                    {
+                        // Never created by this tool, even when it is ticked too: its solution brings it.
+                        dep.State = "missing";
+                        o.Blockers.Add(new Blocker { Code = "managedMissing", Message = $"Needs {label}, which comes with a managed solution that is not installed in the target. Install that solution there first." });
+                    }
                     else if (opByRef.TryGetValue(d.Ref, out var parentOp) && parentOp.Op == "create") dep.State = d.Deferred ? "linkedLater" : "createdEarlier";
                     else if (unresolved)
                     {
@@ -191,11 +205,8 @@ namespace CcAlm.Core.Engine
                     {
                         dep.State = "missing";
                         byRef.TryGetValue(d.Ref, out var dEntry);
-                        var srcRec = diff.Source.ByKeyOne(d.Table, d.MatchKey);
                         if (dEntry != null && dEntry.Status == RecordStatus.MissingInTarget)
                             o.Blockers.Add(new Blocker { Code = "missingDependency", Message = $"Needs {label}, which is not in the target and not selected.", FixRef = d.Ref, FixLabel = "Add " + label });
-                        else if (srcRec != null && srcRec.IsManaged)
-                            o.Blockers.Add(new Blocker { Code = "managedMissing", Message = $"Needs {label}, which comes with a managed solution that is not installed in the target. Install that solution there first." });
                         else if (d.Kind == "name")
                         {
                             var named = d.MatchKey.Contains("=") ? d.MatchKey.Substring(d.MatchKey.IndexOf('=') + 1) : d.MatchKey;

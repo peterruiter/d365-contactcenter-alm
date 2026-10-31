@@ -152,12 +152,17 @@ namespace CcAlm.Core.Engine
             }
         }
 
+        /// <summary>
+        /// True when every record has the same value in every setting and lookup. Spaces and line
+        /// breaks around a text do not count: a quick reply saved once with a trailing line break is
+        /// still a copy, and the key (trimmed) could not tell the two apart anyway.
+        /// </summary>
         static bool Identical(List<Record> records, TablePlan plan)
         {
             var first = records[0];
             foreach (var r in records.Skip(1))
             {
-                if (plan.DataColumns.Any(c => !Values.Same(first.Get(c), r.Get(c)))) return false;
+                if (plan.DataColumns.Any(c => !string.Equals(Values.Text(first.Get(c)).Trim(), Values.Text(r.Get(c)).Trim(), StringComparison.Ordinal))) return false;
                 if (plan.Lookups.Any(l => first.GetLookup(l.Column)?.Id != r.GetLookup(l.Column)?.Id)) return false;
             }
             return true;

@@ -46,7 +46,7 @@
       "matchKeys": [
         "msdyn_entitylogicalname"
       ],
-      "notes": "One per table that has record routing (Case routing hub for incident). A record workstream (email, case) must point at its table's hub, so the lookup is mapped by table name. Set up record routing for that table in the target first; its intake rules are not moved."
+      "notes": "One per table that has record routing (Case routing hub for incident). A record workstream (email, case) must point at its table's hub, so the lookup is mapped by table name. Set up record routing for that table in the target first. Its intake rules are compared one by one (Intake rules), each under the workstream it routes to, and merged into the target hub's own intake ruleset, which keeps its other rules."
     },
     {
       "order": 0, "stage": 0, "logicalName": "msdyn_cceventingscenario", "item": "orchestration scenario", "move": "reference",

@@ -44,7 +44,7 @@ namespace CcAlm.Core.Tests
             return d;
         }
 
-        public Scenario(bool provisionRoutingContract = false)
+        public Scenario(bool provisionRoutingContract = false, bool recordRouting = false)
         {
             Dev = new FakeDataverse("Dev", "https://contoso-dev.crm4.dynamics.com", Schema);
             Test = new FakeDataverse("Test", "https://contoso-test.crm4.dynamics.com", Schema) { ProvisionRoutingContract = provisionRoutingContract };
@@ -106,7 +106,29 @@ namespace CcAlm.Core.Tests
             Dev.Link("msdyn_msdyn_cannedmessage_msdyn_octag", d["greeting"], d["escalated"]);
 
             TestIds["oldTag"] = Test.Add("msdyn_octag", V("msdyn_name", "Old tag"));
+
+            if (recordRouting)
+            {
+                // A case routing hub in both, with its intake ruleset from a managed solution. Dev sends
+                // billing cases to Billing chat, then mortgage cases to Mortgage chat (new); Test has its
+                // own rule first and the same billing rule, and keeps its own rule when Mortgage cases is merged in.
+                foreach (var dev in new[] { true, false })
+                {
+                    var o = dev ? Dev : Test;
+                    var i = dev ? DevIds : TestIds;
+                    var rules = dev
+                        ? new[] { IntakeRuleXml("Billing cases", 1, i["billingChat"]), IntakeRuleXml("Mortgage cases", 2, i["mortgageChat"]) }
+                        : new[] { IntakeRuleXml("Test cases", 3, i["billingChat"]), IntakeRuleXml("Billing cases", 1, i["billingChat"]) };
+                    i["intakeRuleset"] = o.Add("msdyn_decisionruleset", V("msdyn_name", "Case decision ruleset", "msdyn_uniquename", "new_incidentmasterentityroutingconfiguration",
+                        "msdyn_rulesetdefinition", "<decision hit-policy=\"first\" version=\"1\">\n  <rules>\n    " + string.Join("\n    ", rules) + "\n  </rules>\n</decision>"), managed: true);
+                    i["caseHub"] = o.Add("msdyn_masterentityroutingconfiguration", V("msdyn_name", "Case routing hub", "msdyn_entitylogicalname", "incident", "msdyn_uniquename", "new_incident"), L("msdyn_rulesetid", i["intakeRuleset"]));
+                }
+            }
         }
+
+        /// <summary>One record routing intake rule as the admin center writes it: a condition, then the workstream.</summary>
+        public static string IntakeRuleXml(string name, int caseType, Guid workstream) =>
+            $"<rule id=\"{Guid.NewGuid()}\" name=\"{name}\"><condition operator=\"==\"><lhs type=\"attribute\">incident.casetypecode</lhs><rhs type=\"staticvalue\">{caseType}</rhs></condition><action><setattribute><lhs type=\"attribute\">action.unifiedrouting</lhs><rhs type=\"staticvalue\">{{{workstream}}}</rhs></setattribute></action></rule>";
 
         static Dictionary<string, object> Chat(Dictionary<string, object> v)
         {

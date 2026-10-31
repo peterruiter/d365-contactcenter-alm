@@ -72,6 +72,7 @@ function Invoke-CcPlan {
     $items = [System.Collections.Generic.List[object]]::new()
     $failedRefs = @{}
     $links = [System.Collections.Generic.List[object]]::new()
+    $intakeDefs = @{}   # target intake ruleset id -> its definition as this run left it
 
     function Add-Item($o, $outcome, $message, [int] $stage) {
         $item = [pscustomobject]@{
@@ -123,6 +124,47 @@ function Invoke-CcPlan {
             }
             catch {
                 Add-Item $o 'failed' "Could not link $($what): $(Get-CcErrorMessage $_.Exception.Message)" $o.stage
+            }
+            continue
+        }
+
+        if ($tplan.Table.move -eq 'intake') {
+            # One intake rule, merged into the target hub's own intake ruleset (Get-CcIntakeRules.ps1).
+            $waits = @($o.dependencies | Where-Object { $_.state -in 'createdEarlier', 'linkedLater' -and $failedRefs.ContainsKey("$($_.table)|$($_.matchKey)") })
+            if ($waits) { Add-Item $o 'skipped' "Not written because $($waits[0].label) could not be written." $o.stage; $failedRefs[$ref] = $o.displayName; continue }
+            $rule = Get-CcIntakeSourceRule -TablePlan $tplan -MatchKey $o.matchKey -Maps $maps -TablePlans $plans
+            if ($rule.Problem) { Add-Item $o 'skipped' $rule.Problem $o.stage; $failedRefs[$ref] = $o.displayName; continue }
+            $rsId = $tplan.Intake.Target[$rule.HubKey].RulesetId
+            $rsSet = $tplan.EntitySet
+            try {
+                if (-not $intakeDefs.ContainsKey($rsId)) {
+                    # Read again before the first write: the rules may have changed since the compare.
+                    $intakeDefs[$rsId] = if ($isDry) { $tplan.Intake.Target[$rule.HubKey].Definition }
+                                         else { [string](Invoke-CcWebApi -Environment $target -Method Get -Path "$rsSet($rsId)?`$select=msdyn_rulesetdefinition").msdyn_rulesetdefinition }
+                    if (-not $isDry) {
+                        $entry = [ordered]@{ table = 'msdyn_decisionruleset'; entitySet = $rsSet; id = $rsId; data = [ordered]@{ msdyn_rulesetdefinition = $intakeDefs[$rsId] }; binds = [ordered]@{} }
+                        $snapshot.updated.Add($entry) | Out-Null
+                        if ($OnEvent) { & $OnEvent 'updated' @($entry) }
+                    }
+                }
+                $merged = Merge-CcIntakeRule -TargetDefinition $intakeDefs[$rsId] -RuleXml $rule.Xml -RuleKey $rule.RuleKey -SourceOrder $rule.Order
+                $where = "the intake rules of $($o.context)"
+                if ($isDry) {
+                    $intakeDefs[$rsId] = $merged
+                    Add-Item $o $(if ($o.op -eq 'create') { 'wouldCreate' } else { 'wouldUpdate' }) $(if ($o.op -eq 'create') { "Will be added to $where." } else { "Will be replaced in $where." }) $o.stage
+                    continue
+                }
+                if (-not $PSCmdlet.ShouldProcess("$($o.tableLabel) '$($o.displayName)' in $($target.Name)", $o.op)) { continue }
+                # Written twice, like every ruleset, so Dataverse records what it depends on.
+                Invoke-CcWebApi -Environment $target -Method Patch -Path "$rsSet($rsId)" -Body @{ msdyn_rulesetdefinition = $merged } -Prefer $null | Out-Null
+                Start-Sleep -Seconds 2
+                Invoke-CcWebApi -Environment $target -Method Patch -Path "$rsSet($rsId)" -Body @{ msdyn_rulesetdefinition = $merged } -Prefer $null | Out-Null
+                $intakeDefs[$rsId] = $merged
+                Add-Item $o $(if ($o.op -eq 'create') { 'created' } else { 'updated' }) $(if ($o.op -eq 'create') { "Added to $where." } else { "Replaced in $where." }) $o.stage
+            }
+            catch {
+                Add-Item $o 'failed' (Get-CcErrorMessage $_.Exception.Message) $o.stage
+                $failedRefs[$ref] = $o.displayName
             }
             continue
         }

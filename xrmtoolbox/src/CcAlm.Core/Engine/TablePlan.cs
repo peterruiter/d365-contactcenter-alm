@@ -38,6 +38,8 @@ namespace CcAlm.Core.Engine
         public bool Usable { get; set; }
         /// <summary>Set for the links of a many-to-many relationship (Move "associate").</summary>
         public AssociationDef Association { get; set; }
+        /// <summary>Set for record routing intake rules (Move "intake").</summary>
+        public IntakeDef Intake { get; set; }
         public string Reason { get; set; }
         public string LogicalName => Table.LogicalName;
         public TableSchema SourceSchema { get; set; }

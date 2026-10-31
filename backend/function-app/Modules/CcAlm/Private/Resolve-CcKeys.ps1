@@ -133,11 +133,13 @@ function Set-CcKeys {
 }
 
 function Test-CcIdenticalRecords {
-    # True when every record has the same value in every compared setting and lookup.
+    # True when every record has the same value in every compared setting and lookup. Spaces and line
+    # breaks around a text do not count: a quick reply saved once with a trailing line break is still
+    # a copy, and the key (trimmed) could not tell the two apart anyway.
     param([object[]] $Records, [pscustomobject] $TablePlan)
     $first = $Records[0]
     foreach ($r in $Records | Select-Object -Skip 1) {
-        foreach ($col in $TablePlan.DataColumns) { if (-not (Test-CcSameValue $first.$col $r.$col)) { return $false } }
+        foreach ($col in $TablePlan.DataColumns) { if (-not (Test-CcSameValue ([string]$first.$col).Trim() ([string]$r.$col).Trim())) { return $false } }
         foreach ($lk in $TablePlan.Lookups) {
             if (([string]$first.($lk.ValueCol)).ToLowerInvariant() -ne ([string]$r.($lk.ValueCol)).ToLowerInvariant()) { return $false }
         }

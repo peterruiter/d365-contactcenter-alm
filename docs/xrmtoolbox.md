@@ -39,12 +39,12 @@ Runs and snapshots are kept in `%AppData%\MscrmTools\XrmToolBox\Settings\Contact
 
 ### Before you move
 
-- **Record workstreams** (email, case) point at their table's record routing hub. Set up record routing for that table in the target first; the plan blocks the workstream otherwise. The hub's intake rules are not moved.
+- **Record workstreams** (email, case) point at their table's record routing hub. Set up record routing for that table in the target first; the plan blocks the workstream otherwise. The hub's **intake rules** are compared one by one and each sits under the workstream it routes to, so ticking the workstream ticks them. A run merges them into the target hub's own intake ruleset: a rule with the same name is replaced, a new one goes straight after the rule before it in the source, and the target's other rules stay where they are.
 - **Per-environment set-up** - phone numbers, WhatsApp and SMS accounts, Copilot Studio agents - is listed under the Review tab's notes and stays a manual step.
 - **Conversation orchestration playbooks move as drafts.** Publishing compiles the prompt into a rule naming that environment's own queues, so the compiled rule stays behind: publish each moved playbook in the target yourself, in Conversation orchestration in the Copilot Service admin center. The Review tab lists the playbooks this applies to.
 - **Agentic routing rules are reported, not moved.** They live in an elastic table partitioned by the environment's own organization id and with a time to live, so a copy would land in the wrong partition and could expire; set them up in the target.
 - **Agent script steps that run a macro** keep their text and order, but not the macro: a macro is a solution component. Move it by solution, then pick it on the step in the target.
-- Templates and other records that come with a **managed solution** must be installed in the target; the plan says which.
+- Records that come with a **managed solution** are shown, so the picture is complete, but never moved: the plan blocks them and says so, and a record that needs one that is missing in the target is blocked with the same reason. Install or update that solution in the target.
 - Writing Contact Center configuration through the API is not a Microsoft-supported path. Dry-run first, and try it on Dev and Test before Production.
 
 ## How it is built

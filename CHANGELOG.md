@@ -4,6 +4,17 @@ All notable changes to this project are recorded here. Format follows [Keep a Ch
 
 ## [Unreleased]
 
+### Record routing intake rules
+- **Intake rules move with their workstream.** A record routing hub (Case routing hub for cases) has one intake ruleset with a rule per workstream, and it often comes with a managed solution, so the compare left it out and the rules never arrived. Intake rules are now compared one by one ("Intake rules"), by hub and rule name; each sits under the workstream it routes to, so ticking the workstream ticks its rules. A run merges the selected rules into the target hub's own intake ruleset: a rule with the same name is replaced, a new one goes straight after the rule that comes before it in the source (the first rule that matches wins, so order matters), and the target's own rules stay. The workstream GUID in the rule is rewritten to the target's copy. Rollback puts the ruleset back as it was.
+- The intake ruleset itself is no longer offered as a ruleset, since moving it whole would overwrite the target's rules for every other workstream.
+- Checked against CAT's UAT: the "Default Case Intake Rule - Do not delete" rule sits under CAT Default Record Workstream, and a dry run merges it into another environment's case hub without touching that hub's own rules.
+
+### Managed records
+- **Records that come with a managed solution are shown, but blocked.** They used to be left out of the compare entirely, so it looked as if they did not exist. They are now listed with a note, and the plan blocks them with the reason ("comes with a managed solution: install or update that solution in the target"). They are never added to a plan because something else needs them; that record is blocked with the same reason instead.
+
+### Quick replies
+- **Fixed: two copies of a quick reply that differed only in a trailing line break were skipped as ambiguous.** Copies are now compared without the spaces and line breaks around their texts, so they are taken as one, like other identical copies. Found on CAT's "CAT AI ECS": 47 quick replies in Sandbox are 41 distinct ones (five are there twice word for word, and "Benefits of PCC Account" twice with one extra line break); 40 were already in UAT and the last one now moves too.
+
 ### Local runner setup checks
 - **Fixed: the Table access check crashed with "Cannot index into a null array"** on every environment, so the last setup check never passed. It asked the manifest for each table's entity set name and columns, which a version 2 manifest does not carry - the engine reads those from the environment. The check now asks the environment for them, and a table that is not installed there is skipped instead of counted as a failure.
 - **Reference and detect tables no longer demand write access.** They are read to resolve lookups and to report; the check was asking for create, update and delete on them, which no one needs to grant.

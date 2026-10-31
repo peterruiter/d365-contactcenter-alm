@@ -10,8 +10,8 @@
 #     (cap_chat_a, cap_chat_b)                                                     pairs a, b new
 #   session msdyn_chat_session, contoso_mortgage   msdyn_chat_session              mortgage new
 #   notification contoso_mortgage_notification     -                               new
-#   notification msdyn_chatgpt_notification        -                               managed: blocks
-#     (managed)                                                                    GPT chat
+#   notification msdyn_chatgpt_notification        -                               managed: shown,
+#     (managed)                                                                    blocked, blocks GPT chat
 #   workstream Billing chat (capacity 2)           Billing chat (capacity 1)       Changed
 #   workstream Mortgage chat (templates, default   -                               new, with links
 #     queue + routing contract linked later)                                       at the end
@@ -46,8 +46,14 @@ function Get-CcSchemaFixture {
     return $m
 }
 
+function New-CcIntakeRuleXml {
+    # One record routing intake rule as the admin center writes it: a condition, then the workstream.
+    param([string] $Name, [int] $CaseType, [string] $WorkstreamId)
+    "<rule id=`"$([guid]::NewGuid())`" name=`"$Name`"><condition operator=`"==`"><lhs type=`"attribute`">incident.casetypecode</lhs><rhs type=`"staticvalue`">$CaseType</rhs></condition><action><setattribute><lhs type=`"attribute`">action.unifiedrouting</lhs><rhs type=`"staticvalue`">{$WorkstreamId}</rhs></setattribute></action></rule>"
+}
+
 function New-CcSyntheticScenario {
-    param([switch] $ProvisionRoutingConfiguration)
+    param([switch] $ProvisionRoutingConfiguration, [switch] $RecordRouting)
     $schema = Get-CcSchemaFixture
     $dev = New-CcFakeOrg -Url 'https://contoso-dev.crm4.dynamics.com' -Metadata $schema
     $test = New-CcFakeOrg -Url 'https://contoso-test.crm4.dynamics.com' -Metadata $schema -ProvisionRoutingConfiguration:$ProvisionRoutingConfiguration
@@ -120,6 +126,24 @@ function New-CcSyntheticScenario {
 
     # Only in Test.
     $ids.test.oldTag = Add-CcFakeRecord $test msdyn_octag @{ msdyn_name = 'Old tag' }
+
+    if ($RecordRouting) {
+        # A case routing hub in both, with its intake ruleset from a managed solution. Dev sends
+        # billing cases to Billing chat, then mortgage cases to Mortgage chat (new); Test has its own
+        # rule first and the same billing rule, and keeps its own rule when Mortgage cases is merged in.
+        foreach ($side in 'dev', 'test') {
+            $o = if ($side -eq 'dev') { $dev } else { $test }
+            $i = $ids[$side]
+            $rules = if ($side -eq 'dev') { @(@('Billing cases', 1, $i.billingChat), @('Mortgage cases', 2, $i.mortgageChat)) }
+                     else { @(@('Test cases', 3, $i.billingChat), @('Billing cases', 1, $i.billingChat)) }
+            $xml = @($rules | ForEach-Object { New-CcIntakeRuleXml -Name $_[0] -CaseType $_[1] -WorkstreamId $_[2] }) -join "`n    "
+            $i.intakeRuleset = Add-CcFakeRecord $o msdyn_decisionruleset @{
+                msdyn_name = 'Case decision ruleset'; msdyn_uniquename = 'new_incidentmasterentityroutingconfiguration'
+                msdyn_rulesetdefinition = "<decision hit-policy=`"first`" version=`"1`">`n  <rules>`n    $xml`n  </rules>`n</decision>"
+            } -Managed $true
+            $i.caseHub = Add-CcFakeRecord $o msdyn_masterentityroutingconfiguration @{ msdyn_name = 'Case routing hub'; msdyn_entitylogicalname = 'incident'; msdyn_uniquename = 'new_incident' } @{ msdyn_rulesetid = $i.intakeRuleset }
+        }
+    }
 
     return [pscustomobject]@{
         Dev     = $dev

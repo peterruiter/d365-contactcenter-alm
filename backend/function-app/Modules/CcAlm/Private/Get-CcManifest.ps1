@@ -28,6 +28,7 @@ function Get-CcManifest {
 function Get-CcStageLabel {
     param($Manifest, [int] $Stage)
     if ($Stage -eq 99) { return 'Link records written earlier' }
+    if ($Stage -eq 98) { return 'Record routing intake rules' }
     $s = @($Manifest.stages) | Where-Object { [int]$_.stage -eq $Stage } | Select-Object -First 1
     if ($s) { return $s.label }
     return "Stage $Stage"
