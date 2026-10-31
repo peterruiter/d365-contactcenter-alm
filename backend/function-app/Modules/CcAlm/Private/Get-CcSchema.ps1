@@ -29,7 +29,7 @@ function Get-CcTableSchema {
     if (-not $script:CcReadCache -and $cached -and $cached.LoadedAt -gt (Get-Date).AddMinutes(-$script:CcSchemaTtlMinutes)) { return $cached }
 
     $path = "EntityDefinitions(LogicalName='$LogicalName')?`$select=LogicalName,EntitySetName,PrimaryIdAttribute,PrimaryNameAttribute,DisplayCollectionName" +
-        "&`$expand=Attributes(`$select=LogicalName,AttributeType,IsValidForCreate,IsValidForUpdate,IsValidForRead,RequiredLevel,AttributeOf,DisplayName)," +
+        "&`$expand=Attributes(`$select=LogicalName,AttributeType,AttributeTypeName,IsValidForCreate,IsValidForUpdate,IsValidForRead,RequiredLevel,AttributeOf,DisplayName)," +
         "ManyToOneRelationships(`$select=ReferencingAttribute,ReferencedEntity,ReferencingEntityNavigationPropertyName)," +
         "ManyToManyRelationships(`$select=SchemaName,Entity1LogicalName,Entity2LogicalName,IntersectEntityName,Entity1IntersectAttribute,Entity2IntersectAttribute,Entity1NavigationPropertyName,Entity2NavigationPropertyName)"
 
@@ -52,7 +52,9 @@ function Get-CcTableSchema {
         if ($a.DisplayName -and $a.DisplayName.UserLocalizedLabel) { $label = $a.DisplayName.UserLocalizedLabel.Label }
         $attributes[$a.LogicalName] = [pscustomobject]@{
             Name     = $a.LogicalName
-            Type     = [string]$a.AttributeType
+            # A multi-select choice (a workstream's allowed presences) reports its type as Virtual,
+            # like a computed column; only its type name tells it apart.
+            Type     = if ($a.AttributeTypeName -and $a.AttributeTypeName.Value -eq 'MultiSelectPicklistType') { 'MultiSelectPicklist' } else { [string]$a.AttributeType }
             Read     = [bool]$a.IsValidForRead
             Create   = [bool]$a.IsValidForCreate
             Update   = [bool]$a.IsValidForUpdate

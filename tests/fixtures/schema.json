@@ -8894,6 +8894,9 @@
           "UserLocalizedLabel": {
             "Label": "Allowed Presences"
           }
+        },
+        "AttributeTypeName": {
+          "Value": "MultiSelectPicklistType"
         }
       },
       {
@@ -9042,6 +9045,9 @@
           "UserLocalizedLabel": {
             "Label": "Block Capacity for Consult"
           }
+        },
+        "AttributeTypeName": {
+          "Value": "MultiSelectPicklistType"
         }
       },
       {
@@ -18174,6 +18180,9 @@
           "UserLocalizedLabel": {
             "Label": "Recording mode"
           }
+        },
+        "AttributeTypeName": {
+          "Value": "MultiSelectPicklistType"
         }
       },
       {
@@ -18370,6 +18379,9 @@
           "UserLocalizedLabel": {
             "Label": "Transcription mode"
           }
+        },
+        "AttributeTypeName": {
+          "Value": "MultiSelectPicklistType"
         }
       },
       {
@@ -22759,6 +22771,9 @@
           "UserLocalizedLabel": {
             "Label": "(Deprecated) Work days"
           }
+        },
+        "AttributeTypeName": {
+          "Value": "MultiSelectPicklistType"
         }
       },
       {

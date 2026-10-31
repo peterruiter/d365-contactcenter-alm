@@ -78,6 +78,8 @@ function New-CcSyntheticScenario {
         }
         $i.billingChat = Add-CcFakeRecord $o msdyn_liveworkstream ($chat + @{
                 msdyn_name = 'Billing chat'; msdyn_capacityrequired = $(if ($side -eq 'dev') { 2 } else { 1 })
+                # The same allowed presences, listed in another order.
+                msdyn_allowedpresences = $(if ($side -eq 'dev') { '192360000,192360001' } else { '192360001,192360000' })
                 msdyn_sessiontemplate_default = 'msdyn_chat_session'
             }) @{ msdyn_defaultqueue = $i.billingQueue }
         $i.billingRc = Add-CcFakeRecord $o msdyn_routingconfiguration @{ msdyn_name = 'Contact center routing configuration'; msdyn_uniquename = 'rc_billing'; msdyn_isactiveconfiguration = $true } @{ msdyn_liveworkstreamid = $i.billingChat }
@@ -101,7 +103,7 @@ function New-CcSyntheticScenario {
         msdyn_rulesetdefinition = "<rules><rule queue=`"$($d.mortgageQueue)`" skill=`"$($d.skillMortgages)`"/></rules>"
     } @{ msdyn_inputcontractid = $d.mortgageContract }
     $d.mortgageChat = Add-CcFakeRecord $dev msdyn_liveworkstream ($chat + @{
-            msdyn_name = 'Mortgage chat'; msdyn_capacityrequired = 1
+            msdyn_name = 'Mortgage chat'; msdyn_capacityrequired = 1; msdyn_allowedpresences = '192360000,192360001'
             msdyn_sessiontemplate_default = 'contoso_mortgage_session'; msdyn_notificationtemplate_incoming_auth = 'contoso_mortgage_notification'
         }) @{ msdyn_defaultqueue = $d.mortgageQueue; msdyn_routingcontractid = $d.mortgageContract }
     $d.gptChat = Add-CcFakeRecord $dev msdyn_liveworkstream ($chat + @{

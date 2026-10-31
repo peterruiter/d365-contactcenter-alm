@@ -45,6 +45,14 @@ namespace CcAlm.Core.Tests
             => Assert.Equal(RecordStatus.Equal, T.Row(_diff, "msdyn_decisionruleset", "Billing route").Status);
 
         [Fact]
+        public void Compares_multi_select_choices_such_as_allowed_presences_whatever_their_order()
+        {
+            Assert.Equal("MultiSelectPicklist", _diff.TablePlans["msdyn_liveworkstream"].SourceSchema.Attributes["msdyn_allowedpresences"].Type);
+            Assert.Contains("msdyn_allowedpresences", _diff.TablePlans["msdyn_liveworkstream"].DataColumns);
+            Assert.DoesNotContain(T.Row(_diff, "msdyn_liveworkstream", "Billing chat").Fields, f => f.Name == "msdyn_allowedpresences");
+        }
+
+        [Fact]
         public void Lists_exactly_the_setting_that_changed()
         {
             var r = T.Row(_diff, "msdyn_liveworkstream", "Billing chat");
@@ -398,6 +406,8 @@ namespace CcAlm.Core.Tests
 
             // The link to a later table was set in the final pass.
             var ws = s.Test.Where("msdyn_liveworkstream", "msdyn_name", "Mortgage chat").Single();
+            // Its allowed presences (a multi-select choice) came along.
+            Assert.Equal("192360000,192360001", Values.Text(ws.Get("msdyn_allowedpresences")));
             Assert.Equal(queue.Id, ws.GetLookup("msdyn_defaultqueue").Id);
 
             // A ruleset's second write is an update without the unique name.

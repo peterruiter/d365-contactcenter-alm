@@ -264,7 +264,8 @@ namespace CcAlm.Core.Engine
                         fields.Add(new FieldDiff { Name = col, Label = plan.ColumnLabel(col), Kind = "definition", Source = string.Join("; ", summary) });
                         continue;
                     }
-                    if (!Values.Same(srcRec.Get(col), tgtRec.Get(col)))
+                    var multi = plan.SourceSchema.Attributes.TryGetValue(col, out var ai) && ai.Type == "MultiSelectPicklist";
+                    if (!(multi ? Values.Same(Values.ChoiceSet(srcRec.Get(col)), Values.ChoiceSet(tgtRec.Get(col))) : Values.Same(srcRec.Get(col), tgtRec.Get(col))))
                         fields.Add(new FieldDiff { Name = col, Label = plan.ColumnLabel(col), Kind = "value", Source = Values.Formatted(srcRec, col), Target = Values.Formatted(tgtRec, col) });
                 }
 

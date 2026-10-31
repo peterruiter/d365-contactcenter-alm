@@ -122,7 +122,7 @@ namespace CcAlm.Core.Tests
                 var level = (string)a.SelectToken("RequiredLevel.Value");
                 s.Attributes[name] = new AttributeInfo
                 {
-                    Name = name, Type = (string)a["AttributeType"],
+                    Name = name, Type = (string)a.SelectToken("AttributeTypeName.Value") == "MultiSelectPicklistType" ? "MultiSelectPicklist" : (string)a["AttributeType"],
                     Read = (bool?)a["IsValidForRead"] ?? false, Create = (bool?)a["IsValidForCreate"] ?? false, Update = (bool?)a["IsValidForUpdate"] ?? false,
                     Required = level == "ApplicationRequired" || level == "SystemRequired",
                     Label = (string)a.SelectToken("DisplayName.UserLocalizedLabel.Label") ?? name,

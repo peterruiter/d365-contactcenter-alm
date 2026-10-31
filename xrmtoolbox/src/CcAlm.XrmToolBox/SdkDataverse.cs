@@ -72,7 +72,9 @@ namespace CcAlm.XrmToolBox
                 s.Attributes[a.LogicalName] = new AttributeInfo
                 {
                     Name = a.LogicalName,
-                    Type = a.AttributeType?.ToString() ?? "Virtual",
+                    // A multi-select choice (a workstream's allowed presences) reports its type as
+                    // Virtual, like a computed column; only its metadata class tells it apart.
+                    Type = a is MultiSelectPicklistAttributeMetadata ? "MultiSelectPicklist" : a.AttributeType?.ToString() ?? "Virtual",
                     Read = a.IsValidForRead ?? false,
                     Create = a.IsValidForCreate ?? false,
                     Update = a.IsValidForUpdate ?? false,

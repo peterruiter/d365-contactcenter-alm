@@ -31,6 +31,13 @@ namespace CcAlm.Core.Engine
         }
 
         /// <summary>Null and empty text are the same setting; everything else compares as invariant text.</summary>
+        /// <summary>A multi-select choice ("192360001,192360000") in one order, so the same choices compare the same.</summary>
+        public static string ChoiceSet(object v)
+        {
+            var parts = Text(v).Split(',').Select(p => p.Trim()).Where(p => p.Length > 0).ToList();
+            return parts.Count == 0 ? null : string.Join(",", parts.OrderBy(p => long.TryParse(p, out var n) ? n : long.MaxValue));
+        }
+
         public static bool Same(object a, object b) => string.Equals(Text(a), Text(b), StringComparison.Ordinal);
 
         /// <summary>The value as Dataverse shows it (choice labels, Yes/No), falling back to the raw value.</summary>

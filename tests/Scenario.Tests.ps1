@@ -32,6 +32,13 @@ Describe 'Compare' {
         $r.fields[0].target | Should -Be '1'
     }
 
+    It 'compares multi-select choices such as allowed presences, whatever their order' {
+        $wsPlan = $diff._context.TablePlans['msdyn_liveworkstream']
+        $wsPlan.SourceSchema.Attributes['msdyn_allowedpresences'].Type | Should -Be 'MultiSelectPicklist'
+        $wsPlan.DataColumns | Should -Contain 'msdyn_allowedpresences'
+        (Get-CcDiffRow $diff msdyn_liveworkstream 'Billing chat').fields.label | Should -Not -Contain 'Allowed Presences'
+    }
+
     It 'tells duplicate names apart with the tie-breaker on both sides' {
         $cap = @(Get-CcDiffRow $diff msdyn_capacityprofile 'Chat capacity')
         @($cap.status | Sort-Object) | Should -Be @('Equal', 'MissingInTarget')
@@ -228,6 +235,10 @@ Describe 'Apply, check afterwards and roll back' {
         @($wsLinks | Where-Object { $_.msdyn_cannedmessageid -eq $greeting.msdyn_cannedmessageid -and $_.msdyn_liveworkstreamid -eq $billing.msdyn_liveworkstreamid }).Count | Should -Be 1
         @($s.Test.Tables['msdyn_msdyn_cannedmessage_msdyn_octag'].Rows).Count | Should -Be 1
         @($after.tables | Where-Object { $_.table -like 'msdyn_msdyn_*' } | ForEach-Object { $_.records } | Where-Object status -ne 'Equal').Count | Should -Be 0
+    }
+
+    It "copies a workstream's allowed presences" {
+        ($s.Test.Tables['msdyn_liveworkstream'].Rows | Where-Object msdyn_name -eq 'Mortgage chat').msdyn_allowedpresences | Should -Be '192360000,192360001'
     }
 
     It 'sets the links to later tables in the final pass' {

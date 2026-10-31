@@ -64,7 +64,7 @@ namespace CcAlm.Core.Tests
                 i["billingContract"] = o.Add("msdyn_decisioncontract", V("msdyn_name", "Billing contract", "msdyn_uniquename", "contoso_billing_contract", "msdyn_contractdefinition", dev ? "{\"v\":2}" : "{\"v\":1}"));
                 i["billingRoute"] = o.Add("msdyn_decisionruleset", V("msdyn_name", "Billing route", "msdyn_uniquename", "contoso_billing_route",
                     "msdyn_rulesetdefinition", $"<rules><rule queue=\"{i["billingQueue"]}\" skill=\"{i["skillBilling"].ToString().ToUpperInvariant()}\"/></rules>"));
-                i["billingChat"] = o.Add("msdyn_liveworkstream", Chat(V("msdyn_name", "Billing chat", "msdyn_capacityrequired", dev ? 2L : 1L, "msdyn_sessiontemplate_default", "msdyn_chat_session")), L("msdyn_defaultqueue", i["billingQueue"]));
+                i["billingChat"] = o.Add("msdyn_liveworkstream", Chat(V("msdyn_name", "Billing chat", "msdyn_capacityrequired", dev ? 2L : 1L, "msdyn_allowedpresences", dev ? "192360000,192360001" : "192360001,192360000", "msdyn_sessiontemplate_default", "msdyn_chat_session")), L("msdyn_defaultqueue", i["billingQueue"]));
                 i["billingRc"] = o.Add("msdyn_routingconfiguration", V("msdyn_name", "Contact center routing configuration", "msdyn_uniquename", "rc_billing", "msdyn_isactiveconfiguration", true), L("msdyn_liveworkstreamid", i["billingChat"]));
                 i["billingStep"] = o.Add("msdyn_routingconfigurationstep", V("msdyn_name", "Route to queue", "msdyn_uniquename", "rcs_billing"),
                     dev ? L("msdyn_routingconfigurationid", i["billingRc"], "msdyn_rulesetid", i["billingRoute"]) : L("msdyn_routingconfigurationid", i["billingRc"]));
@@ -82,7 +82,7 @@ namespace CcAlm.Core.Tests
             d["mortgageContract"] = Dev.Add("msdyn_decisioncontract", V("msdyn_name", "Mortgage contract", "msdyn_uniquename", "contoso_mortgage_contract", "msdyn_contractdefinition", "{\"v\":1}"));
             d["mortgageRoute"] = Dev.Add("msdyn_decisionruleset", V("msdyn_name", "Mortgage route", "msdyn_uniquename", "contoso_mortgage_route",
                 "msdyn_rulesetdefinition", $"<rules><rule queue=\"{d["mortgageQueue"]}\" skill=\"{d["skillMortgages"]}\"/></rules>"), L("msdyn_inputcontractid", d["mortgageContract"]));
-            d["mortgageChat"] = Dev.Add("msdyn_liveworkstream", Chat(V("msdyn_name", "Mortgage chat", "msdyn_capacityrequired", 1L,
+            d["mortgageChat"] = Dev.Add("msdyn_liveworkstream", Chat(V("msdyn_name", "Mortgage chat", "msdyn_capacityrequired", 1L, "msdyn_allowedpresences", "192360000,192360001",
                 "msdyn_sessiontemplate_default", "contoso_mortgage_session", "msdyn_notificationtemplate_incoming_auth", "contoso_mortgage_notification")),
                 L("msdyn_defaultqueue", d["mortgageQueue"], "msdyn_routingcontractid", d["mortgageContract"]));
             d["gptChat"] = Dev.Add("msdyn_liveworkstream", Chat(V("msdyn_name", "GPT chat", "msdyn_capacityrequired", 1L, "msdyn_notificationtemplate_incoming_auth", "msdyn_chatgpt_notification")));

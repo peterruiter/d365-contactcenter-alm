@@ -26,7 +26,7 @@ foreach ($logical in ($raw.Keys | Sort-Object)) {
         PrimaryNameAttribute   = $m.PrimaryNameAttribute
         DisplayCollectionName  = & $label $m.DisplayCollectionName
         Attributes             = @($m.Attributes | Sort-Object { $_.LogicalName } | ForEach-Object {
-                [ordered]@{
+                $a = [ordered]@{
                     LogicalName      = $_.LogicalName
                     AttributeType    = $_.AttributeType
                     AttributeOf      = $_.AttributeOf
@@ -36,6 +36,9 @@ foreach ($logical in ($raw.Keys | Sort-Object)) {
                     RequiredLevel    = @{ Value = $_.RequiredLevel.Value }
                     DisplayName      = & $label $_.DisplayName
                 }
+                # Only where it says more than AttributeType: a multi-select choice is "Virtual" there.
+                if ($_.AttributeTypeName -and $_.AttributeTypeName.Value -eq 'MultiSelectPicklistType') { $a.AttributeTypeName = @{ Value = 'MultiSelectPicklistType' } }
+                $a
             })
         ManyToOneRelationships = @($m.ManyToOneRelationships | Sort-Object { $_.ReferencingAttribute }, { $_.ReferencedEntity } | ForEach-Object {
                 [ordered]@{

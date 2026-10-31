@@ -18,6 +18,13 @@ function Test-CcSameValue {
     return $a -ceq $b
 }
 
+function ConvertTo-CcChoiceSet {
+    # A multi-select choice ("192360001,192360000") in one order, so the same choices compare the same.
+    param($Value)
+    if ($null -eq $Value -or [string]$Value -eq '') { return $null }
+    return ((([string]$Value) -split ',' | ForEach-Object { $_.Trim() } | Where-Object { $_ } | Sort-Object { [long]$_ }) -join ',')
+}
+
 function Get-CcDependencies {
     <#
     .SYNOPSIS
@@ -167,7 +174,9 @@ function Compare-CcTable {
                 }
                 continue
             }
-            if (-not (Test-CcSameValue $srcRec.$col $tgtRec.$col)) {
+            $sv = $srcRec.$col; $tv = $tgtRec.$col
+            if ($TablePlan.SourceSchema.Attributes[$col].Type -eq 'MultiSelectPicklist') { $sv = ConvertTo-CcChoiceSet $sv; $tv = ConvertTo-CcChoiceSet $tv }
+            if (-not (Test-CcSameValue $sv $tv)) {
                 $fields.Add([pscustomobject]@{
                         name = $col; label = (Get-CcColumnLabel $TablePlan $col); kind = 'value'
                         source = (Get-CcFormatted $srcRec $col); target = (Get-CcFormatted $tgtRec $col)

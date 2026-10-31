@@ -4,6 +4,9 @@ All notable changes to this project are recorded here. Format follows [Keep a Ch
 
 ## [Unreleased]
 
+### Multi-select choices
+- **Fixed: a workstream's allowed presences were not copied** (nor compared). Dataverse reports a multi-select choice column as type "Virtual", like a computed column, and the engine skips Virtual columns; only the attribute's type name says it is a multi-select choice. The engine now reads that type name, so these columns are compared and written: allowed presences and block capacity for consult on workstreams, recording and transcription mode on voice channels, and work days on operating hours. The choices are compared in any order ("Busy; Available" is the same as "Available; Busy"). Found on CAT: in UAT, "PST Record workstream" had no allowed presences where Sandbox has Available, and Voice_Solar had no recording or transcription mode; a compare now lists both as changed.
+
 ### Record routing intake rules
 - **Intake rules move with their workstream.** A record routing hub (Case routing hub for cases) has one intake ruleset with a rule per workstream, and it often comes with a managed solution, so the compare left it out and the rules never arrived. Intake rules are now compared one by one ("Intake rules"), by hub and rule name; each sits under the workstream it routes to, so ticking the workstream ticks its rules. A run merges the selected rules into the target hub's own intake ruleset: a rule with the same name is replaced, a new one goes straight after the rule that comes before it in the source (the first rule that matches wins, so order matters), and the target's own rules stay. The workstream GUID in the rule is rewritten to the target's copy. Rollback puts the ruleset back as it was.
 - The intake ruleset itself is no longer offered as a ruleset, since moving it whole would overwrite the target's rules for every other workstream.
