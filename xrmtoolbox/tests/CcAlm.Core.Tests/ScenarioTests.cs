@@ -251,6 +251,44 @@ namespace CcAlm.Core.Tests
         }
     }
 
+    public class SolutionCopyTests
+    {
+        [Fact]
+        public void Pairs_a_record_a_solution_import_brought_over_by_unique_name_updates_it_and_rolls_back()
+        {
+            var s = new Scenario(solutionCopies: true);
+            var session = new MigrationSession(s.Dev, s.Test);
+            var diff = session.Compare();
+
+            var method = T.Row(diff, "msdyn_assignmentconfiguration", "Billing assignment");
+            Assert.Equal(RecordStatus.Changed, method.Status);
+            Assert.Contains(method.Fields, f => f.Name == "msdyn_queueid");
+            Assert.Contains(method.Fields, f => f.Name == "msdyn_name");
+            Assert.DoesNotContain(method.Fields, f => f.Name == "msdyn_uniquename");
+            Assert.Equal(RecordStatus.Equal, T.Row(diff, "msdyn_assignmentconfigurationstep", "Inbound only").Status);
+            Assert.Single(T.Rows(diff, "msdyn_assignmentconfiguration", "Inbound only"), r => r.Status == RecordStatus.ExtraInTarget);
+
+            var plan = session.BuildPlan(new[] { method.Ref });
+            var op = plan.Operations.Single(o => o.Table == "msdyn_assignmentconfiguration");
+            Assert.Equal("update", op.Op);
+            Assert.Equal("ready", op.Status);
+            Assert.Contains(op.Warnings, w => w.Contains("managed solution"));
+
+            var run = T.Run(session, plan, dry: false);
+            Assert.Equal(0, run.Summary.Failed);
+            var record = s.Test.Find("msdyn_assignmentconfiguration", s.TestIds["billingMethod"]);
+            Assert.Equal("Billing assignment", record.Get("msdyn_name"));
+            Assert.Equal(s.TestIds["billingQueue"], record.GetLookup("msdyn_queueid").Id);
+            Assert.Equal("Verified", run.Verification.State);
+
+            var rb = session.Rollback(run.Snapshot);
+            Assert.Empty(rb.Unresolved);
+            record = s.Test.Find("msdyn_assignmentconfiguration", s.TestIds["billingMethod"]);
+            Assert.Equal("Inbound only", record.Get("msdyn_name"));
+            Assert.Null(record.GetLookup("msdyn_queueid"));
+        }
+    }
+
     public class CopyTests
     {
         [Fact]

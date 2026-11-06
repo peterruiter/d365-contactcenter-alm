@@ -4,6 +4,10 @@ All notable changes to this project are recorded here. Format follows [Keep a Ch
 
 ## [Unreleased]
 
+### Records a solution import already brought to the target
+- **Fixed: "violates a database constraint ... on the key msdyn_uniquename" when moving assignment methods.** A managed solution import brings assignment methods and their steps over with their unique names but without their queues, and sometimes with an older name. The tool matches them on name and queue, saw them as new, and Dataverse refused to create them because the unique name was taken. Where a table has a unique name but is not matched on it (assignment methods and steps, routing configurations and steps, queues, capacity profiles), the same unique name in the target now means the same record: it compares as changed, what sits under it pairs too, and a run updates it. The plan warns that such an update lands on top of a managed record, where it stays when that solution is updated. Rollback restores what was there.
+- Found on CAT, Sandbox to UAT: of the records the tool saw as new, 41 of 46 assignment methods, 39 of 44 assignment steps, 4 of 15 routing configurations and 8 of 25 routing steps were already in UAT. None are left clashing, and a dry run of all 145 assignment and routing records has no blocks or failures.
+
 ### Multi-select choices
 - **Fixed: a workstream's allowed presences were not copied** (nor compared). Dataverse reports a multi-select choice column as type "Virtual", like a computed column, and the engine skips Virtual columns; only the attribute's type name says it is a multi-select choice. The engine now reads that type name, so these columns are compared and written: allowed presences and block capacity for consult on workstreams, recording and transcription mode on voice channels, and work days on operating hours. The choices are compared in any order ("Busy; Available" is the same as "Available; Busy"). Found on CAT: in UAT, "PST Record workstream" had no allowed presences where Sandbox has Available, and Voice_Solar had no recording or transcription mode; a compare now lists both as changed.
 

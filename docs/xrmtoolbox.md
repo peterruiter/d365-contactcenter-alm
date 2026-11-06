@@ -45,6 +45,7 @@ Runs and snapshots are kept in `%AppData%\MscrmTools\XrmToolBox\Settings\Contact
 - **Agentic routing rules are reported, not moved.** They live in an elastic table partitioned by the environment's own organization id and with a time to live, so a copy would land in the wrong partition and could expire; set them up in the target.
 - **Agent script steps that run a macro** keep their text and order, but not the macro: a macro is a solution component. Move it by solution, then pick it on the step in the target.
 - Records that come with a **managed solution** are shown, so the picture is complete, but never moved: the plan blocks them and says so, and a record that needs one that is missing in the target is blocked with the same reason. Install or update that solution in the target.
+- A record that is **managed only in the target** can be moved onto: an unmanaged record in the source updates its managed copy, matched by unique name when a solution import left that copy without its queue or with an older name. The plan warns about it, because the change sits on top of the managed record and stays there when that solution is updated.
 - Writing Contact Center configuration through the API is not a Microsoft-supported path. Dry-run first, and try it on Dev and Test before Production.
 
 ## How it is built

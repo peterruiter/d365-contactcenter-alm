@@ -166,6 +166,8 @@ namespace CcAlm.Core.Engine
                     o.Warnings.Add("Already exists in the target. This table is only ever created, never changed, so it is left as it is.");
                     continue;
                 }
+                if (o.Op == "update" && !r.Managed && diff.Target.ByKeyOne(o.Table, o.MatchKey)?.IsManaged == true)
+                    o.Warnings.Add("In the target this comes with a managed solution. The change is written on top of it, and stays on top when that solution is updated.");
                 if (r.Managed)
                     o.Blockers.Add(new Blocker { Code = "managed", Message = "Comes with a managed solution, which moves it: install or update that solution in the target." });
                 if (tplan.Intake != null)

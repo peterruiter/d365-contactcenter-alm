@@ -282,6 +282,56 @@ Describe 'Copies that differ only in spaces around a text' {
     }
 }
 
+Describe 'Records a solution import already brought to the target' {
+    BeforeAll {
+        $s = New-CcSyntheticScenario -SolutionCopies
+        Mount-CcFakeDataverse -Orgs $s.Dev, $s.Test | Out-Null
+        $diff = Compare-CcConfig -Environments $s.Envs -SourceId dev -TargetId test 6>$null
+        $method = Get-CcDiffRow $diff msdyn_assignmentconfiguration 'Billing assignment'
+        $plan = New-CcPlan -Diff $diff -Selection @(@{ table = 'msdyn_assignmentconfiguration'; matchKey = $method.matchKey }) 6>$null
+        $result = Invoke-CcTestRun -Environments $s.Envs -SourceId dev -TargetId test -Mode apply -Selection (Get-CcSelection $plan)
+        $run = $result.Run
+        function Get-TestMethod { Get-CcFakeRow $s.Test.Tables['msdyn_assignmentconfiguration'] $s.Ids.test.billingMethod }
+    }
+
+    It 'pairs them by unique name, though the name and queue differ' {
+        $method.status | Should -Be 'Changed'
+        @($method.fields.label) | Should -Contain 'Queue'
+        @($method.fields.name) | Should -Contain 'msdyn_name'
+        @($method.fields.name) | Should -Not -Contain 'msdyn_uniquename'
+    }
+
+    It 'pairs what sits under them too' {
+        (Get-CcDiffRow $diff msdyn_assignmentconfigurationstep 'Inbound only').status | Should -Be 'Equal'
+    }
+
+    It 'leaves another record with the same old name alone' {
+        @(Get-CcDiffRow $diff msdyn_assignmentconfiguration 'Inbound only' | Where-Object status -eq 'ExtraInTarget').Count | Should -Be 1
+    }
+
+    It 'plans an update, and says it lands on a managed record' {
+        $op = $plan.operations | Where-Object table -eq 'msdyn_assignmentconfiguration'
+        $op.op | Should -Be 'update'
+        $op.status | Should -Be 'ready'
+        @($op.warnings) -join ' ' | Should -Match 'managed solution'
+    }
+
+    It 'gives the record its name and queue, and checks it' {
+        $run.summary.failed | Should -Be 0
+        (Get-TestMethod).msdyn_name | Should -Be 'Billing assignment'
+        (Get-TestMethod)._msdyn_queueid_value | Should -Be $s.Ids.test.billingQueue
+        $run.verification.state | Should -Be 'Verified'
+    }
+
+    It 'takes the name and queue away again when rolled back' {
+        $store = @{ Run = $run }
+        Invoke-CcRollbackJob -Environments $s.Envs -SnapshotPath $result.SnapshotPath -LoadRun { $store.Run | ConvertTo-Json -Depth 40 | ConvertFrom-Json } -SaveRun { param($r) $store.Run = $r }
+        @($store.Run.cleanup.unresolved).Count | Should -Be 0
+        (Get-TestMethod).msdyn_name | Should -Be 'Inbound only'
+        (Get-TestMethod)._msdyn_queueid_value | Should -BeNullOrEmpty
+    }
+}
+
 Describe 'Record routing intake rules' {
     BeforeAll {
         $s = New-CcSyntheticScenario -RecordRouting

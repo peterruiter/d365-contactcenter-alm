@@ -53,7 +53,7 @@ function New-CcIntakeRuleXml {
 }
 
 function New-CcSyntheticScenario {
-    param([switch] $ProvisionRoutingConfiguration, [switch] $RecordRouting)
+    param([switch] $ProvisionRoutingConfiguration, [switch] $RecordRouting, [switch] $SolutionCopies)
     $schema = Get-CcSchemaFixture
     $dev = New-CcFakeOrg -Url 'https://contoso-dev.crm4.dynamics.com' -Metadata $schema
     $test = New-CcFakeOrg -Url 'https://contoso-test.crm4.dynamics.com' -Metadata $schema -ProvisionRoutingConfiguration:$ProvisionRoutingConfiguration
@@ -128,6 +128,18 @@ function New-CcSyntheticScenario {
 
     # Only in Test.
     $ids.test.oldTag = Add-CcFakeRecord $test msdyn_octag @{ msdyn_name = 'Old tag' }
+
+    if ($SolutionCopies) {
+        # What a solution import leaves behind: Test has Dev's assignment method and its step as managed
+        # copies with the same unique names, but no queue and an older name. A second managed method
+        # with that older name and no queue has nothing to do with it.
+        $d.billingMethod = Add-CcFakeRecord $dev msdyn_assignmentconfiguration @{ msdyn_name = 'Billing assignment'; msdyn_uniquename = 'msdyn_uniquename_billing' } @{ msdyn_queueid = $d.billingQueue }
+        $d.billingMethodStep = Add-CcFakeRecord $dev msdyn_assignmentconfigurationstep @{ msdyn_name = 'Inbound only'; msdyn_uniquename = 'msdyn_uniquename_billing_step' } @{ msdyn_assignmentconfigurationid = $d.billingMethod }
+        $e = $ids.test
+        $e.billingMethod = Add-CcFakeRecord $test msdyn_assignmentconfiguration @{ msdyn_name = 'Inbound only'; msdyn_uniquename = 'msdyn_uniquename_billing' } -Managed $true
+        $e.billingMethodStep = Add-CcFakeRecord $test msdyn_assignmentconfigurationstep @{ msdyn_name = 'Inbound only'; msdyn_uniquename = 'msdyn_uniquename_billing_step' } @{ msdyn_assignmentconfigurationid = $e.billingMethod } -Managed $true
+        $e.otherMethod = Add-CcFakeRecord $test msdyn_assignmentconfiguration @{ msdyn_name = 'Inbound only'; msdyn_uniquename = 'msdyn_uniquename_other' } -Managed $true
+    }
 
     if ($RecordRouting) {
         # A case routing hub in both, with its intake ruleset from a managed solution. Dev sends

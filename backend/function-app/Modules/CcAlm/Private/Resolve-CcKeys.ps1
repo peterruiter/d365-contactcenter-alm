@@ -92,6 +92,29 @@ function Set-CcKeys {
             $base[$env.Side] = $m
         }
 
+        # A unique name is Dataverse's own key: the same one in the target is the same record, whatever
+        # else differs. A solution import brings assignment methods over with their unique names but
+        # without their queues, so the name and queue do not pair them, and creating one is refused
+        # because its unique name is taken. The target's record takes the source's key, so it compares
+        # as changed and its children pair under it. A target record already holding that key stays
+        # paired by the key: the source record then updates it, and no create can clash.
+        if ($t.matchKeys -notcontains 'msdyn_uniquename' -and $plan.DataColumns -contains 'msdyn_uniquename') {
+            $held = @{}; foreach ($k in $base['target'].Values) { $held[$k] = $true }
+            $byUnique = @{}
+            foreach ($id in $Target.ById[$t.logicalName].Keys) {
+                $u = ([string]$Target.ById[$t.logicalName][$id].msdyn_uniquename).Trim().ToLowerInvariant()
+                if ($u) { $byUnique[$u] = $id }
+            }
+            foreach ($id in @($Source.ById[$t.logicalName].Keys | Sort-Object)) {
+                $u = ([string]$Source.ById[$t.logicalName][$id].msdyn_uniquename).Trim().ToLowerInvariant()
+                if (-not $u -or -not $byUnique.ContainsKey($u)) { continue }
+                $want = $base['source'][$id]
+                if ($held.ContainsKey($want)) { continue }
+                $base['target'][$byUnique[$u]] = $want
+                $held[$want] = $true
+            }
+        }
+
         # Base keys that collide in either environment get the tie-breaker on both sides.
         $colliding = @{}
         foreach ($side in 'source', 'target') {

@@ -122,6 +122,9 @@ function New-CcPlan {
             $o.warnings.Add('Already exists in the target. This table is only ever created, never changed, so it is left as it is.') | Out-Null
             continue
         }
+        if ($o.op -eq 'update' -and -not $r.managed -and (Get-CcRecordByKey -Env $ctx.Target -Table $o.table -Key $o.matchKey).ismanaged -eq $true) {
+            $o.warnings.Add('In the target this comes with a managed solution. The change is written on top of it, and stays on top when that solution is updated.') | Out-Null
+        }
         if ($r.managed) {
             $o.blockers.Add([pscustomobject]@{ code = 'managed'; message = 'Comes with a managed solution, which moves it: install or update that solution in the target.'; fix = $null }) | Out-Null
         }

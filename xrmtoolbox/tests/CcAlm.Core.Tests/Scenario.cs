@@ -44,7 +44,7 @@ namespace CcAlm.Core.Tests
             return d;
         }
 
-        public Scenario(bool provisionRoutingContract = false, bool recordRouting = false)
+        public Scenario(bool provisionRoutingContract = false, bool recordRouting = false, bool solutionCopies = false)
         {
             Dev = new FakeDataverse("Dev", "https://contoso-dev.crm4.dynamics.com", Schema);
             Test = new FakeDataverse("Test", "https://contoso-test.crm4.dynamics.com", Schema) { ProvisionRoutingContract = provisionRoutingContract };
@@ -106,6 +106,19 @@ namespace CcAlm.Core.Tests
             Dev.Link("msdyn_msdyn_cannedmessage_msdyn_octag", d["greeting"], d["escalated"]);
 
             TestIds["oldTag"] = Test.Add("msdyn_octag", V("msdyn_name", "Old tag"));
+
+            if (solutionCopies)
+            {
+                // What a solution import leaves behind: Test has Dev's assignment method and its step as
+                // managed copies with the same unique names, but no queue and an older name. A second
+                // managed method with that older name and no queue has nothing to do with it.
+                d["billingMethod"] = Dev.Add("msdyn_assignmentconfiguration", V("msdyn_name", "Billing assignment", "msdyn_uniquename", "msdyn_uniquename_billing"), L("msdyn_queueid", d["billingQueue"]));
+                d["billingMethodStep"] = Dev.Add("msdyn_assignmentconfigurationstep", V("msdyn_name", "Inbound only", "msdyn_uniquename", "msdyn_uniquename_billing_step"), L("msdyn_assignmentconfigurationid", d["billingMethod"]));
+                var e = TestIds;
+                e["billingMethod"] = Test.Add("msdyn_assignmentconfiguration", V("msdyn_name", "Inbound only", "msdyn_uniquename", "msdyn_uniquename_billing"), managed: true);
+                e["billingMethodStep"] = Test.Add("msdyn_assignmentconfigurationstep", V("msdyn_name", "Inbound only", "msdyn_uniquename", "msdyn_uniquename_billing_step"), L("msdyn_assignmentconfigurationid", e["billingMethod"]), managed: true);
+                e["otherMethod"] = Test.Add("msdyn_assignmentconfiguration", V("msdyn_name", "Inbound only", "msdyn_uniquename", "msdyn_uniquename_other"), managed: true);
+            }
 
             if (recordRouting)
             {

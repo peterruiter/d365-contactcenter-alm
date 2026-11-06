@@ -86,6 +86,8 @@ namespace CcAlm.Core.Engine
 
     public static class Keys
     {
+        const string UniqueName = "msdyn_uniquename";
+
         static string KeyPart(Record r, string column, TablePlan plan, EnvData env)
         {
             if (Values.IsLookupKey(column))
@@ -116,6 +118,32 @@ namespace CcAlm.Core.Engine
                     foreach (var kv in env.Table(t.LogicalName))
                         m[kv.Key] = string.Join("|", t.MatchKeys.Select(k => KeyPart(kv.Value, k, plan, env)));
                     baseKeys[env.Side] = m;
+                }
+
+                // A unique name is Dataverse's own key: the same one in the target is the same record,
+                // whatever else differs. A solution import brings assignment methods over with their
+                // unique names but without their queues, so the name and queue do not pair them, and
+                // creating one is refused because its unique name is taken. The target's record takes
+                // the source's key, so it compares as changed and its children pair under it. A target
+                // record already holding that key stays paired by the key: the source record then
+                // updates it, and no create can clash.
+                if (!t.MatchKeys.Contains(UniqueName) && plan.DataColumns.Contains(UniqueName))
+                {
+                    var held = new HashSet<string>(baseKeys[target.Side].Values);
+                    var byUnique = new Dictionary<string, Guid>();
+                    foreach (var kv in target.Table(t.LogicalName))
+                    {
+                        var u = Values.Text(kv.Value.Get(UniqueName)).Trim().ToLowerInvariant();
+                        if (u.Length > 0) byUnique[u] = kv.Key;
+                    }
+                    foreach (var kv in source.Table(t.LogicalName).OrderBy(x => x.Key.ToString(), StringComparer.Ordinal))
+                    {
+                        var u = Values.Text(kv.Value.Get(UniqueName)).Trim().ToLowerInvariant();
+                        if (u.Length == 0 || !byUnique.TryGetValue(u, out var tid)) continue;
+                        var want = baseKeys[source.Side][kv.Key];
+                        if (!held.Add(want)) continue;
+                        baseKeys[target.Side][tid] = want;
+                    }
                 }
 
                 var colliding = new HashSet<string>(baseKeys.Values.SelectMany(m => m.Values.GroupBy(v => v).Where(g => g.Count() > 1).Select(g => g.Key)));
